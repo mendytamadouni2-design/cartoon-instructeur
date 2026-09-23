@@ -117,7 +117,7 @@ h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom
     padding: 0.4rem 0.6rem; background: var(--panel-2); border-radius: 6px;
     display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.3rem;
 }
-.wake-status, .ffmpeg-status {
+.wake-status {
     font-size: 0.72rem; padding: 0.5rem 0.7rem;
     border-radius: 6px; margin-top: 0.4rem;
     display: flex; justify-content: space-between; align-items: center;
@@ -126,9 +126,7 @@ h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom
 }
 .wake-status.active { background: #e3f5e9; color: var(--success); }
 .wake-status.warn { background: #fdf5e3; color: var(--warn); }
-.ffmpeg-status.ready { background: #e3f5e9; color: var(--success); }
-.ffmpeg-status.loading { background: #fdf5e3; color: var(--warn); }
-.wake-status button, .ffmpeg-status button {
+.wake-status button {
     background: transparent; border: 1px solid currentColor;
     color: inherit; padding: 0.25rem 0.6rem; border-radius: 6px;
     font-size: 0.68rem; cursor: pointer; font-family: inherit;
@@ -507,6 +505,29 @@ select:focus { outline: none; border-color: var(--ink); }
     font-weight: 600; letter-spacing: 0.02em;
 }
 .badge-pill.new { background: #d4f5df; color: var(--success); }
+
+/* Étiquettes obligatoire / recommandé / optionnel */
+.tag {
+    display: inline-block; margin-left: 0.35rem; padding: 0.08rem 0.45rem;
+    border-radius: 10px; font-size: 0.62rem; font-weight: 700;
+    letter-spacing: 0.02em; text-transform: uppercase; vertical-align: middle;
+}
+.tag.req { background: #fde2e2; color: var(--error); }
+.tag.rec { background: #e8e4ff; color: var(--accent); }
+.tag.opt { background: var(--panel-2); color: var(--ink-dim); border: 1px solid var(--border); }
+.tag.exp { background: #fdf0d4; color: var(--warn); }
+.api-title { font-size: 0.8rem; font-weight: 700; margin-bottom: 0.5rem; }
+.api-hint { font-size: 0.72rem; color: var(--ink-dim); margin-bottom: 0.6rem; line-height: 1.4; }
+.essentials-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-dim); font-weight: 700; margin: 0.4rem 0 0.6rem; }
+.options-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-dim); font-weight: 700; margin: 1.6rem 0 0.6rem; }
+
+/* Vidéos de travail : doivent rester « visibles » pour iOS, mais imperceptibles */
+#media-stage { position: fixed; left: 0; bottom: 0; width: 2px; height: 2px; overflow: hidden; opacity: 0.01; pointer-events: none; z-index: -1; }
+#media-stage video { width: 2px; height: 2px; }
+
+.series-results { margin-top: 1rem; }
+.series-results .series-item { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.4rem; background: var(--panel); font-size: 0.8rem; }
+.series-results .series-item button { padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); font-size: 0.75rem; cursor: pointer; }
 .badge-pill.beta { background: #fdf0d4; color: var(--warn); }
 </style>
 </head>
@@ -514,15 +535,19 @@ select:focus { outline: none; border-color: var(--ink); }
 
 <header>
     <h1>🎓 Cartoon Instructeur <span style="font-size:0.65rem;background:var(--accent);color:#fff;padding:0.15rem 0.5rem;border-radius:8px;vertical-align:middle;">ULTIMATE</span></h1>
-    <p class="subtitle">Studio pédagogique IA · Multi-API · Avatar · Cloud · Série · PWA</p>
+    <p class="subtitle">Studio pédagogique IA · vidéos cartoon</p>
 </header>
 
 <div class="info-banner">
-    <strong>Application complète :</strong> photo + thème + script → scènes animées → voix premium (ElevenLabs, Google, Azure, Polly) → sous-titres éditables → export MP4 + audio + ZIP → publication YouTube + Shorts + Podcast. <strong>Mode série</strong> pour générer plusieurs vidéos d'affilée.
+    <strong>Pour générer une vidéo complète, 3 éléments suffisent :</strong> ① la clé Agnes, ② la photo du personnage, ③ le script.<br>
+    <span class="tag req">obligatoire</span> indispensable · <span class="tag rec">recommandé</span> améliore nettement le résultat · <span class="tag opt">optionnel</span> à régler seulement si tu veux.
 </div>
+
+<div class="essentials-title">① Essentiel</div>
 
 <!-- ═══════════════ APIs ═══════════════ -->
 <div class="api-panel" id="api-panel">
+    <div class="api-title">🎬 Clé Agnes (génération vidéo) <span class="tag req">obligatoire</span></div>
     <input type="password" class="api-key-input" id="api-key-input" placeholder="Clé API Agnes (sk-...)" autocomplete="off">
     <button type="button" class="api-save-btn" id="api-save-btn">Enregistrer la clé Agnes</button>
     <div class="api-status-line" id="api-status-line">
@@ -534,23 +559,36 @@ select:focus { outline: none; border-color: var(--ink); }
         <span id="stat-samples">0 génération</span>
     </div>
     <div class="stat-line" id="quota-line">
-        <span>💰 Quota Agnes : <span id="quota-text">non suivi</span></span>
-        <span id="cost-text">0 crédit estimé</span>
+        <span>💰 Cette session : <span id="quota-text">0 scène traitée</span></span>
+        <span id="cost-text">≈ 0,00 € (estimation Agnes)</span>
     </div>
     <div class="wake-status" id="wake-status">
         <span id="wake-status-text">💤 Veille automatique</span>
         <button type="button" id="wake-toggle-btn">Garder l'écran allumé</button>
     </div>
-    <div class="ffmpeg-status" id="ffmpeg-status">
-        🎞️ FFmpeg : <span id="ffmpeg-status-text">non chargé</span>
-        <button type="button" id="ffmpeg-load-btn">Charger</button>
+</div>
+
+<!-- ═══════════════ Claude ═══════════════ -->
+<div class="api-panel" id="claude-panel">
+    <div class="api-title">🤖 Clé Claude (intelligence artificielle) <span class="tag rec">recommandé</span></div>
+    <div class="api-hint">Écrit le script, met en scène chaque scène (continuité, décor, bulles), rend le texte plus facile à prononcer, traduit, crée le quiz et le SEO. Sans cette clé, l'appli fonctionne quand même, avec une mise en scène automatique plus simple.</div>
+    <input type="password" class="api-key-input" id="claude-key-input" placeholder="Clé API Claude (sk-ant-...)" autocomplete="off">
+    <select id="claude-model-select" style="margin-bottom:0.5rem;">
+        <option value="claude-opus-5" selected>Claude Opus 5 (meilleure qualité)</option>
+        <option value="claude-sonnet-5">Claude Sonnet 5 (plus rapide, moins cher)</option>
+        <option value="claude-haiku-4-5">Claude Haiku 4.5 (le plus économique)</option>
+    </select>
+    <button type="button" class="api-save-btn" id="claude-save-btn">Enregistrer la clé Claude</button>
+    <div class="api-status-line" id="claude-status-line">
+        <span class="status-dot"></span>
+        <span id="claude-status-text">Aucune clé Claude</span>
     </div>
 </div>
 
 <!-- ═══════════════ Personnage ═══════════════ -->
 <div class="section open" id="section-character">
     <div class="section-header" data-toggle="section-character">
-        <span class="section-title">👤 Personnage <span class="badge accent">obligatoire</span></span>
+        <span class="section-title">👤 Personnage <span class="tag req">obligatoire</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -567,7 +605,7 @@ select:focus { outline: none; border-color: var(--ink); }
 <!-- ═══════════════ Thème & Script ═══════════════ -->
 <div class="section open" id="section-script">
     <div class="section-header" data-toggle="section-script">
-        <span class="section-title">📝 Thème & Script <span class="badge accent">obligatoire</span></span>
+        <span class="section-title">📝 Thème & Script <span class="tag req">obligatoire</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -589,7 +627,7 @@ Grâce à ce phénomène, la vie est possible.
 L'eau que tu bois a peut-être été bue par un dinosaure !
 Il faut donc la protéger.
 Merci de m'avoir écouté !"></textarea>
-            <div class="prompt-main-hint">💡 <strong>10 phrases minimum</strong> pour une vidéo &gt; 1 minute.</div>
+            <div class="prompt-main-hint">💡 <strong>10 phrases minimum</strong> pour une vidéo &gt; 1 minute. Le thème est optionnel (il sert au titre, à la miniature et au SEO).</div>
         </div>
         <div class="prompt-presets" id="prompt-presets"></div>
         <div class="stat-line" style="margin-top:0.7rem;">
@@ -598,15 +636,18 @@ Merci de m'avoir écouté !"></textarea>
         </div>
         <button type="button" class="btn-secondary" id="edit-scenes-btn" style="margin-top:0.6rem;">✏️ Éditer scène par scène</button>
         <div id="scenes-editor" class="hidden" style="margin-top:0.6rem;"></div>
-        <button type="button" class="btn-secondary" id="generate-script-ai-btn" style="margin-top:0.6rem;">🤖 Générer un script avec l'IA</button>
+        <button type="button" class="btn-secondary" id="generate-script-ai-btn" style="margin-top:0.6rem;">🤖 Écrire le script avec Claude (à partir du thème)</button>
+        <button type="button" class="btn-secondary" id="improve-script-btn" style="margin-top:0.4rem;">🗣️ Rendre le script plus facile à prononcer (Claude)</button>
         <button type="button" class="btn-secondary" id="translate-script-btn" style="margin-top:0.4rem;">🌍 Traduire le script</button>
     </div></div>
 </div>
 
+<div class="options-title">② Options</div>
+
 <!-- ═══════════════ Mode série ═══════════════ -->
 <div class="section" id="section-series">
     <div class="section-header" data-toggle="section-series">
-        <span class="section-title">📺 Mode série <span class="badge soft">nouveau</span></span>
+        <span class="section-title">📺 Mode série <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -631,12 +672,12 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ Langue ═══════════════ -->
 <div class="section" id="section-language">
     <div class="section-header" data-toggle="section-language">
-        <span class="section-title">🌍 Langue & Traduction</span>
+        <span class="section-title">🌍 Langue & Traduction <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
         <div class="control-row">
-            <label class="control-label">Langue principale</label>
+            <label class="control-label">Langue de la vidéo</label>
             <select id="language-select">
                 <option value="fr-FR" selected>🇫🇷 Français</option>
                 <option value="en-US">🇬🇧 English (US)</option>
@@ -653,31 +694,15 @@ Phrase 2..."></textarea>
             </select>
         </div>
         <div class="control-row">
-            <label class="control-label">Doublage multilingue simultané</label>
-            <select id="multi-lang-select" multiple>
-                <option value="fr-FR" selected>🇫🇷 Français</option>
-                <option value="en-US">🇬🇧 English</option>
-                <option value="es-ES">🇪🇸 Español</option>
-                <option value="de-DE">🇩🇪 Deutsch</option>
-                <option value="it-IT">🇮🇹 Italiano</option>
-                <option value="pt-BR">🇧🇷 Português</option>
-                <option value="ar-SA">🇸🇦 العربية</option>
-                <option value="zh-CN">🇨🇳 中文</option>
-                <option value="ja-JP">🇯🇵 日本語</option>
-                <option value="ko-KR">🇰🇷 한국어</option>
-                <option value="ru-RU">🇷🇺 Русский</option>
-            </select>
-            <div class="prompt-main-hint">Ctrl/Cmd + clic pour plusieurs langues. Une vidéo par langue sera générée.</div>
-        </div>
-        <div class="control-row">
             <label class="control-label">Moteur de traduction</label>
             <select id="translate-engine-select">
+                <option value="claude" selected>Claude (utilise la clé Claude)</option>
                 <option value="deepl">DeepL</option>
-                <option value="google" selected>Google Translate</option>
+                <option value="google">Google Translate</option>
             </select>
         </div>
         <div class="control-row">
-            <label class="control-label">Clé API traduction</label>
+            <label class="control-label">Clé DeepL ou Google (inutile avec Claude)</label>
             <input type="password" class="api-key-input" id="translate-key-input" placeholder="Clé API DeepL ou Google Translate">
         </div>
     </div></div>
@@ -686,7 +711,7 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ Style ═══════════════ -->
 <div class="section" id="section-style">
     <div class="section-header" data-toggle="section-style">
-        <span class="section-title">🎨 Style visuel</span>
+        <span class="section-title">🎨 Style visuel <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -694,10 +719,59 @@ Phrase 2..."></textarea>
     </div></div>
 </div>
 
+<!-- ═══════════════ Mise en scène ═══════════════ -->
+<div class="section" id="section-staging">
+    <div class="section-header" data-toggle="section-staging">
+        <span class="section-title">🎬 Mise en scène & montage <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="control-row">
+            <label class="control-label">Enchaîner les scènes</label>
+            <select id="chain-select">
+                <option value="on" selected>Oui : chaque scène part de la dernière image de la précédente (recommandé)</option>
+                <option value="off">Non : chaque scène part de la photo (plus rapide)</option>
+            </select>
+            <div class="prompt-main-hint">Donne l'impression d'une seule vidéo continue. Les scènes sont alors générées l'une après l'autre (un peu plus long).</div>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Caméra</label>
+            <select id="camera-select">
+                <option value="varied" selected>Plans variés, sans zoom d'intro</option>
+                <option value="static">Caméra fixe</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Transition entre les scènes</label>
+            <select id="transition-select">
+                <option value="fade" selected>Fondu enchaîné</option>
+                <option value="cut">Coupe nette</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Couper le début de chaque scène (masque le zoom)</label>
+            <select id="trim-select">
+                <option value="0">Ne rien couper</option>
+                <option value="0.4" selected>0,4 seconde</option>
+                <option value="0.8">0,8 seconde</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Format de la vidéo finale</label>
+            <select id="video-format-select">
+                <option value="auto" selected>Automatique (même format que les scènes)</option>
+                <option value="portrait">Portrait 9:16 (Shorts, TikTok, Reels)</option>
+                <option value="landscape">Paysage 16:9 (YouTube)</option>
+            </select>
+            <div class="prompt-main-hint">Si les scènes ne sont pas au bon format, l'image est centrée avec un fond flouté, sans rien couper.</div>
+        </div>
+    </div></div>
+</div>
+
 <!-- ═══════════════ Options pédagogiques ═══════════════ -->
 <div class="section" id="section-pedago">
     <div class="section-header" data-toggle="section-pedago">
-        <span class="section-title">🧠 Options pédagogiques</span>
+        <span class="section-title">🧠 Options pédagogiques <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -736,17 +810,16 @@ Phrase 2..."></textarea>
         <div class="control-row">
             <label class="control-label">Effets pédagogiques</label>
             <select id="pedago-fx-select" multiple>
-                <option value="arrows" selected>Flèches</option>
-                <option value="bubbles" selected>Bulles</option>
-                <option value="highlight" selected>Surlignage</option>
-                <option value="schemas" selected>Schémas</option>
-                <option value="numbers">Chiffres</option>
+                <option value="arrows" selected>Flèches animées</option>
+                <option value="bubbles" selected>Bulles avec mots-clés (texte net ajouté par l'appli)</option>
+                <option value="highlight" selected>Mise en lumière des objets clés</option>
+                <option value="schemas" selected>Schémas dessinés (sans écriture)</option>
                 <option value="icons">Icônes</option>
                 <option value="particles">Particules</option>
-                <option value="chalkboard">Tableau</option>
-                <option value="progress">Progression</option>
-                <option value="chapter">Chapitre</option>
+                <option value="chalkboard">Tableau (dessins, sans écriture)</option>
+                <option value="progress">Barre de progression</option>
             </select>
+            <div class="prompt-main-hint">L'IA vidéo ne sait pas écrire : elle a désormais l'interdiction de dessiner du texte. Tous les textes (bulles, sous-titres) sont ajoutés proprement par l'appli au montage.</div>
         </div>
         <div class="control-row">
             <label class="control-label">Synchronisation labiale</label>
@@ -772,12 +845,20 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ TTS multi-moteurs ═══════════════ -->
 <div class="section" id="section-tts">
     <div class="section-header" data-toggle="section-tts">
-        <span class="section-title">🔊 Voix premium <span class="badge accent">5 moteurs</span></span>
+        <span class="section-title">🔊 Voix <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
         <div class="control-row">
-            <label class="control-label">Moteur TTS</label>
+            <label class="control-label">Voix utilisée dans la vidéo</label>
+            <select id="voice-source-select">
+                <option value="agnes" selected>Voix Agnes (générée avec la vidéo, lèvres synchronisées)</option>
+                <option value="premium">Voix premium ci-dessous (remplace la voix et la musique Agnes)</option>
+            </select>
+            <div class="prompt-main-hint">Par défaut, la voix et la musique viennent directement des scènes Agnes. Les réglages ci-dessous ne servent que si tu choisis « Voix premium ».</div>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Moteur de voix premium</label>
             <select id="tts-engine-select">
                 <option value="browser">Navigateur (gratuit)</option>
                 <option value="elevenlabs" selected>ElevenLabs</option>
@@ -904,7 +985,7 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ Avatar réaliste ═══════════════ -->
 <div class="section" id="section-avatar">
     <div class="section-header" data-toggle="section-avatar">
-        <span class="section-title">🧑‍🎤 Avatar réaliste <span class="badge accent">D-ID / HeyGen</span></span>
+        <span class="section-title">🧑‍🎤 Avatar réaliste <span class="tag exp">expérimental</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -913,8 +994,9 @@ Phrase 2..."></textarea>
             <select id="avatar-provider-select">
                 <option value="off" selected>Désactivé (utiliser les images)</option>
                 <option value="did">D-ID (avatar parlant réaliste)</option>
-                <option value="heygen">HeyGen (avatar vidéo)</option>
+                <option value="heygen">HeyGen (avatar standard, pas ta photo)</option>
             </select>
+            <div class="prompt-main-hint">Fonction indépendante de la vidéo principale, à tester séparément. D-ID utilise ta photo et l'audio de la voix premium.</div>
         </div>
         <div class="control-row hidden" id="avatar-key-row">
             <label class="control-label">Clé API avatar</label>
@@ -931,37 +1013,10 @@ Phrase 2..."></textarea>
     </div></div>
 </div>
 
-<!-- ═══════════════ Régénération d'images ═══════════════ -->
-<div class="section" id="section-sd">
-    <div class="section-header" data-toggle="section-sd">
-        <span class="section-title">🎨 Régénération d'images <span class="badge accent">Stable Diffusion / Flux</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="control-row">
-            <label class="control-label">Moteur de régénération</label>
-            <select id="sd-provider-select">
-                <option value="off" selected>Désactivé</option>
-                <option value="replicate">Replicate (SDXL, Flux)</option>
-                <option value="stability">Stability AI</option>
-                <option value="openai-dalle">OpenAI DALL·E 3</option>
-            </select>
-        </div>
-        <div class="control-row hidden" id="sd-key-row">
-            <label class="control-label">Clé API régénération</label>
-            <input type="password" class="api-key-input" id="sd-key-input" placeholder="Clé API Replicate / Stability / OpenAI">
-            <button type="button" class="api-save-btn" id="sd-save-btn">Enregistrer</button>
-        </div>
-        <div class="sd-status" id="sd-status">
-            <span id="sd-status-text">🎨 Régénération désactivée</span>
-        </div>
-    </div></div>
-</div>
-
 <!-- ═══════════════ Sous-titres ═══════════════ -->
 <div class="section" id="section-subtitles">
     <div class="section-header" data-toggle="section-subtitles">
-        <span class="section-title">✏️ Éditeur de sous-titres</span>
+        <span class="section-title">✏️ Sous-titres & bulles <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -969,12 +1024,13 @@ Phrase 2..."></textarea>
             <label class="control-label">Style des sous-titres</label>
             <select id="subtitles-style-select">
                 <option value="classic" selected>Classique (bandeau)</option>
-                <option value="karaoke">Karaoké (mot par mot)</option>
+                <option value="karaoke">Karaoké (le mot prononcé s'allume)</option>
                 <option value="tiktok">TikTok (gros, coloré)</option>
                 <option value="minimal">Minimal (bas de page)</option>
                 <option value="off">Désactivés</option>
             </select>
         </div>
+        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Les sous-titres reprennent exactement le texte du script. Les bulles de mots-clés s'activent dans « Options pédagogiques ».</div>
         <button type="button" class="btn-secondary" id="open-subtitle-editor-btn">Ouvrir l'éditeur</button>
         <div id="subtitle-editor-container" class="hidden" style="margin-top:0.7rem;">
             <div class="subtitle-timeline" id="subtitle-timeline"></div>
@@ -995,7 +1051,7 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ Whisper ═══════════════ -->
 <div class="section" id="section-whisper">
     <div class="section-header" data-toggle="section-whisper">
-        <span class="section-title">🎧 Transcription Whisper</span>
+        <span class="section-title">🎧 Transcription audio <span class="tag opt">optionnel · clé OpenAI</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -1008,76 +1064,23 @@ Phrase 2..."></textarea>
     </div></div>
 </div>
 
-<!-- ═══════════════ Musique & SFX ═══════════════ -->
-<div class="section" id="section-music">
-    <div class="section-header" data-toggle="section-music">
-        <span class="section-title">🎵 Musique & effets sonores</span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="control-row">
-            <label class="control-label">Musique de fond</label>
-            <select id="music-select">
-                <option value="off" selected>Aucune</option>
-                <option value="calm">Calme & pédagogique</option>
-                <option value="upbeat">Énergique & motivante</option>
-                <option value="cinematic">Cinématique & épique</option>
-                <option value="lofi">Lo-Fi détendue</option>
-                <option value="kids">Enfantine & joyeuse</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Volume musique</label>
-            <select id="music-volume-select">
-                <option value="0.1">Très bas (10%)</option>
-                <option value="0.2" selected>Bas (20%)</option>
-                <option value="0.3">Moyen (30%)</option>
-                <option value="0.5">Fort (50%)</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Effets sonores</label>
-            <select id="sfx-select">
-                <option value="off" selected>Aucun</option>
-                <option value="transitions">Transitions uniquement</option>
-                <option value="full">Complets (transitions + accents)</option>
-            </select>
-        </div>
-    </div></div>
-</div>
-
 <!-- ═══════════════ Export & SEO ═══════════════ -->
 <div class="section" id="section-export">
     <div class="section-header" data-toggle="section-export">
-        <span class="section-title">📦 Export & SEO</span>
+        <span class="section-title">📦 Exports supplémentaires & SEO <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
         <div class="control-row">
-            <label class="control-label">Format d'export principal</label>
-            <select id="export-format-select">
-                <option value="webm" selected>WebM (rapide)</option>
-                <option value="mp4">MP4</option>
-                <option value="mp4-audio">MP4 + audio intégré</option>
-            </select>
-        </div>
-        <div class="control-row">
             <label class="control-label">Exports supplémentaires</label>
             <select id="extra-exports-select" multiple>
-                <option value="zip" selected>ZIP complet (vidéo + audio + SRT + script)</option>
-                <option value="shorts" selected>Version courte (Shorts/TikTok 30s)</option>
-                <option value="podcast" selected>Podcast audio (MP3)</option>
-                <option value="audiobook" selected>Livre audio (narration complète)</option>
-                <option value="quiz" selected>Quiz (PDF/texte)</option>
+                <option value="zip" selected>ZIP complet (vidéo + SRT + script)</option>
+                <option value="shorts" selected>Version courte 30 s (Shorts / TikTok)</option>
                 <option value="chapters" selected>Chapitres YouTube (timecodes)</option>
                 <option value="thumbnail">Miniature YouTube</option>
-                <option value="seo">Titre + description + tags SEO</option>
+                <option value="seo">Titre + description + tags SEO (Claude)</option>
             </select>
-            <div class="prompt-main-hint">Ctrl/Cmd + clic pour plusieurs.</div>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Clé API OpenAI (SEO + script IA + quiz)</label>
-            <input type="password" class="api-key-input" id="openai-key-input" placeholder="sk-...">
+            <div class="prompt-main-hint">Le quiz se règle dans « Options pédagogiques ». Le SEO et le quiz utilisent la clé Claude.</div>
         </div>
     </div></div>
 </div>
@@ -1085,7 +1088,7 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ YouTube ═══════════════ -->
 <div class="section" id="section-youtube">
     <div class="section-header" data-toggle="section-youtube">
-        <span class="section-title">📺 Publication YouTube <span class="badge accent">upload direct</span></span>
+        <span class="section-title">📺 Publication YouTube <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -1109,7 +1112,7 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ Firebase ═══════════════ -->
 <div class="section" id="section-firebase">
     <div class="section-header" data-toggle="section-firebase">
-        <span class="section-title">🔥 Firebase (auth + Firestore) <span class="badge accent">cloud</span></span>
+        <span class="section-title">🔥 Firebase <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -1135,7 +1138,7 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ Sauvegarde cloud ═══════════════ -->
 <div class="section" id="section-cloud">
     <div class="section-header" data-toggle="section-cloud">
-        <span class="section-title">☁️ Sauvegarde cloud multi-backend</span>
+        <span class="section-title">☁️ Sauvegarde cloud <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -1165,7 +1168,7 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ Analytics ═══════════════ -->
 <div class="section" id="section-analytics">
     <div class="section-header" data-toggle="section-analytics">
-        <span class="section-title">📊 Statistiques locales</span>
+        <span class="section-title">📊 Statistiques <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -1178,7 +1181,7 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ Historique ═══════════════ -->
 <div class="section" id="section-history">
     <div class="section-header" data-toggle="section-history">
-        <span class="section-title">📚 Historique des projets</span>
+        <span class="section-title">📚 Historique des projets <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
@@ -1190,6 +1193,7 @@ Phrase 2..."></textarea>
 <!-- ═══════════════ Actions ═══════════════ -->
 <button type="button" class="btn-primary" id="generate-btn" disabled>🎬 Générer la vidéo pédagogique</button>
 <button type="button" class="btn-stop" id="stop-btn">⏹ Arrêter</button>
+<button type="button" class="btn-secondary hidden" id="assemble-btn" style="margin-top:0.6rem;">🎞️ Assembler la vidéo finale</button>
 
 <div class="progress-bar-wrap hidden" id="progress-bar-wrap">
     <div class="progress-bar" id="progress-bar"></div>
@@ -1202,14 +1206,16 @@ Phrase 2..."></textarea>
     <div class="gallery-grid" id="gallery-grid"></div>
 </div>
 
+<div class="series-results hidden" id="series-results"></div>
+
 <div class="video-preview" id="video-preview">
     <video id="final-video" controls playsinline></video>
 </div>
 
-<button type="button" class="btn-secondary hidden" id="download-final-btn" style="margin-top:1rem;">⬇️ Télécharger la vidéo</button>
+<button type="button" class="btn-secondary hidden" id="download-final-btn" style="margin-top:1rem;">⬇️ Enregistrer la vidéo</button>
 <button type="button" class="btn-secondary hidden" id="download-srt-btn" style="margin-top:0.4rem;">⬇️ Télécharger SRT</button>
 <button type="button" class="btn-secondary hidden" id="download-scenes-btn" style="margin-top:0.4rem;">⬇️ Télécharger scènes</button>
-<button type="button" class="btn-secondary hidden" id="download-audio-btn" style="margin-top:0.4rem;">⬇️ Télécharger audio</button>
+<button type="button" class="btn-secondary hidden" id="download-audio-btn" style="margin-top:0.4rem;">⬇️ Télécharger l'audio de la voix premium</button>
 <button type="button" class="btn-secondary hidden" id="download-zip-btn" style="margin-top:0.4rem;">⬇️ Télécharger ZIP complet</button>
 <button type="button" class="btn-secondary hidden" id="download-shorts-btn" style="margin-top:0.4rem;">⬇️ Télécharger Shorts 30s</button>
 <button type="button" class="btn-secondary hidden" id="download-thumbnail-btn" style="margin-top:0.4rem;">⬇️ Télécharger miniature</button>
@@ -1233,6 +1239,7 @@ Phrase 2..."></textarea>
     <span id="toast-text">Message</span>
 </div>
 
+<div id="media-stage" aria-hidden="true"></div>
 <canvas id="noSleepCanvas" width="2" height="2"></canvas>
 <video id="noSleepVideo" playsinline muted loop></video>
 <script>
@@ -1266,6 +1273,8 @@ const STORAGE = {
     POLLY_REGION: 'aws_region',
     POLLY_VOICE: 'polly_voice_id',
     OPENAI_KEY: 'openai_api_key',
+    CLAUDE_KEY: 'claude_api_key',
+    CLAUDE_MODEL: 'claude_model',
     DEEPL_KEY: 'deepl_api_key',
     GTRANSLATE_KEY: 'gtranslate_api_key',
     AVATAR_KEY: 'avatar_api_key',
@@ -1278,9 +1287,8 @@ const STORAGE = {
     HISTORY: 'cartoon_history_v2',
     SERIES: 'cartoon_series',
     WAKE_LOCK: 'agnes_wakelock_enabled',
-    ANALYTICS: 'cartoon_analytics',
-    QUEUE_PERSIST: 'cartoon_queue_persist',
-    MULTI_LANG: 'cartoon_multi_lang'
+    YOUTUBE_TOKEN_EXP: 'youtube_oauth_token_exp',
+    ANALYTICS: 'cartoon_analytics'
 };
 
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
@@ -1301,18 +1309,18 @@ const state = {
     quizCount: 0,
     voiceEnabled: true, voicePref: '', voiceRate: 1, voicePitch: 1,
     subtitlesMode: 'on', subtitlesStyle: 'classic',
-    language: 'fr-FR', ttsEngine: 'elevenlabs',
-    multiLang: ['fr-FR'],
-    framing: 'medium', intensity: 'moderate', transition: 'fade',
-    durationFrames: 153, exportFormat: 'webm',
-    extraExports: ['zip', 'shorts', 'podcast', 'audiobook', 'quiz', 'chapters'],
-    avatarProvider: 'off', sdProvider: 'off',
+    language: 'fr-FR', ttsEngine: 'elevenlabs', voiceSource: 'agnes',
+    translateEngine: 'claude',
+    chainScenes: true, camera: 'varied', transition: 'fade', trimStart: 0.4, videoFormat: 'auto',
+    durationFrames: 153,
+    extraExports: ['zip', 'shorts', 'chapters'],
+    avatarProvider: 'off',
     cloudProvider: 'local',
-    music: 'off', musicVolume: 0.2, sfx: 'off',
     isLoadingImages: false, creationAttemptsSinceLastError: 0,
-    finalVideoUrl: null, finalBlob: null,
-    audioClips: [], finalAudioBlob: null,
-    isSeriesMode: false, seriesEpisodes: [],
+    scenePlan: null, timeline: null,
+    finalVideoUrl: null, finalBlob: null, finalExt: 'mp4',
+    finalAudioBlob: null, exportCache: {},
+    isSeriesMode: false, seriesAbort: false, seriesEpisodes: [], seriesResults: [],
     firebaseApp: null, firebaseDb: null, firebaseUser: null,
     youtubeToken: null,
     quota: { agnes: 0, elevenlabs: 0, gcloud: 0, azure: 0, polly: 0 }
@@ -1481,8 +1489,8 @@ function renderQuota() {
     const cEl = document.getElementById('cost-text');
     if (!qEl || !cEl) return;
     const total = state.completed + state.failed;
-    qEl.textContent = total + ' scènes traitées cette session';
-    cEl.textContent = '≈ ' + (state.completed * 0.02).toFixed(2) + ' € (estimation Agnes)';
+    qEl.textContent = total + ' scène' + (total > 1 ? 's' : '') + ' traitée' + (total > 1 ? 's' : '');
+    cEl.textContent = '≈ ' + (state.completed * 0.02).toFixed(2).replace('.', ',') + ' € (estimation Agnes)';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1527,15 +1535,13 @@ const MOTION_PROMPTS = {
 };
 const PEDAGO_FX_PROMPTS = {
     arrows: 'animated arrows pointing at key elements',
-    bubbles: 'speech bubbles with key words',
-    highlight: 'key words highlighted with color overlay',
-    schemas: 'diagrams and schemas appearing gradually',
-    numbers: 'numbers counting up or down',
-    icons: 'floating educational icons',
+    bubbles: '',   // bulles dessinées par l'appli au montage, avec le vrai texte
+    highlight: 'soft glowing highlights around the key objects',
+    schemas: 'simple drawn diagrams made only of shapes and pictures, appearing gradually',
+    icons: 'floating educational icons (pictures only)',
     particles: 'glowing particles of knowledge',
-    chalkboard: 'a chalkboard filling up with notes',
-    progress: 'a progress bar advancing',
-    chapter: 'a chapter title card'
+    chalkboard: 'a chalkboard with simple drawings on it (drawings only)',
+    progress: 'a progress bar advancing'
 };
 const LIPSYNC_PROMPTS = {
     basic: 'character\'s mouth opens and closes naturally as they speak',
@@ -1631,13 +1637,36 @@ function updateApiPanel() {
     else { panel.classList.remove('ok'); statusLine.classList.remove('ok'); statusText.textContent = 'Aucune clé API Agnes'; input.value = ''; }
     updateGenerateBtn();
 }
+function saveClaudeKey() {
+    const input = document.getElementById('claude-key-input');
+    const key = input.value.trim();
+    const model = document.getElementById('claude-model-select')?.value;
+    if (model) setLS(STORAGE.CLAUDE_MODEL, model);
+    if (!key) { localStorage.removeItem(STORAGE.CLAUDE_KEY); updateClaudePanel(); showToast('Clé Claude supprimée', 'warn'); return; }
+    if (!key.startsWith('sk-ant-')) showToast('Attention : une clé Claude commence normalement par « sk-ant- »', 'warn', 4000);
+    setLS(STORAGE.CLAUDE_KEY, key); updateClaudePanel(); showToast('Clé Claude enregistrée ✓', 'success');
+}
+function updateClaudePanel() {
+    const panel = document.getElementById('claude-panel'), input = document.getElementById('claude-key-input');
+    const line = document.getElementById('claude-status-line'), txt = document.getElementById('claude-status-text');
+    const sel = document.getElementById('claude-model-select');
+    if (!panel || !input || !line || !txt) return;
+    const key = getLS(STORAGE.CLAUDE_KEY).trim();
+    const model = getLS(STORAGE.CLAUDE_MODEL) || 'claude-opus-5';
+    if (sel) sel.value = model;
+    const modelName = sel?.selectedOptions?.[0]?.textContent.split(' (')[0] || model;
+    if (key) { panel.classList.add('ok'); line.classList.add('ok'); txt.textContent = 'Clé active · ' + key.slice(0, 10) + '…' + key.slice(-4) + ' · ' + modelName; input.value = key; }
+    else { panel.classList.remove('ok'); line.classList.remove('ok'); txt.textContent = 'Aucune clé Claude (mise en scène automatique)'; input.value = ''; }
+}
 function updateGenerateBtn() {
     const btn = document.getElementById('generate-btn');
     if (!btn) return;
     const hasImages = state.images.length > 0, hasKey = !!getAgnesKey(), hasScript = state.scenes.length > 0;
-    btn.disabled = !hasImages || !hasKey || !hasScript || state.isRunning || state.isLoadingImages;
+    const busy = state.isRunning || (typeof assembling !== 'undefined' && assembling);
+    btn.disabled = !hasImages || !hasKey || !hasScript || busy || state.isLoadingImages;
     if (state.isLoadingImages) btn.textContent = 'Chargement…';
     else if (state.isRunning) btn.textContent = 'Génération… (' + (state.completed + state.failed) + '/' + state.queue.length + ')';
+    else if (busy) btn.textContent = 'Montage en cours…';
     else if (!hasKey) btn.textContent = 'Ajoutez votre clé Agnes';
     else if (!hasImages) btn.textContent = 'Ajoutez une photo';
     else if (!hasScript) btn.textContent = 'Écrivez votre script';
@@ -2099,29 +2128,56 @@ function renderStyles() {
 // ══════════════════════════════════════════════════════════════════
 // CONSTRUCTION PROMPT
 // ══════════════════════════════════════════════════════════════════
-function buildScenePrompt(sceneText, sceneIndex, totalScenes) {
+const LANG_NAMES = { 'fr-FR': 'French', 'en-US': 'English', 'en-GB': 'English', 'es-ES': 'Spanish', 'de-DE': 'German', 'it-IT': 'Italian', 'pt-BR': 'Portuguese', 'ar-SA': 'Arabic', 'zh-CN': 'Chinese', 'ja-JP': 'Japanese', 'ko-KR': 'Korean', 'ru-RU': 'Russian' };
+const LANG_NAMES_FR = { 'fr-FR': 'français', 'en-US': 'anglais (américain)', 'en-GB': 'anglais (britannique)', 'es-ES': 'espagnol', 'de-DE': 'allemand', 'it-IT': 'italien', 'pt-BR': 'portugais (brésilien)', 'ar-SA': 'arabe', 'zh-CN': 'chinois', 'ja-JP': 'japonais', 'ko-KR': 'coréen', 'ru-RU': 'russe' };
+const CAMERA_SHOTS = ['medium shot', 'medium close-up', 'medium-wide shot', 'close-up', 'three-quarter angle medium shot', 'wide shot'];
+const AUTO_ACTIONS = ['explains with open, expressive hand gestures', 'points toward something next to them', 'counts on their fingers', 'holds up and presents an object related to the topic', 'thinks with a hand on the chin, then smiles', 'nods enthusiastically', 'draws shapes in the air with one hand'];
+
+// Mise en scène de secours (sans Claude) : plans et gestes variés, décor constant.
+function fallbackScenePlan(scenes) {
+    return {
+        setting: '',
+        scenes: scenes.map((text, i) => ({
+            spoken: text,
+            action: state.motion === 'auto' ? AUTO_ACTIONS[i % AUTO_ACTIONS.length] : (MOTION_PROMPTS[state.motion] || AUTO_ACTIONS[0]),
+            camera: CAMERA_SHOTS[i % CAMERA_SHOTS.length],
+            bubble: i === 0 ? (state.theme || '').slice(0, 40) : ''
+        }))
+    };
+}
+function scenePlanFor(i) {
+    const p = state.scenePlan?.scenes?.[i];
+    return p || fallbackScenePlan(state.scenes).scenes[i] || { spoken: state.scenes[i] || '', action: '', camera: 'medium shot', bubble: '' };
+}
+
+function buildScenePrompt(item) {
+    const sceneIndex = item.sceneIndex, totalScenes = state.queue.length || state.scenes.length;
+    const plan = scenePlanFor(sceneIndex);
     const style = CARTOON_STYLES.find(s => s.id === state.selectedStyle);
     const audience = AUDIENCE_PROMPTS[state.audience], tone = TONE_PROMPTS[state.tone];
-    const motion = state.motion === 'auto' ? 'character naturally gestures while explaining' : (MOTION_PROMPTS[state.motion] || '');
     const lipsync = LIPSYNC_PROMPTS[state.lipsync];
     const fxList = state.pedagoFx.map(fx => PEDAGO_FX_PROMPTS[fx]).filter(Boolean);
-    const langNames = { 'fr-FR': 'French', 'en-US': 'English', 'en-GB': 'English', 'es-ES': 'Spanish', 'de-DE': 'German', 'it-IT': 'Italian', 'pt-BR': 'Portuguese', 'ar-SA': 'Arabic', 'zh-CN': 'Chinese', 'ja-JP': 'Japanese', 'ko-KR': 'Korean', 'ru-RU': 'Russian' };
-    const langName = langNames[state.language] || 'French';
+    const langName = LANG_NAMES[state.language] || 'French';
+    const spoken = String(plan.spoken || item.sceneText).replace(/"/g, "'");
     const parts = [];
-    parts.push('You are animating an educational cartoon scene.');
-    parts.push('The character in the image MUST remain IDENTICAL: same face, hairstyle, identity, clothing.');
-    parts.push('Scene ' + (sceneIndex + 1) + ' of ' + totalScenes + ' — consistent visual style with all scenes.');
+    parts.push('Educational cartoon animation. This is shot ' + (sceneIndex + 1) + ' of ' + totalScenes + ' of ONE continuous video.');
+    parts.push('The character from the input image MUST stay IDENTICAL: same face, hairstyle, body shape, clothing and colors.');
     if (style) parts.push('Visual style: ' + style.prompt);
-    if (sceneIndex === 0) parts.push('OPENING scene. Character greets and introduces.');
-    else if (sceneIndex === totalScenes - 1) parts.push('FINAL scene. Character concludes.');
-    else parts.push('Character explains a point.');
-    parts.push('Character speaks in ' + langName + ': "' + sceneText + '"');
+    if (state.scenePlan?.setting) parts.push('Setting, identical in every shot: ' + state.scenePlan.setting + '.');
+    if (sceneIndex === 0) parts.push('Opening shot: the character greets the viewer.');
+    else parts.push('This shot directly continues the previous one: it starts with the character already in motion, in the same place and the same lighting, with no intro.');
+    if (sceneIndex === totalScenes - 1 && totalScenes > 1) parts.push('Final shot: the character wraps up warmly.');
+    if (plan.action) parts.push('Action: the character ' + plan.action + '.');
+    if (state.camera === 'static') parts.push('Camera: locked-off static medium shot. No zoom, no push-in, no camera movement at all.');
+    else parts.push('Camera: ' + (plan.camera || 'medium shot') + ', steady. No zoom-in at the start, no push-in intro, no dolly.');
+    parts.push('The character talks to the viewer in ' + langName + ' and says (spoken audio only, never written): "' + spoken + '"');
     if (lipsync) parts.push(lipsync + '.');
-    parts.push('Action: ' + motion + '.'); parts.push(tone + '.'); parts.push(audience + '.');
+    parts.push(tone + '.'); parts.push(audience);
     if (fxList.length) parts.push('Effects: ' + fxList.join(', ') + '.');
-    if (state.subtitlesMode !== 'off') parts.push('Subtitle bar displays the text.');
-    parts.push('Camera: ' + state.framing + ' framing, cinematic but educational.');
-    parts.push('Portrait 9:16, 24fps, no watermarks, consistent character.');
+    parts.push('STRICTLY NO TEXT anywhere in the image: no letters, words, numbers, captions, subtitles, labels, logos, signs or writing. Speech bubbles, boards and screens stay empty or show simple pictures only.');
+    if (state.videoFormat === 'portrait') parts.push('Vertical 9:16 composition.');
+    else if (state.videoFormat === 'landscape') parts.push('Horizontal 16:9 composition.');
+    parts.push('24fps, no watermark.');
     return parts.join(' ');
 }
 
@@ -2191,9 +2247,11 @@ async function pollVideo(videoId, onProgress) {
 // ══════════════════════════════════════════════════════════════════
 // ÉDITEUR SOUS-TITRES
 // ══════════════════════════════════════════════════════════════════
-let subtitleSegments = [], selectedSubtitleIndex = 0;
+let subtitleSegments = [], selectedSubtitleIndex = 0, subtitleScriptSignature = '';
 
+function currentScriptSignature() { return state.scenes.join('\n'); }
 function initSubtitleSegmentsFromScript() {
+    subtitleScriptSignature = currentScriptSignature();
     let currentTime = 0;
     subtitleSegments = state.scenes.map((sceneText, i) => {
         const start = currentTime, end = currentTime + TARGET_SCENE_DURATION;
@@ -2205,7 +2263,7 @@ function initSubtitleSegmentsFromScript() {
 function openSubtitleEditor() {
     const c = document.getElementById('subtitle-editor-container');
     if (!c) return;
-    if (!subtitleSegments.length) initSubtitleSegmentsFromScript();
+    if (!subtitleSegments.length || subtitleScriptSignature !== currentScriptSignature()) initSubtitleSegmentsFromScript();
     c.classList.remove('hidden'); renderSubtitleEditor();
 }
 function renderSubtitleEditor() { renderSubtitleTimeline(); renderSubtitleList(); renderSubtitlePreview(); }
@@ -2262,30 +2320,299 @@ function mergeSubtitleSegment(idx) {
 }
 function applySubtitleChanges() { showToast('Sous-titres appliqués', 'success'); }
 function resetSubtitleFromScript() { if (!confirm('Réinitialiser ?')) return; initSubtitleSegmentsFromScript(); renderSubtitleEditor(); }
-function addSubtitleSegment() { const last = subtitleSegments[subtitleSegments.length - 1]?.end || 0; subtitleSegments.push({ text: 'Nouveau', start: last, end: last + TARGET_SCENE_DURATION, sceneIndex: subtitleSegments.length }); selectedSubtitleIndex = subtitleSegments.length - 1; renderSubtitleEditor(); }
+function addSubtitleSegment() { const lastSeg = subtitleSegments[subtitleSegments.length - 1]; const last = lastSeg?.end || 0; subtitleSegments.push({ text: 'Nouveau', start: last, end: last + TARGET_SCENE_DURATION, sceneIndex: lastSeg ? lastSeg.sceneIndex : 0 }); selectedSubtitleIndex = subtitleSegments.length - 1; renderSubtitleEditor(); }
 function clearAllSubtitles() { if (!confirm('Effacer tout ?')) return; subtitleSegments = []; selectedSubtitleIndex = 0; renderSubtitleEditor(); }
 function formatSRTTime(seconds) {
     const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = Math.floor(seconds % 60), ms = Math.floor((seconds - Math.floor(seconds)) * 1000);
     return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + ',' + String(ms).padStart(3, '0');
 }
+// Texte(s) de sous-titre d'une scène : segments édités s'il y en a, sinon la phrase du script.
+function segmentsForScene(sceneIndex) {
+    const segs = subtitleSegments.filter(sg => sg.sceneIndex === sceneIndex && String(sg.text || '').trim());
+    if (segs.length) return segs.map(sg => ({ text: sg.text, weight: Math.max(0.1, sg.end - sg.start) }));
+    const text = state.queue.find(q => q.sceneIndex === sceneIndex)?.sceneText || state.scenes[sceneIndex] || '';
+    return text ? [{ text, weight: 1 }] : [];
+}
+function subtitleTextAt(sceneIndex, progress) {
+    const segs = segmentsForScene(sceneIndex);
+    if (!segs.length) return { text: '', local: 0 };
+    const total = segs.reduce((a, b) => a + b.weight, 0);
+    let acc = 0;
+    for (const sg of segs) {
+        const share = sg.weight / total;
+        if (progress < acc + share || sg === segs[segs.length - 1]) return { text: sg.text, local: Math.min(1, Math.max(0, (progress - acc) / share)) };
+        acc += share;
+    }
+    return { text: segs[0].text, local: 0 };
+}
+function buildSubtitleCues() {
+    const cues = [];
+    if (state.timeline && state.timeline.length) {
+        for (const t of state.timeline) {
+            const segs = segmentsForScene(t.sceneIndex);
+            const total = segs.reduce((a, b) => a + b.weight, 0) || 1;
+            let cur = t.start;
+            for (const sg of segs) { const d = t.duration * sg.weight / total; cues.push({ start: cur, end: cur + d, text: sg.text }); cur += d; }
+        }
+        return cues;
+    }
+    if (subtitleSegments.length) return subtitleSegments.map(sg => ({ start: sg.start, end: sg.end, text: sg.text }));
+    let cur = 0;
+    state.queue.filter(q => q.status === 'done').forEach(item => { cues.push({ start: cur, end: cur + TARGET_SCENE_DURATION, text: item.sceneText }); cur += TARGET_SCENE_DURATION; });
+    return cues;
+}
 function generateSRT() {
-    if (subtitleSegments.length) return subtitleSegments.map((s, i) => (i + 1) + '\n' + formatSRTTime(s.start) + ' --> ' + formatSRTTime(s.end) + '\n' + s.text + '\n').join('\n');
-    let srt = '', cur = 0;
-    state.queue.filter(q => q.status === 'done').forEach((item, i) => {
-        srt += (i + 1) + '\n' + formatSRTTime(cur) + ' --> ' + formatSRTTime(cur + TARGET_SCENE_DURATION) + '\n' + item.sceneText + '\n\n';
-        cur += TARGET_SCENE_DURATION;
-    });
-    return srt;
+    return buildSubtitleCues().map((c, i) => (i + 1) + '\n' + formatSRTTime(c.start) + ' --> ' + formatSRTTime(c.end) + '\n' + c.text + '\n').join('\n');
 }
 </script>
 <script>
+// ══════════════════════════════════════════════════════════════════
+// CLAUDE (script, mise en scène, traduction, quiz, SEO)
+// ══════════════════════════════════════════════════════════════════
+const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
+const CLAUDE_FALLBACK_MODELS = ['claude-opus-5'];   // modèles qui acceptent fallbacks: "default"
+function getClaudeKey() { return getLS(STORAGE.CLAUDE_KEY).trim(); }
+function getClaudeModel() { return getLS(STORAGE.CLAUDE_MODEL) || 'claude-opus-5'; }
+
+async function callClaude({ system, prompt, schema = null, maxTokens = 16000 }) {
+    const key = getClaudeKey();
+    if (!key) throw new Error('clé Claude manquante');
+    const model = getClaudeModel();
+    const body = { model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] };
+    if (schema) body.output_config = { format: { type: 'json_schema', schema } };
+    const headers = {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true'
+    };
+    if (CLAUDE_FALLBACK_MODELS.includes(model)) { body.fallbacks = 'default'; headers['anthropic-beta'] = 'server-side-fallback-2026-07-01'; }
+    let res;
+    try { res = await fetch(CLAUDE_API, { method: 'POST', headers, body: JSON.stringify(body) }); }
+    catch (e) { throw new Error('connexion à Claude impossible'); }
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+        if (res.status === 401) throw new Error('clé Claude invalide');
+        if (res.status === 429) throw new Error('trop de requêtes, réessaie dans une minute');
+        if (res.status === 529 || res.status >= 500) throw new Error('Claude est surchargé, réessaie plus tard');
+        throw new Error(data?.error?.message || ('erreur HTTP ' + res.status));
+    }
+    if (data.stop_reason === 'refusal') throw new Error('Claude a refusé cette demande');
+    if (data.stop_reason === 'max_tokens') throw new Error('réponse trop longue, coupée');
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    if (!schema) return text.trim();
+    try { return JSON.parse(text); } catch (e) { throw new Error('réponse de Claude illisible'); }
+}
+
+const LINES_SCHEMA = {
+    type: 'object',
+    properties: { lines: { type: 'array', items: { type: 'string' } } },
+    required: ['lines'], additionalProperties: false
+};
+function claudeContext() {
+    const lang = LANG_NAMES_FR[state.language] || 'français';
+    return 'Langue : ' + lang + '. Public : ' + AUDIENCE_PROMPTS[state.audience] + ' Ton : ' + TONE_PROMPTS[state.tone] + '.';
+}
+const SPEECH_RULES = 'Règles pour une voix de synthèse : phrases courtes (moins de 20 mots), une idée par phrase, nombres et dates écrits en toutes lettres, aucune abréviation, aucun sigle non prononçable, aucun symbole (%, €, &, /), mots simples et courants.';
+
+async function generateScriptAI(theme) {
+    if (!getClaudeKey()) { showToast('Ajoute ta clé Claude en haut de la page', 'error'); return null; }
+    setStatus('Claude écrit le script…');
+    try {
+        const out = await callClaude({
+            system: 'Tu écris des scripts de vidéos pédagogiques animées. Chaque ligne est dite par un personnage cartoon face caméra et devient une scène de 6 secondes. ' + SPEECH_RULES,
+            prompt: claudeContext() + '\nÉcris un script de 10 à 14 lignes sur le sujet : « ' + theme + ' ». Première ligne : accroche et salutation. Dernière ligne : conclusion chaleureuse. Chaque ligne doit pouvoir être dite en 6 secondes environ.',
+            schema: LINES_SCHEMA
+        });
+        const lines = (out.lines || []).map(l => String(l).trim()).filter(Boolean);
+        return lines.length ? lines.join('\n') : null;
+    } catch (e) { showToast('Script IA impossible : ' + e.message, 'error', 5000); return null; }
+    finally { setStatus(null); }
+}
+
+async function improveScriptForSpeech() {
+    if (!state.scenes.length) { showToast('Écris d\'abord un script', 'warn'); return; }
+    if (!getClaudeKey()) { showToast('Ajoute ta clé Claude en haut de la page', 'error'); return; }
+    setStatus('Claude simplifie la prononciation…');
+    try {
+        const out = await callClaude({
+            system: 'Tu adaptes des scripts pour qu\'une voix d\'IA les prononce parfaitement, sans changer le sens. ' + SPEECH_RULES,
+            prompt: claudeContext() + '\nRéécris chacune de ces ' + state.scenes.length + ' lignes. Renvoie exactement ' + state.scenes.length + ' lignes, dans le même ordre :\n\n' + state.scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
+            schema: LINES_SCHEMA
+        });
+        const lines = (out.lines || []).map(l => String(l).replace(/^\d+[.)]\s*/, '').trim()).filter(Boolean);
+        if (!lines.length) throw new Error('réponse vide');
+        document.getElementById('script-input').value = lines.join('\n');
+        updateScriptStats(); renderScenesEditor();
+        showToast('Script adapté à la voix ✓', 'success');
+    } catch (e) { showToast('Impossible : ' + e.message, 'error', 5000); }
+    finally { setStatus(null); }
+}
+
+const PLAN_SCHEMA = {
+    type: 'object',
+    properties: {
+        setting: { type: 'string' },
+        scenes: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    spoken: { type: 'string' },
+                    action: { type: 'string' },
+                    camera: { type: 'string', enum: CAMERA_SHOTS },
+                    bubble: { type: 'string' }
+                },
+                required: ['spoken', 'action', 'camera', 'bubble'], additionalProperties: false
+            }
+        }
+    },
+    required: ['setting', 'scenes'], additionalProperties: false
+};
+async function planScenesWithClaude(scenes) {
+    const style = CARTOON_STYLES.find(s => s.id === state.selectedStyle);
+    const out = await callClaude({
+        system: 'Tu es réalisateur de dessins animés pédagogiques. Tu prépares la mise en scène d\'une vidéo générée scène par scène par une IA vidéo à partir de la photo d\'un personnage. Toutes les scènes doivent donner l\'impression d\'un seul plan-séquence continu : même décor, même lumière, gestes qui s\'enchaînent logiquement d\'une scène à l\'autre.',
+        prompt: claudeContext() + '\nStyle visuel : ' + (style ? style.name : 'cartoon') + '.\n' +
+            'Pour la vidéo entière, donne "setting" : une description en anglais (1 à 2 phrases) d\'un décor unique, lié au sujet, qui restera identique dans toutes les scènes. Aucun texte, panneau écrit ou lettre dans le décor.\n' +
+            'Puis pour CHACUNE des ' + scenes.length + ' répliques ci-dessous, dans le même ordre, donne :\n' +
+            '- "spoken" : la réplique à prononcer, dans la langue de la vidéo, sans changer le sens, adaptée à une voix de synthèse (' + SPEECH_RULES + ')\n' +
+            '- "action" : en anglais, le geste ou l\'action du personnage (commence par un verbe, ex. "points at a glowing drop of water floating beside him"), qui prolonge naturellement l\'action précédente et illustre la réplique\n' +
+            '- "camera" : le cadrage, en variant les plans d\'une scène à l\'autre\n' +
+            '- "bubble" : 2 à 5 mots-clés à afficher dans une bulle, dans la langue de la vidéo, ou "" si la scène n\'en a pas besoin (une scène sur deux environ)\n\n' +
+            'Répliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
+        schema: PLAN_SCHEMA
+    });
+    if (!out || !Array.isArray(out.scenes) || !out.scenes.length) throw new Error('mise en scène vide');
+    const fb = fallbackScenePlan(scenes).scenes;
+    return {
+        setting: String(out.setting || '').replace(/"/g, "'"),
+        scenes: scenes.map((text, i) => {
+            const p = out.scenes[i] || {};
+            return { spoken: p.spoken || text, action: p.action || fb[i].action, camera: p.camera || fb[i].camera, bubble: String(p.bubble || '').slice(0, 60) };
+        })
+    };
+}
+
+async function prepareScenePlan() {
+    state.scenePlan = null;
+    if (getClaudeKey()) {
+        setStatus('Claude prépare la mise en scène…');
+        try { state.scenePlan = await planScenesWithClaude(state.scenes); }
+        catch (e) { showToast('Mise en scène Claude indisponible (' + e.message + ') : mode automatique', 'warn', 5000); }
+        finally { setStatus(null); }
+    }
+    if (!state.scenePlan) state.scenePlan = fallbackScenePlan(state.scenes);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// UTILITAIRES MÉDIA (compatibles iPhone)
+// ══════════════════════════════════════════════════════════════════
+function withTimeout(promise, ms, msg) {
+    let t;
+    return Promise.race([promise, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(msg || 'Délai dépassé')), ms); })]).finally(() => clearTimeout(t));
+}
+function waitEvent(el, events, ms, msg) {
+    return withTimeout(new Promise((res, rej) => {
+        const ok = () => { cleanup(); res(); };
+        const ko = () => { cleanup(); rej(new Error(msg || 'Lecture impossible')); };
+        const cleanup = () => { events.forEach(e => el.removeEventListener(e, ok)); el.removeEventListener('error', ko); };
+        events.forEach(e => el.addEventListener(e, ok));
+        el.addEventListener('error', ko);
+    }), ms, msg);
+}
+function stageEl() {
+    let st = document.getElementById('media-stage');
+    if (!st) { st = document.createElement('div'); st.id = 'media-stage'; document.body.appendChild(st); }
+    return st;
+}
+// Sur iPhone, une vidéo ne se charge pas tant qu'elle n'est pas dans la page ET lancée avec play().
+async function createStageVideo(src) {
+    const v = document.createElement('video');
+    v.muted = true; v.defaultMuted = true; v.playsInline = true;
+    v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+    v.preload = 'auto'; v.src = src;
+    stageEl().appendChild(v);
+    const ready = waitEvent(v, ['loadeddata', 'canplay'], 20000, 'la scène ne se charge pas');
+    try { await v.play(); v.pause(); } catch (e) {}
+    if (v.readyState >= 2) ready.catch(() => {}); else await ready;
+    return v;
+}
+function disposeStageVideo(v) { if (!v) return; try { v.pause(); v.removeAttribute('src'); v.load(); v.remove(); } catch (e) {} }
+async function seekTo(v, t) {
+    if (Math.abs(v.currentTime - t) < 0.02) return;
+    const p = waitEvent(v, ['seeked'], 5000, 'seek');
+    v.currentTime = t;
+    await p.catch(() => {});
+}
+async function fetchClipBlob(item) {
+    if (item.blob) return item.blob;
+    let lastErr = null;
+    for (let a = 0; a < 3; a++) {
+        try {
+            const res = await withTimeout(fetch(item.videoUrl), 90000, 'téléchargement trop long');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const blob = await res.blob();
+            if (!blob.size) throw new Error('fichier vide');
+            item.blob = blob;
+            return blob;
+        } catch (e) { lastErr = e; await sleep(2000); }
+    }
+    throw new Error('impossible de récupérer la scène ' + (item.sceneIndex + 1) + ' (' + (lastErr?.message || 'erreur réseau') + ')');
+}
+async function extractLastFrame(item) {
+    const blob = await fetchClipBlob(item);
+    const url = URL.createObjectURL(blob);
+    let v = null;
+    try {
+        v = await createStageVideo(url);
+        const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : 6;
+        await seekTo(v, Math.max(0, dur - 0.08));
+        const scale = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(v.videoWidth * scale); c.height = Math.round(v.videoHeight * scale);
+        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+        return c.toDataURL('image/jpeg', 0.92);
+    } finally { disposeStageVideo(v); URL.revokeObjectURL(url); }
+}
+
+let audioCtx = null;
+function getAudioCtx() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+// À appeler directement dans un clic : iOS n'autorise le son qu'après un geste de l'utilisateur.
+function unlockAudio() {
+    try {
+        const c = getAudioCtx();
+        if (c.state !== 'running') c.resume().catch(() => {});
+        const b = c.createBuffer(1, 1, 22050), s = c.createBufferSource();
+        s.buffer = b; s.connect(c.destination); s.start(0);
+    } catch (e) {}
+}
+async function decodeAudioBlob(blob) {
+    try {
+        const buf = await blob.arrayBuffer();
+        const ctx = getAudioCtx();
+        return await withTimeout(new Promise((res, rej) => {
+            const p = ctx.decodeAudioData(buf, res, rej);
+            if (p && p.then) p.then(res, rej);
+        }), 30000, 'décodage audio');
+    } catch (e) { return null; }
+}
+
+async function countdown(ms, label) {
+    for (let r = Math.ceil(ms / 1000); r > 0; r--) {
+        if (state.stopRequested) return;
+        setStatus(label + r + 's');
+        await sleep(1000);
+    }
+}
+
 // ══════════════════════════════════════════════════════════════════
 // PIPELINE DE GÉNÉRATION
 // ══════════════════════════════════════════════════════════════════
 async function createTaskOnly(item) {
     item.status = 'creating'; item.progress = 'Préparation…'; renderQueue();
-    item.prompt = buildScenePrompt(item.sceneText, item.sceneIndex, state.queue.length);
-    const videoId = await createVideoTask(item.image.dataUri, item.prompt);
+    item.prompt = buildScenePrompt(item);
+    const videoId = await createVideoTask(item.image, item.prompt);
     item.videoId = videoId; item.startTime = Date.now();
     item.status = 'processing'; item.progress = 'En cours…'; renderQueue();
 }
@@ -2295,13 +2622,14 @@ async function pollTaskAndDisplay(item) {
         const elapsed = Date.now() - item.startTime;
         recordGenerationTime(state.durationFrames, elapsed);
         item.status = 'done'; item.videoUrl = videoUrl; item.progress = 'Terminé';
-        state.completed++; renderQueue(); updateGenerateBtn();
+        state.completed++; renderQueue(); updateGenerateBtn(); renderQuota();
         addToGallery(videoUrl, 'Scène ' + (item.sceneIndex + 1));
         trackAnalytics('scenes');
     } catch (e) {
-        if (e.message === 'Arrêt demandé') { item.status = 'failed'; item.progress = 'Arrêté'; }
-        else { item.status = 'failed'; item.progress = 'Échec'; state.failed++; }
-        renderQueue(); updateGenerateBtn();
+        item.status = 'failed';
+        if (e.message === 'Arrêt demandé') item.progress = 'Arrêté';
+        else { item.progress = 'Échec'; item.error = e.message; state.failed++; log('Scène ' + (item.sceneIndex + 1) + ' : ' + e.message); }
+        renderQueue(); updateGenerateBtn(); renderQuota();
     }
 }
 function renderQueue() {
@@ -2311,12 +2639,12 @@ function renderQueue() {
     const total = state.queue.length;
     const done = state.completed + state.failed;
     let html = '<div class="queue-summary"><span class="progress-text">Progression : ' + done + '/' + total + '</span><span class="eta-text">' + (done < total ? 'En cours' : 'Terminé') + '</span></div>';
-    html += state.queue.slice(0, 30).map(item => {
+    html += state.queue.slice(0, 40).map(item => {
         let icon = '○', txt = 'En file', cls = 'pending';
         if (item.status === 'creating') { icon = '◐'; txt = 'Création…'; cls = 'creating'; }
         else if (item.status === 'processing') { icon = '◐'; txt = item.progress || 'En cours'; cls = 'processing'; }
-        else if (item.status === 'done') { icon = '●'; txt = 'Terminé'; cls = 'done'; }
-        else if (item.status === 'failed') { icon = '✕'; txt = 'Échec'; cls = 'failed'; }
+        else if (item.status === 'done') { icon = '●'; txt = 'Terminé' + (item.chained ? ' · enchaînée' : ''); cls = 'done'; }
+        else if (item.status === 'failed') { icon = '✕'; txt = item.progress === 'Arrêté' ? 'Arrêtée' : 'Échec' + (item.error ? ' : ' + item.error.slice(0, 60) : ''); cls = 'failed'; }
         return '<div class="queue-item ' + cls + '"><div class="q-icon">' + icon + '</div><div class="q-name">Scène ' + (item.sceneIndex + 1) + '</div><div class="q-status">' + esc(txt) + '</div></div>';
     }).join('');
     el.innerHTML = html;
@@ -2327,286 +2655,483 @@ function addToGallery(videoUrl, label) {
     g.style.display = 'block';
     const el = document.createElement('div');
     el.className = 'gallery-item';
-    el.innerHTML = '<video controls preload="metadata" muted playsinline><source src="' + videoUrl + '" type="video/mp4"></video><div class="g-caption">' + esc(label) + '</div>';
+    const v = document.createElement('video');
+    v.controls = true; v.preload = 'metadata'; v.playsInline = true; v.setAttribute('playsinline', ''); v.src = videoUrl;
+    el.appendChild(v);
+    const cap = document.createElement('div'); cap.className = 'g-caption'; cap.textContent = label;
+    el.appendChild(cap);
     gg.appendChild(el);
 }
 
-// ══════════════════════════════════════════════════════════════════
-// ASSEMBLAGE VIDÉO FINALE
-// ══════════════════════════════════════════════════════════════════
-async function assembleFinalVideoWebM() {
-    setStatus('Assemblage…');
-    const items = state.queue.filter(q => q.status === 'done' && q.videoUrl);
-    if (!items.length) return null;
-    const canvas = document.createElement('canvas');
-    canvas.width = 720; canvas.height = 1280;
-    const ctx = canvas.getContext('2d');
-    const stream = canvas.captureStream(24);
-    let mime = 'video/webm;codecs=vp9';
-    if (!MediaRecorder.isTypeSupported(mime)) { mime = 'video/webm;codecs=vp8'; if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm'; }
-    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 4000000 });
-    const chunks = [];
-    rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-    const recPromise = new Promise(res => { rec.onstop = () => res(new Blob(chunks, { type: mime })); });
-    rec.start();
-    for (let i = 0; i < items.length; i++) {
+// Scènes créées à intervalle régulier puis suivies en parallèle (plus rapide, sans enchaînement).
+async function runParallel() {
+    const polling = [];
+    for (let i = 0; i < state.queue.length; i++) {
         if (state.stopRequested) break;
-        setStatus('Assemblage… ' + (i + 1) + '/' + items.length);
-        setProgress(30 + (i / items.length) * 60);
-        await playVideoOnCanvas(ctx, canvas, items[i].videoUrl, items[i].sceneText, i, items.length);
+        try { await createTaskOnly(state.queue[i]); polling.push(pollTaskAndDisplay(state.queue[i])); }
+        catch (e) { if (e.message === 'Arrêt demandé') break; state.queue[i].status = 'failed'; state.queue[i].error = e.message; state.failed++; renderQueue(); }
+        if (i < state.queue.length - 1 && !state.stopRequested) await countdown(createIntervalMs, 'Scène ' + (i + 2) + '/' + state.queue.length + ' dans ');
     }
-    rec.stop();
-    const blob = await recPromise;
-    return { url: URL.createObjectURL(blob), blob };
+    if (polling.length) await Promise.allSettled(polling);
 }
-function playVideoOnCanvas(ctx, canvas, videoUrl, subtitleText, sceneIndex, totalScenes) {
-    return new Promise(resolve => {
-        const video = document.createElement('video');
-        video.src = videoUrl; video.crossOrigin = 'anonymous'; video.muted = true; video.playsInline = true; video.preload = 'auto';
-        video.onloadeddata = async () => {
-            try { await video.play(); } catch (e) { resolve(); return; }
-            const draw = () => {
-                if (video.paused || video.ended) return;
-                const vw = video.videoWidth, vh = video.videoHeight;
-                const cw = canvas.width, ch = canvas.height;
-                const scale = Math.max(cw / vw, ch / vh);
-                const dw = vw * scale, dh = vh * scale, dx = (cw - dw) / 2, dy = (ch - dh) / 2;
-                ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cw, ch);
-                ctx.drawImage(video, dx, dy, dw, dh);
-                const subText = subtitleSegments[sceneIndex]?.text || subtitleText;
-                if (state.subtitlesMode !== 'off' && subText) drawSubtitle(ctx, canvas, subText);
-                requestAnimationFrame(draw);
-            };
-            requestAnimationFrame(draw);
-            video.onended = () => resolve();
-            video.onerror = () => resolve();
-            setTimeout(() => { if (!video.ended) { try { video.pause(); } catch (e) {} resolve(); } }, 15000);
-        };
-        video.onerror = () => resolve();
-    });
+// Chaque scène part de la dernière image de la précédente : une seule vidéo continue.
+async function runChained() {
+    let lastCreate = 0, warned = false;
+    for (let i = 0; i < state.queue.length; i++) {
+        if (state.stopRequested) break;
+        const item = state.queue[i];
+        if (i > 0) {
+            const prev = state.queue[i - 1];
+            if (prev.status === 'done') {
+                setStatus('Scène ' + (i + 1) + ' : récupération de la dernière image…');
+                try { item.image = await extractLastFrame(prev); item.chained = true; }
+                catch (e) {
+                    log('Enchaînement impossible : ' + e.message);
+                    if (!warned) { showToast('Enchaînement impossible pour cette scène : la photo d\'origine est utilisée', 'warn', 4000); warned = true; }
+                }
+            }
+            const wait = createIntervalMs - (Date.now() - lastCreate);
+            if (wait > 0) await countdown(wait, 'Scène ' + (i + 1) + '/' + state.queue.length + ' dans ');
+            if (state.stopRequested) break;
+        }
+        try {
+            lastCreate = Date.now();
+            await createTaskOnly(item);
+            await pollTaskAndDisplay(item);
+        } catch (e) {
+            if (e.message === 'Arrêt demandé') break;
+            item.status = 'failed'; item.error = e.message; state.failed++; renderQueue();
+        }
+    }
 }
-function drawSubtitle(ctx, canvas, text) {
-    const cw = canvas.width, ch = canvas.height;
-    const style = state.subtitlesStyle;
-    let fontSize = Math.round(cw * 0.045);
-    let bgColor = 'rgba(0,0,0,0.7)', textColor = '#fff';
-    if (style === 'tiktok') { fontSize = Math.round(cw * 0.06); bgColor = 'transparent'; textColor = '#fff'; }
-    else if (style === 'minimal') { fontSize = Math.round(cw * 0.035); bgColor = 'rgba(0,0,0,0.5)'; }
-    ctx.font = 'bold ' + fontSize + 'px sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    const maxWidth = cw * 0.9;
-    const words = text.split(' '); const lines = []; let cur = '';
+
+// ══════════════════════════════════════════════════════════════════
+// MONTAGE FINAL (canvas + MediaRecorder, MP4 natif sur iPhone)
+// ══════════════════════════════════════════════════════════════════
+const FADE_SEC = 0.5;
+let assembling = false, assemblyInterrupted = false;
+document.addEventListener('visibilitychange', () => { if (document.hidden && assembling) assemblyInterrupted = true; });
+
+function pickRecorderMime() {
+    if (typeof MediaRecorder === 'undefined') return null;
+    const candidates = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+    for (const m of candidates) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {} }
+    return '';
+}
+function computeOutputSize(v) {
+    if (state.videoFormat === 'portrait') return { w: 720, h: 1280 };
+    if (state.videoFormat === 'landscape') return { w: 1280, h: 720 };
+    let w = v.videoWidth || 720, h = v.videoHeight || 1280;
+    const s = Math.min(1, 1280 / Math.max(w, h));
+    return { w: Math.round(w * s / 2) * 2, h: Math.round(h * s / 2) * 2 };
+}
+function drawFrame(ctx, v, cw, ch) {
+    const vw = v.videoWidth, vh = v.videoHeight;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cw, ch);
+    if (!vw || !vh) return;
+    if (Math.abs(vw / vh - cw / ch) < 0.02) { ctx.drawImage(v, 0, 0, cw, ch); return; }
+    // Format différent : fond agrandi et estompé + image entière au centre (rien n'est coupé)
+    const cover = Math.max(cw / vw, ch / vh);
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    try { ctx.filter = 'blur(16px)'; } catch (e) {}
+    ctx.drawImage(v, (cw - vw * cover) / 2, (ch - vh * cover) / 2, vw * cover, vh * cover);
+    ctx.restore();
+    const fit = Math.min(cw / vw, ch / vh);
+    ctx.drawImage(v, (cw - vw * fit) / 2, (ch - vh * fit) / 2, vw * fit, vh * fit);
+}
+function roundRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+function wrapLines(ctx, text, maxWidth) {
+    const words = String(text).split(/\s+/).filter(Boolean), lines = [];
+    let cur = '';
     for (const w of words) { const test = cur ? cur + ' ' + w : w; if (ctx.measureText(test).width > maxWidth && cur) { lines.push(cur); cur = w; } else cur = test; }
     if (cur) lines.push(cur);
-    const lineHeight = fontSize * 1.3, totalH = lines.length * lineHeight, pad = fontSize * 0.5;
-    const boxY = ch - totalH - pad * 2 - ch * 0.04;
-    if (bgColor !== 'transparent') { ctx.fillStyle = bgColor; ctx.fillRect(cw * 0.05, boxY, cw * 0.9, totalH + pad * 2); }
-    if (style === 'tiktok') { ctx.shadowColor = '#000'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2; }
-    ctx.fillStyle = textColor;
-    lines.forEach((l, i) => { ctx.fillText(l, cw / 2, boxY + pad + (i + 1) * lineHeight - fontSize * 0.2); });
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
+    return lines;
 }
-
-// ══════════════════════════════════════════════════════════════════
-// FFMPEG.WASM
-// ══════════════════════════════════════════════════════════════════
-let ffmpegInstance = null, ffmpegLoaded = false;
-function loadScript(src) {
-    return new Promise((res, rej) => {
-        if (document.querySelector('script[src="' + src + '"]')) { res(); return; }
-        const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load ' + src)); document.head.appendChild(s);
+function drawSubtitle(ctx, cw, ch, text, progress) {
+    if (!text) return;
+    const style = state.subtitlesStyle, base = Math.min(cw, ch);
+    let fontSize = Math.round(base * 0.052), bgColor = 'rgba(0,0,0,0.65)';
+    if (style === 'tiktok') { fontSize = Math.round(base * 0.07); bgColor = null; }
+    else if (style === 'minimal') { fontSize = Math.round(base * 0.042); bgColor = 'rgba(0,0,0,0.45)'; }
+    ctx.save();
+    ctx.font = '800 ' + fontSize + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
+    ctx.textBaseline = 'middle';
+    const maxWidth = cw * 0.86;
+    const lines = wrapLines(ctx, text, maxWidth);
+    const lineHeight = fontSize * 1.28, pad = fontSize * 0.5;
+    const boxH = lines.length * lineHeight + pad * 2;
+    const boxW = Math.min(cw * 0.92, Math.max(...lines.map(l => ctx.measureText(l).width)) + pad * 2.4);
+    const boxY = ch - boxH - ch * 0.05, boxX = (cw - boxW) / 2;
+    if (bgColor) { ctx.fillStyle = bgColor; roundRectPath(ctx, boxX, boxY, boxW, boxH, fontSize * 0.5); ctx.fill(); }
+    if (style === 'tiktok') { ctx.lineWidth = fontSize * 0.16; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; }
+    // Karaoké : les mots déjà prononcés s'allument
+    const totalWords = lines.reduce((a, l) => a + l.split(' ').length, 0);
+    let litWords = style === 'karaoke' ? Math.ceil(totalWords * Math.min(1, progress * 1.05)) : totalWords;
+    lines.forEach((line, li) => {
+        const y = boxY + pad + lineHeight * (li + 0.5);
+        const words = line.split(' ');
+        const full = ctx.measureText(line).width;
+        let x = cw / 2 - full / 2;
+        ctx.textAlign = 'left';
+        words.forEach((w, wi) => {
+            const piece = w + (wi < words.length - 1 ? ' ' : '');
+            const lit = litWords > 0; litWords--;
+            if (style === 'tiktok') ctx.strokeText(piece, x, y);
+            ctx.fillStyle = style === 'karaoke' ? (lit ? '#ffd23f' : 'rgba(255,255,255,0.85)') : '#fff';
+            ctx.fillText(piece, x, y);
+            x += ctx.measureText(piece).width;
+        });
     });
+    ctx.restore();
 }
-async function loadFFmpeg() {
-    if (ffmpegLoaded) return true;
-    const st = document.getElementById('ffmpeg-status-text'), box = document.getElementById('ffmpeg-status');
-    if (st) st.textContent = 'chargement…'; if (box) { box.classList.remove('ready'); box.classList.add('loading'); }
-    try {
-        await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js');
-        await loadScript('https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js');
-        const { FFmpeg } = window.FFmpegWASM || window.FFmpeg;
-        ffmpegInstance = new FFmpeg();
-        ffmpegInstance.on('log', ({ message }) => log('[FFmpeg] ' + message));
-        await ffmpegInstance.load({ coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js', wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm' });
-        ffmpegLoaded = true;
-        if (st) st.textContent = '✅ prêt'; if (box) { box.classList.remove('loading'); box.classList.add('ready'); }
-        showToast('FFmpeg chargé', 'success');
-        return true;
-    } catch (e) { showToast('FFmpeg échec', 'error'); return false; }
+function drawBubble(ctx, cw, ch, text, t) {
+    if (!text) return;
+    const appear = Math.min(1, t / 0.35);
+    const scale = appear < 1 ? 0.6 + 0.4 * (1 - Math.pow(1 - appear, 3)) + Math.sin(appear * Math.PI) * 0.06 : 1;
+    const base = Math.min(cw, ch);
+    const fontSize = Math.round(base * 0.06);
+    ctx.save();
+    ctx.font = '800 ' + fontSize + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
+    const lines = wrapLines(ctx, text, cw * 0.5);
+    const pad = fontSize * 0.6, lh = fontSize * 1.2;
+    const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + pad * 2;
+    const h = lines.length * lh + pad * 1.6;
+    const x = cw * 0.05, y = ch * 0.07;
+    ctx.globalAlpha = appear;
+    ctx.translate(x + w * 0.2, y + h);
+    ctx.scale(scale, scale);
+    ctx.translate(-(x + w * 0.2), -(y + h));
+    ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = fontSize * 0.4; ctx.shadowOffsetY = fontSize * 0.1;
+    ctx.fillStyle = '#27ae60';
+    roundRectPath(ctx, x, y, w, h, fontSize * 0.6); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + w * 0.18, y + h - 2); ctx.lineTo(x + w * 0.12, y + h + fontSize * 0.8); ctx.lineTo(x + w * 0.34, y + h - 2); ctx.closePath(); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    lines.forEach((l, i) => ctx.fillText(l, x + pad, y + pad * 0.8 + lh * (i + 0.5)));
+    ctx.restore();
 }
-async function assembleFinalVideoMP4(webmBlob, withAudio) {
-    if (!ffmpegLoaded) { const ok = await loadFFmpeg(); if (!ok) return null; }
-    setStatus('Conversion MP4…');
-    const { fetchFile } = window.FFmpegUtil || {};
-    if (!fetchFile) return null;
-    try {
-        await ffmpegInstance.writeFile('in.webm', await fetchFile(webmBlob));
-        let args;
-        if (withAudio && state.finalAudioBlob) {
-            await ffmpegInstance.writeFile('audio.mp3', await fetchFile(state.finalAudioBlob));
-            args = ['-i', 'in.webm', '-i', 'audio.mp3', '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-shortest', 'out.mp4'];
-        } else {
-            args = ['-i', 'in.webm', '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', 'out.mp4'];
-        }
-        await ffmpegInstance.exec(args);
-        const data = await ffmpegInstance.readFile('out.mp4');
-        const blob = new Blob([data.buffer], { type: 'video/mp4' });
-        return { url: URL.createObjectURL(blob), blob };
-    } catch (e) { showToast('Conversion MP4 échouée', 'warn'); return null; }
+function drawOverlays(ctx, cw, ch, item, elapsed, duration) {
+    const progress = duration > 0 ? elapsed / duration : 0;
+    if (state.pedagoFx.includes('bubbles')) drawBubble(ctx, cw, ch, scenePlanFor(item.sceneIndex).bubble, elapsed);
+    if (state.subtitlesStyle !== 'off') {
+        const st = subtitleTextAt(item.sceneIndex, progress);
+        drawSubtitle(ctx, cw, ch, st.text, st.local);
+    }
 }
 
-// ══════════════════════════════════════════════════════════════════
-// PISTE AUDIO COMPLÈTE
-// ══════════════════════════════════════════════════════════════════
-async function generateFullAudioTrack() {
-    if (state.ttsEngine === 'browser') return null;
-    setStatus('Génération audio complet…');
-    const items = state.queue.filter(q => q.status === 'done');
-    if (!items.length) return null;
-    state.audioClips = [];
+async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {}) {
+    const items = state.queue.filter(q => q.status === 'done' && q.videoUrl);
+    if (!items.length) throw new Error('aucune scène terminée à assembler');
+    const mime = pickRecorderMime();
+    if (mime === null) throw new Error('ce navigateur ne sait pas enregistrer de vidéo');
+    const actx = getAudioCtx();
+    try { await actx.resume(); } catch (e) {}
+    assemblyInterrupted = false;
+    const usePremium = state.voiceSource === 'premium';
+    if (usePremium && state.ttsEngine === 'browser') showToast('La voix du navigateur ne peut pas être enregistrée : voix Agnes utilisée', 'warn', 5000);
+    const premium = usePremium && state.ttsEngine !== 'browser';
+
+    // 1. Téléchargement des scènes et préparation du son
+    let audioMissing = 0, ttsFailed = false;
+    for (let i = 0; i < items.length; i++) {
+        if (state.stopRequested) throw new Error('Arrêt demandé');
+        setStatus(label + ' : préparation ' + (i + 1) + '/' + items.length + '…');
+        setProgress(5 + (i / items.length) * 20);
+        const item = items[i];
+        await fetchClipBlob(item);
+        if (premium) {
+            if (!item.ttsBuffer && !ttsFailed) {
+                try {
+                    const b = await generateAudioUnified(scenePlanFor(item.sceneIndex).spoken || item.sceneText);
+                    if (b) { item.ttsBlob = b; item.ttsBuffer = await decodeAudioBlob(b); }
+                } catch (e) { ttsFailed = true; showToast('Voix premium indisponible (' + e.message + ') : voix Agnes utilisée', 'warn', 6000); }
+            }
+        }
+        if (!premium || !item.ttsBuffer) {
+            if (item.audioBuffer === undefined) item.audioBuffer = await decodeAudioBlob(item.blob);
+            if (!item.audioBuffer) audioMissing++;
+        }
+    }
+    if (premium) {
+        const tts = items.map(i => i.ttsBlob).filter(Boolean);
+        state.finalAudioBlob = tts.length ? new Blob(tts, { type: 'audio/mpeg' }) : null;
+    }
+
+    // 2. Préparation de l'enregistrement
+    let urls = items.map(it => URL.createObjectURL(it.blob));
+    let firstV = await createStageVideo(urls[0]);
+    const { w: W, h: H } = computeOutputSize(firstV);
+    const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+    const g = canvas.getContext('2d');
+    const prevCanvas = document.createElement('canvas'); prevCanvas.width = W; prevCanvas.height = H;
+    const pg = prevCanvas.getContext('2d');
+    drawFrame(g, firstV, W, H);
+    const vStream = canvas.captureStream(30);
+    const dest = actx.createMediaStreamDestination();
+    const stream = new MediaStream([...vStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+    const rec = mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5000000 }) : new MediaRecorder(stream);
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const stopped = new Promise(res => { rec.onstop = res; });
+    const timeline = [];
+    let timelineT = 0, hasPrev = false;
+    rec.start(1000);
+
     try {
         for (let i = 0; i < items.length; i++) {
-            if (state.stopRequested) break;
-            setStatus('Audio ' + (i + 1) + '/' + items.length);
-            const blob = await generateAudioUnified(items[i].sceneText);
-            if (blob) state.audioClips.push(blob);
+            if (state.stopRequested) throw new Error('Arrêt demandé');
+            if (assemblyInterrupted || document.hidden) throw new Error('l\'appli est passée en arrière-plan. Garde l\'écran allumé et l\'appli ouverte pendant le montage, puis relance « Assembler la vidéo finale »');
+            if (timelineT >= maxDuration - 0.05) break;
+            const item = items[i];
+            setStatus(label + ' : scène ' + (i + 1) + '/' + items.length + ' — garde l\'appli ouverte');
+            const v = i === 0 ? firstV : await createStageVideo(urls[i]);
+            const vDur = isFinite(v.duration) && v.duration > 0 ? v.duration : 6;
+            const trim = i > 0 ? Math.min(state.trimStart, vDur / 3) : 0;
+            await seekTo(v, trim);
+            const buf = (premium && item.ttsBuffer) ? item.ttsBuffer : item.audioBuffer;
+            const usingTts = !!(premium && item.ttsBuffer);
+            const videoPart = Math.max(0.5, vDur - trim);
+            let sceneDur = usingTts ? Math.max(videoPart, buf.duration + 0.25) : videoPart;
+            sceneDur = Math.min(sceneDur, maxDuration - timelineT);
+
+            let src = null;
+            if (buf) { src = actx.createBufferSource(); src.buffer = buf; src.connect(dest); }
+            try { await v.play(); } catch (e) {}
+            const t0 = performance.now();
+            if (src) { try { src.start(0, usingTts ? 0 : Math.min(trim, buf.duration)); } catch (e) {} }
+
+            const played = await new Promise(resolve => {
+                let finished = false;
+                const finish = () => { if (!finished) { finished = true; clearTimeout(safety); resolve(Math.min(sceneDur, (performance.now() - t0) / 1000)); } };
+                const tick = () => {
+                    if (finished) return;
+                    const el = (performance.now() - t0) / 1000;
+                    // Fin de scène : durée prévue atteinte, ou fin réelle du clip (si sa durée était inconnue)
+                    if (state.stopRequested || el >= sceneDur || (!usingTts && v.ended && el > 0.3)) { finish(); return; }
+                    drawFrame(g, v, W, H);
+                    if (hasPrev && state.transition === 'fade' && el < FADE_SEC) {
+                        g.save(); g.globalAlpha = 1 - el / FADE_SEC; g.drawImage(prevCanvas, 0, 0); g.restore();
+                    }
+                    drawOverlays(g, W, H, item, el, sceneDur);
+                    requestAnimationFrame(tick);
+                };
+                const safety = setTimeout(finish, (sceneDur + 6) * 1000);
+                requestAnimationFrame(tick);
+            });
+            if (src) { try { src.stop(); } catch (e) {} }
+            timeline.push({ sceneIndex: item.sceneIndex, start: timelineT, duration: played });
+            drawFrame(pg, v, W, H); hasPrev = true;
+            disposeStageVideo(v);
+            if (i === 0) firstV = null;
+            timelineT += played;
+            setProgress(25 + ((i + 1) / items.length) * 70);
         }
-        if (!state.audioClips.length) return null;
-        state.finalAudioBlob = new Blob(state.audioClips, { type: 'audio/mpeg' });
-        return state.finalAudioBlob;
-    } catch (e) { log('Audio échec : ' + e.message); return null; }
-    finally { setStatus(null); }
+    } finally {
+        if (firstV) disposeStageVideo(firstV);
+        try { if (rec.state !== 'inactive') rec.stop(); } catch (e) {}
+        await withTimeout(stopped, 15000, 'fin d\'enregistrement').catch(() => {});
+        stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+        urls.forEach(u => URL.revokeObjectURL(u));
+    }
+    const type = (mime || rec.mimeType || 'video/webm').split(';')[0];
+    const blob = new Blob(chunks, { type });
+    if (!blob.size) throw new Error('la vidéo enregistrée est vide');
+    if (audioMissing === items.length) showToast('Le son des scènes n\'a pas pu être récupéré : vidéo sans son', 'warn', 6000);
+    return { blob, url: URL.createObjectURL(blob), timeline, ext: type.includes('mp4') ? 'mp4' : 'webm' };
+}
+
+function updateAssembleBtn() {
+    const btn = document.getElementById('assemble-btn'); if (!btn) return;
+    const hasDone = state.queue.some(q => q.status === 'done');
+    btn.classList.toggle('hidden', !hasDone || state.isRunning || assembling);
+}
+function hideResultButtons() {
+    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-audio-btn', 'download-zip-btn', 'download-shorts-btn', 'download-thumbnail-btn', 'download-seo-btn', 'download-chapters-btn', 'download-quiz-btn', 'youtube-upload-btn'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+}
+function resetExportButtons() {
+    state.exportCache = {};
+    const labels = { 'download-shorts-btn': '⬇️ Créer la version Shorts 30 s', 'download-thumbnail-btn': '⬇️ Créer la miniature', 'download-seo-btn': '⬇️ Créer le titre + description SEO', 'download-quiz-btn': '⬇️ Créer le quiz', 'download-zip-btn': '⬇️ Créer le ZIP complet', 'download-scenes-btn': '⬇️ Enregistrer les scènes séparées' };
+    Object.entries(labels).forEach(([id, t]) => { const b = document.getElementById(id); if (b) b.textContent = t; });
+}
+function showResultButtons() {
+    resetExportButtons();
+    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-chapters-btn'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+    if (state.finalAudioBlob) document.getElementById('download-audio-btn')?.classList.remove('hidden');
+    if (state.extraExports.includes('zip')) document.getElementById('download-zip-btn')?.classList.remove('hidden');
+    if (state.extraExports.includes('shorts')) document.getElementById('download-shorts-btn')?.classList.remove('hidden');
+    if (state.extraExports.includes('thumbnail')) document.getElementById('download-thumbnail-btn')?.classList.remove('hidden');
+    if (state.extraExports.includes('seo')) document.getElementById('download-seo-btn')?.classList.remove('hidden');
+    if (state.quizCount > 0) document.getElementById('download-quiz-btn')?.classList.remove('hidden');
+    if (getLS(STORAGE.YOUTUBE_TOKEN)) document.getElementById('youtube-upload-btn')?.classList.remove('hidden');
+}
+
+async function runAssembly() {
+    if (assembling) return false;
+    const standalone = !state.isRunning;
+    assembling = true; updateAssembleBtn();
+    if (standalone) { state.stopRequested = false; document.getElementById('stop-btn').classList.add('visible'); }
+    await ensureWakeLockActive();
+    try {
+        const result = await assembleVideo({ label: 'Montage' });
+        if (state.finalVideoUrl) URL.revokeObjectURL(state.finalVideoUrl);
+        state.finalBlob = result.blob; state.finalVideoUrl = result.url; state.finalExt = result.ext; state.timeline = result.timeline;
+        document.getElementById('final-video').src = result.url;
+        document.getElementById('video-preview').classList.add('visible');
+        showResultButtons();
+        addToHistory({ date: Date.now(), theme: state.theme || document.getElementById('theme-input').value || 'Sans titre', script: state.script, scenes: state.queue.length, duration: formatEta(result.timeline.reduce((a, t) => a + t.duration, 0)) });
+        trackAnalytics('generations');
+        trackAnalytics('byStyle', state.selectedStyle);
+        trackAnalytics('byLanguage', state.language);
+        trackAnalytics('byTTS', state.voiceSource === 'premium' ? state.ttsEngine : 'agnes');
+        if (state.isSeriesMode) addSeriesResult(state.theme || 'Épisode', result.blob, result.ext);
+        showToast('Vidéo finale prête ✓', 'success', 4000);
+        return true;
+    } catch (e) {
+        if (e.message === 'Arrêt demandé') showToast('Montage arrêté. Tu peux le relancer avec « Assembler la vidéo finale ».', 'warn', 6000);
+        else showToast('Montage impossible : ' + e.message, 'error', 8000);
+        log('Montage : ' + e.message);
+        return false;
+    } finally {
+        assembling = false;
+        setStatus(null); setProgress(0);
+        if (standalone) { document.getElementById('stop-btn').classList.remove('visible'); state.stopRequested = false; }
+        updateAssembleBtn();
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════
 // EXPORTS SUPPLÉMENTAIRES
 // ══════════════════════════════════════════════════════════════════
-async function generateShortsVersion(webmBlob) {
-    if (!ffmpegLoaded) { const ok = await loadFFmpeg(); if (!ok) return null; }
-    setStatus('Génération Shorts…');
-    const { fetchFile } = window.FFmpegUtil || {};
+async function generateShortsVersion() {
+    const r = await assembleVideo({ maxDuration: 30, label: 'Shorts' });
+    return r;
+}
+async function generateThumbnailImage() {
+    const item = state.queue.find(q => q.status === 'done' && q.videoUrl);
+    if (!item) return null;
+    const blob = await fetchClipBlob(item);
+    const url = URL.createObjectURL(blob);
+    let v = null;
     try {
-        await ffmpegInstance.writeFile('in.webm', await fetchFile(webmBlob));
-        await ffmpegInstance.exec(['-i', 'in.webm', '-t', '30', '-c', 'copy', 'shorts.mp4']);
-        const data = await ffmpegInstance.readFile('shorts.mp4');
-        const blob = new Blob([data.buffer], { type: 'video/mp4' });
-        return { url: URL.createObjectURL(blob), blob };
-    } catch (e) { return null; }
+        v = await createStageVideo(url);
+        await seekTo(v, Math.min(1.5, (isFinite(v.duration) ? v.duration : 3) / 2));
+        const { w, h } = computeOutputSize(v);
+        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        drawFrame(ctx, v, w, h);
+        const grad = ctx.createLinearGradient(0, h * 0.45, 0, h);
+        grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.75)');
+        ctx.fillStyle = grad; ctx.fillRect(0, h * 0.45, w, h * 0.55);
+        const fs = Math.round(Math.min(w, h) * 0.09);
+        ctx.font = '900 ' + fs + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = fs * 0.14; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.fillStyle = '#ffd23f';
+        const lines = wrapLines(ctx, (state.theme || 'Vidéo pédagogique').toUpperCase(), w * 0.86);
+        const y0 = h * 0.8 - (lines.length - 1) * fs * 0.6;
+        lines.forEach((l, i) => { ctx.strokeText(l, w / 2, y0 + i * fs * 1.15); ctx.fillText(l, w / 2, y0 + i * fs * 1.15); });
+        return await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
+    } finally { disposeStageVideo(v); URL.revokeObjectURL(url); }
 }
-function generateThumbnailImage() {
-    const items = state.queue.filter(q => q.status === 'done' && q.videoUrl);
-    if (!items.length) return Promise.resolve(null);
-    return new Promise(resolve => {
-        const video = document.createElement('video');
-        video.src = items[0].videoUrl; video.crossOrigin = 'anonymous'; video.muted = true; video.preload = 'auto';
-        video.onloadeddata = () => { video.currentTime = 1; };
-        video.onseeked = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 720; canvas.height = 1280;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
-            ctx.fillRect(0, canvas.height * 0.5, canvas.width, canvas.height * 0.5);
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 60px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(state.theme || 'Vidéo pédagogique', canvas.width / 2, canvas.height * 0.6);
-            canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.9);
-        };
-        video.onerror = () => resolve(null);
-    });
-}
+function formatChapterTime(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return m + ':' + String(s).padStart(2, '0'); }
 function generateChapters() {
-    let chapters = '0:00 Introduction\n', cur = 0;
-    state.queue.forEach((item, i) => {
-        const m = Math.floor(cur / 60), s = cur % 60;
-        chapters += m + ':' + String(s).padStart(2, '0') + ' Scène ' + (i + 1) + '\n';
-        cur += TARGET_SCENE_DURATION;
-    });
-    return chapters;
+    const tl = state.timeline && state.timeline.length ? state.timeline : state.queue.filter(q => q.status === 'done').map((q, i) => ({ sceneIndex: q.sceneIndex, start: i * TARGET_SCENE_DURATION }));
+    return tl.map((t, i) => {
+        const text = (state.scenes[t.sceneIndex] || ('Scène ' + (t.sceneIndex + 1))).split(/\s+/).slice(0, 8).join(' ');
+        return formatChapterTime(i === 0 ? 0 : t.start) + ' ' + text;
+    }).join('\n') + '\n';
 }
 async function generateQuiz() {
     if (!state.quizCount) return null;
-    const key = getOpenAIKey();
-    if (!key) return null;
-    setStatus('Génération du quiz…');
+    if (!getClaudeKey()) { showToast('Le quiz utilise la clé Claude', 'error'); return null; }
+    setStatus('Claude prépare le quiz…');
     try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                    { role: 'system', content: 'Tu génères des quiz pédagogiques en français.' },
-                    { role: 'user', content: 'Génère ' + state.quizCount + ' questions à choix multiples sur le sujet : "' + state.theme + '". Script :\n\n' + state.script + '\n\nFormat :\nQ1 : question ?\nA) ...\nB) ...\nC) ...\nRéponse : X' }
-                ]
-            })
+        return await callClaude({
+            system: 'Tu crées des quiz pédagogiques clairs, adaptés au public visé.',
+            prompt: claudeContext() + '\nCrée ' + state.quizCount + ' questions à choix multiples sur la vidéo « ' + (state.theme || 'sans titre') + ' », uniquement à partir de ce script :\n\n' + state.script + '\n\nFormat texte simple :\nQ1 : question ?\nA) ...\nB) ...\nC) ...\nRéponse : X'
         });
-        const data = await res.json();
-        return data.choices[0].message.content;
-    } catch (e) { return null; }
+    } catch (e) { showToast('Quiz impossible : ' + e.message, 'error', 5000); return null; }
     finally { setStatus(null); }
 }
 async function generateSEO() {
-    const key = getOpenAIKey();
-    if (!key) return null;
-    setStatus('Génération SEO…');
+    if (!getClaudeKey()) { showToast('Le SEO utilise la clé Claude', 'error'); return null; }
+    setStatus('Claude prépare le SEO…');
     try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                    { role: 'system', content: 'Tu es expert SEO YouTube.' },
-                    { role: 'user', content: 'Thème : ' + state.theme + '\nScript : ' + state.script + '\n\nRenvoie en JSON : { "title": "...", "description": "...", "tags": ["..."] }' }
-                ]
-            })
+        const out = await callClaude({
+            system: 'Tu es expert en référencement YouTube pour des vidéos pédagogiques.',
+            prompt: claudeContext() + '\nThème : ' + (state.theme || 'non précisé') + '\nScript :\n' + state.script + '\n\nPropose un titre accrocheur (moins de 70 caractères), une description (3 à 5 phrases, avec un appel à s\'abonner) et 10 à 15 tags.',
+            schema: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } }, required: ['title', 'description', 'tags'], additionalProperties: false }
         });
-        const data = await res.json();
-        return data.choices[0].message.content;
-    } catch (e) { return null; }
+        state.seo = out;
+        return 'TITRE\n' + out.title + '\n\nDESCRIPTION\n' + out.description + '\n\nCHAPITRES\n' + generateChapters() + '\nTAGS\n' + (out.tags || []).join(', ') + '\n';
+    } catch (e) { showToast('SEO impossible : ' + e.message, 'error', 5000); return null; }
     finally { setStatus(null); }
 }
-async function generateScriptAI(theme) {
-    const key = getOpenAIKey();
-    if (!key) { showToast('Clé OpenAI requise', 'error'); return null; }
-    setStatus('Génération du script…');
+
+// Enregistre un fichier : feuille de partage sur iPhone (« Enregistrer la vidéo »), téléchargement ailleurs.
+async function saveBlob(blob, filename) {
     try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                    { role: 'system', content: 'Tu écris des scripts pédagogiques de 10 à 15 phrases, une par ligne, sans numérotation.' },
-                    { role: 'user', content: 'Écris un script pédagogique sur : ' + theme }
-                ]
-            })
-        });
-        const data = await res.json();
-        return data.choices[0].message.content.trim();
-    } catch (e) { return null; }
-    finally { setStatus(null); }
+        const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: filename });
+            return true;
+        }
+    } catch (e) {
+        if (e.name === 'AbortError') return false;
+        log('Partage impossible : ' + e.message);
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    return true;
+}
+// Les exports longs à préparer se font en 2 appuis : iOS n'autorise l'enregistrement que juste après un appui.
+async function prepareThenSave(btnId, key, builder) {
+    const btn = document.getElementById(btnId);
+    const cached = state.exportCache[key];
+    if (cached) { await saveBlob(cached.blob, cached.name); return; }
+    if (btn?.dataset.busy) return;
+    if (btn) { btn.dataset.busy = '1'; btn.textContent = '⏳ Préparation…'; }
+    try {
+        const out = await builder();
+        if (!out) { if (btn) btn.textContent = '⬇️ Réessayer'; return; }
+        state.exportCache[key] = out;
+        if (btn) btn.textContent = '✅ Prêt : appuie pour enregistrer';
+        showToast('Prêt ! Appuie à nouveau sur le bouton pour enregistrer', 'success', 4000);
+    } catch (e) {
+        if (btn) btn.textContent = '⬇️ Réessayer';
+        showToast(e.message === 'Arrêt demandé' ? 'Arrêté' : 'Impossible : ' + e.message, 'error', 6000);
+    } finally { if (btn) delete btn.dataset.busy; }
 }
 
 // ══════════════════════════════════════════════════════════════════
 // EXPORT ZIP
 // ══════════════════════════════════════════════════════════════════
-async function downloadAsZip() {
-    if (typeof JSZip === 'undefined') {
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
-    }
+async function buildZip() {
+    if (typeof JSZip === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
     const zip = new JSZip();
-    if (state.finalBlob) zip.file('video.' + (state.finalBlob.type.includes('mp4') ? 'mp4' : 'webm'), state.finalBlob);
-    if (state.finalAudioBlob) zip.file('audio.mp3', state.finalAudioBlob);
-    const srt = generateSRT(); if (srt) zip.file('sous-titres.srt', srt);
+    if (state.finalBlob) zip.file('video.' + state.finalExt, state.finalBlob);
+    if (state.finalAudioBlob) zip.file('voix-premium.mp3', state.finalAudioBlob);
+    zip.file('sous-titres.srt', generateSRT());
+    zip.file('chapitres.txt', generateChapters());
     zip.file('script.txt', state.script);
-    zip.file('metadonnees.json', JSON.stringify({ theme: state.theme, scenes: state.scenes.length, style: state.selectedStyle, language: state.language }, null, 2));
+    zip.file('metadonnees.json', JSON.stringify({ theme: state.theme, scenes: state.scenes.length, style: state.selectedStyle, language: state.language, mise_en_scene: state.scenePlan }, null, 2));
     const blob = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'cartoon-instructeur-' + Date.now() + '.zip';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return { blob, name: 'cartoon-instructeur-' + Date.now() + '.zip' };
+}
+function loadScript(src) {
+    return new Promise((res, rej) => {
+        if (document.querySelector('script[src="' + src + '"]')) { res(); return; }
+        const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('chargement ' + src)); document.head.appendChild(s);
+    });
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2624,6 +3149,7 @@ function renderHistory() {
         const e = loadHistory()[parseInt(b.dataset.load, 10)];
         if (!e) return;
         document.getElementById('theme-input').value = e.theme || '';
+        state.theme = e.theme || '';
         document.getElementById('script-input').value = e.script || '';
         updateScriptStats(); renderScenesEditor(); showToast('Projet rechargé', 'success');
     }));
@@ -2638,10 +3164,10 @@ function parseSeriesInput() {
     if (!text) return [];
     return text.split(/\n\s*\n/).map((block, i) => {
         const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-        const title = lines[0] || 'Épisode ' + (i + 1);
+        const title = (lines[0] || 'Épisode ' + (i + 1)).replace(/^épisode\s*\d+\s*[:\-–]\s*/i, '') || 'Épisode ' + (i + 1);
         const script = lines.slice(1).join('\n');
         return { title, script };
-    });
+    }).filter(ep => ep.script);
 }
 function updateSeriesStats() {
     const ep = parseSeriesInput();
@@ -2649,18 +3175,37 @@ function updateSeriesStats() {
     if (el) el.textContent = ep.length + ' épisode' + (ep.length > 1 ? 's' : '');
     state.seriesEpisodes = ep;
 }
+function addSeriesResult(title, blob, ext) {
+    state.seriesResults.push({ title, blob, ext });
+    const box = document.getElementById('series-results'); if (!box) return;
+    box.classList.remove('hidden');
+    box.innerHTML = '<div class="section-title" style="margin-bottom:0.5rem;">📺 Épisodes terminés</div>' + state.seriesResults.map((r, i) =>
+        '<div class="series-item"><span>' + esc(r.title) + '</span><button type="button" data-series-save="' + i + '">⬇️ Enregistrer</button></div>').join('');
+    box.querySelectorAll('[data-series-save]').forEach(b => b.addEventListener('click', () => {
+        const r = state.seriesResults[parseInt(b.dataset.seriesSave, 10)];
+        if (r) saveBlob(r.blob, (r.title || 'episode').replace(/[^\w\-]+/g, '_').slice(0, 40) + '.' + r.ext);
+    }));
+}
 async function launchSeries() {
-    if (!state.seriesEpisodes.length) { showToast('Ajoutez des épisodes', 'warn'); return; }
-    for (let i = 0; i < state.seriesEpisodes.length; i++) {
-        const ep = state.seriesEpisodes[i];
-        showToast('Épisode ' + (i + 1) + '/' + state.seriesEpisodes.length + ' : ' + ep.title, 'success');
-        document.getElementById('theme-input').value = ep.title;
-        document.getElementById('script-input').value = ep.script;
-        state.theme = ep.title;
-        updateScriptStats();
-        await startGeneration();
-        await sleep(3000);
-    }
+    updateSeriesStats();
+    if (!state.seriesEpisodes.length) { showToast('Ajoute des épisodes (titre puis phrases, séparés par une ligne vide)', 'warn', 4000); return; }
+    if (state.isRunning) return;
+    unlockAudio();
+    state.isSeriesMode = true; state.seriesAbort = false;
+    try {
+        for (let i = 0; i < state.seriesEpisodes.length; i++) {
+            if (state.seriesAbort) break;
+            const ep = state.seriesEpisodes[i];
+            showToast('Épisode ' + (i + 1) + '/' + state.seriesEpisodes.length + ' : ' + ep.title, 'success', 3000);
+            document.getElementById('theme-input').value = ep.title;
+            document.getElementById('script-input').value = ep.script;
+            state.theme = ep.title;
+            updateScriptStats();
+            await startGeneration();
+            if (state.seriesAbort) break;
+            await sleep(2000);
+        }
+    } finally { state.isSeriesMode = false; state.seriesAbort = false; }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2668,39 +3213,49 @@ async function launchSeries() {
 // ══════════════════════════════════════════════════════════════════
 async function translateScript() {
     const target = document.getElementById('language-select').value;
-    const source = state.script;
-    if (!source) { showToast('Aucun script à traduire', 'warn'); return; }
+    if (!state.scenes.length) { showToast('Aucun script à traduire', 'warn'); return; }
     const engine = document.getElementById('translate-engine-select').value;
     setStatus('Traduction…');
     try {
-        let translated = '';
-        if (engine === 'deepl') {
-            const key = getDeepLKey() || document.getElementById('translate-key-input').value.trim();
+        let lines = [];
+        if (engine === 'claude') {
+            if (!getClaudeKey()) { showToast('Ajoute ta clé Claude en haut de la page', 'error'); return; }
+            const out = await callClaude({
+                system: 'Tu traduis des scripts de vidéos pédagogiques en gardant le ton, le niveau et une ligne par phrase. ' + SPEECH_RULES,
+                prompt: 'Traduis en ' + (LANG_NAMES_FR[target] || target) + ' ces ' + state.scenes.length + ' lignes. Renvoie exactement ' + state.scenes.length + ' lignes, dans le même ordre :\n\n' + state.scenes.join('\n'),
+                schema: LINES_SCHEMA
+            });
+            lines = (out.lines || []).map(l => String(l).trim()).filter(Boolean);
+        } else if (engine === 'deepl') {
+            const key = document.getElementById('translate-key-input').value.trim() || getDeepLKey();
             if (!key) { showToast('Clé DeepL requise', 'error'); return; }
             setLS(STORAGE.DEEPL_KEY, key);
             const res = await fetch('https://api-free.deepl.com/v2/translate', {
                 method: 'POST', headers: { 'Authorization': 'DeepL-Auth-Key ' + key, 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'text=' + encodeURIComponent(source) + '&target_lang=' + target.split('-')[0].toUpperCase()
+                body: 'text=' + encodeURIComponent(state.scenes.join('\n')) + '&target_lang=' + target.split('-')[0].toUpperCase()
             });
+            if (!res.ok) throw new Error('DeepL ' + res.status);
             const data = await res.json();
-            translated = data.translations?.[0]?.text || '';
-        } else if (engine === 'google') {
-            const key = getGTranslateKey() || document.getElementById('translate-key-input').value.trim();
+            lines = (data.translations?.[0]?.text || '').split('\n');
+        } else {
+            const key = document.getElementById('translate-key-input').value.trim() || getGTranslateKey();
             if (!key) { showToast('Clé Google Translate requise', 'error'); return; }
             setLS(STORAGE.GTRANSLATE_KEY, key);
-            const res = await fetch('https://translation.googleapis.com/language/translate/v2?key=' + key, {
+            const res = await fetch('https://translation.googleapis.com/language/translate/v2?key=' + encodeURIComponent(key), {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ q: source, target: target.split('-')[0], format: 'text' })
+                body: JSON.stringify({ q: state.scenes, target: target.split('-')[0], format: 'text' })
             });
+            if (!res.ok) throw new Error('Google ' + res.status);
             const data = await res.json();
-            translated = data.data?.translations?.[0]?.translatedText || '';
+            lines = (data.data?.translations || []).map(t => t.translatedText);
         }
-        if (translated) {
-            document.getElementById('script-input').value = translated;
-            updateScriptStats(); renderScenesEditor();
-            showToast('Script traduit', 'success');
-        } else showToast('Traduction échouée', 'error');
-    } catch (e) { showToast('Erreur traduction : ' + e.message, 'error'); }
+        lines = lines.map(l => l.trim()).filter(Boolean);
+        if (!lines.length) throw new Error('traduction vide');
+        document.getElementById('script-input').value = lines.join('\n');
+        state.language = target;
+        updateScriptStats(); renderScenesEditor();
+        showToast('Script traduit ✓', 'success');
+    } catch (e) { showToast('Traduction impossible : ' + e.message, 'error', 5000); }
     finally { setStatus(null); }
 }
 
@@ -2708,140 +3263,112 @@ async function translateScript() {
 // WORKFLOW PRINCIPAL
 // ══════════════════════════════════════════════════════════════════
 async function startGeneration() {
-    if (state.isRunning) return;
-    if (!state.images.length) { showToast('Ajoutez une photo', 'error'); return; }
-    if (!getAgnesKey()) { showToast('Ajoutez la clé Agnes', 'error'); return; }
-    if (!state.scenes.length) { showToast('Écrivez un script', 'error'); return; }
+    if (state.isRunning || assembling) return;
+    if (!state.images.length) { showToast('Ajoute une photo du personnage', 'error'); return; }
+    if (!getAgnesKey()) { showToast('Ajoute la clé Agnes', 'error'); return; }
+    if (!state.scenes.length) { showToast('Écris un script', 'error'); return; }
+    unlockAudio();
 
     state.isRunning = true; state.stopRequested = false;
     state.completed = 0; state.failed = 0;
     state.creationAttemptsSinceLastError = 0;
-    state.finalVideoUrl = null; state.finalBlob = null;
-    state.audioClips = []; state.finalAudioBlob = null;
+    if (state.finalVideoUrl) URL.revokeObjectURL(state.finalVideoUrl);
+    state.finalVideoUrl = null; state.finalBlob = null; state.finalAudioBlob = null; state.timeline = null; state.exportCache = {};
     createIntervalMs = CREATE_INTERVAL_MIN;
-    const charImage = state.images[0];
-    state.queue = state.scenes.map((sceneText, i) => ({ sceneIndex: i, sceneText, image: charImage, status: 'pending', progress: null, videoId: null, videoUrl: null, prompt: null, startTime: null }));
+    if (subtitleScriptSignature !== currentScriptSignature()) initSubtitleSegmentsFromScript();
+    const photo = state.images[0].dataUri;
+    state.queue = state.scenes.map((sceneText, i) => ({ sceneIndex: i, sceneText, image: photo, status: 'pending', progress: null, videoId: null, videoUrl: null, prompt: null, startTime: null }));
 
     document.getElementById('gallery-grid').innerHTML = '';
     document.getElementById('gallery').style.display = 'none';
     document.getElementById('video-preview').classList.remove('visible');
-    ['download-final-btn','download-srt-btn','download-scenes-btn','download-audio-btn','download-zip-btn','download-shorts-btn','download-thumbnail-btn','download-seo-btn','download-chapters-btn','download-quiz-btn'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    hideResultButtons(); updateAssembleBtn();
     document.getElementById('stop-btn').classList.add('visible');
     document.getElementById('generate-btn').disabled = true;
 
     await ensureWakeLockActive();
-    renderQueue(); updateGenerateBtn();
+    renderQueue(); updateGenerateBtn(); renderQuota();
     const startTime = Date.now();
-    const polling = [];
+    let assembled = false;
 
     try {
-        for (let i = 0; i < state.queue.length; i++) {
-            if (state.stopRequested) break;
-            try { await createTaskOnly(state.queue[i]); polling.push(pollTaskAndDisplay(state.queue[i])); }
-            catch (e) { if (e.message === 'Arrêt demandé') break; state.queue[i].status = 'failed'; state.failed++; }
-            if (i < state.queue.length - 1 && !state.stopRequested) {
-                const w = Math.ceil(createIntervalMs / 1000);
-                for (let r = w; r > 0; r--) { if (state.stopRequested) break; setStatus('Scène ' + (i + 2) + '/' + state.queue.length + ' dans ' + r + 's'); await sleep(1000); }
-            }
+        await prepareScenePlan();
+        if (!state.stopRequested) {
+            if (state.chainScenes) await runChained(); else await runParallel();
         }
-        if (polling.length) await Promise.allSettled(polling);
-
-        if (state.queue.filter(q => q.status === 'done').length > 0) {
-            if (!subtitleSegments.length) initSubtitleSegmentsFromScript();
-            if (state.ttsEngine !== 'browser') await generateFullAudioTrack();
-            const webm = await assembleFinalVideoWebM();
-            if (webm) {
-                let finalUrl = webm.url, finalBlob = webm.blob;
-                if (state.exportFormat === 'mp4' || state.exportFormat === 'mp4-audio') {
-                    const mp4 = await assembleFinalVideoMP4(webm.blob, state.exportFormat === 'mp4-audio');
-                    if (mp4) { finalUrl = mp4.url; finalBlob = mp4.blob; }
-                }
-                state.finalVideoUrl = finalUrl; state.finalBlob = finalBlob;
-                document.getElementById('final-video').src = finalUrl;
-                document.getElementById('video-preview').classList.add('visible');
-                ['download-final-btn','download-srt-btn','download-scenes-btn','download-chapters-btn'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
-                if (state.finalAudioBlob) document.getElementById('download-audio-btn')?.classList.remove('hidden');
-                if (state.extraExports.includes('zip')) document.getElementById('download-zip-btn')?.classList.remove('hidden');
-                if (state.extraExports.includes('shorts')) document.getElementById('download-shorts-btn')?.classList.remove('hidden');
-                if (state.extraExports.includes('thumbnail')) document.getElementById('download-thumbnail-btn')?.classList.remove('hidden');
-                if (state.extraExports.includes('seo')) document.getElementById('download-seo-btn')?.classList.remove('hidden');
-                if (state.quizCount > 0) document.getElementById('download-quiz-btn')?.classList.remove('hidden');
-                if (state.ttsEngine === 'browser') speakAllScenes();
-                addToHistory({ date: Date.now(), theme: state.theme || document.getElementById('theme-input').value || 'Sans titre', script: state.script, scenes: state.queue.length, duration: formatEta(state.queue.length * TARGET_SCENE_DURATION) });
-                trackAnalytics('generations');
-                trackAnalytics('byStyle', state.selectedStyle);
-                trackAnalytics('byLanguage', state.language);
-                trackAnalytics('byTTS', state.ttsEngine);
-            }
+        if (!state.stopRequested && state.queue.some(q => q.status === 'done')) {
+            state.isRunning = false;   // le montage gère lui-même l'arrêt et l'affichage
+            updateGenerateBtn();
+            assembled = await runAssembly();
         }
-    } catch (e) { log('Erreur globale : ' + e.message); }
+    } catch (e) { log('Erreur globale : ' + e.message); showToast('Erreur : ' + e.message, 'error', 6000); }
 
     const elapsed = (Date.now() - startTime) / 1000;
-    setStatus('✦ ' + state.completed + '/' + state.queue.length + ' scènes en ' + formatEta(elapsed) + ' ✦');
-    await sleep(4000); setStatus(null); setProgress(0);
+    const stopped = state.stopRequested;
+    if (stopped && state.isSeriesMode) state.seriesAbort = true;
     state.isRunning = false; state.stopRequested = false;
+    setStatus(null); setProgress(0);
     document.getElementById('stop-btn').classList.remove('visible');
-    updateGenerateBtn();
-    showToast(state.completed + ' scène' + (state.completed > 1 ? 's' : '') + ' générée' + (state.completed > 1 ? 's' : ''), 'success');
+    updateGenerateBtn(); updateAssembleBtn(); renderQuota();
+    if (stopped) showToast('Génération arrêtée. Les scènes terminées peuvent être assemblées.', 'warn', 5000);
+    else if (!assembled) showToast(state.completed + '/' + state.queue.length + ' scènes générées en ' + formatEta(elapsed), state.completed ? 'warn' : 'error', 5000);
 }
-async function speakAllScenes() {
-    for (const item of state.queue) {
-        if (state.stopRequested) break;
-        if (item.status === 'done' && item.sceneText) await speakBrowser(item.sceneText, state.voiceRate, state.voicePitch, state.voicePref, state.language);
-    }
+function stopGeneration() {
+    if (!state.isRunning && !assembling) return;
+    state.stopRequested = true;
+    if (state.isSeriesMode) state.seriesAbort = true;
+    stopSpeech(); setStatus('Arrêt…');
 }
-function stopGeneration() { if (!state.isRunning) return; state.stopRequested = true; stopSpeech(); setStatus('Arrêt…'); }
 
 // ══════════════════════════════════════════════════════════════════
 // TÉLÉCHARGEMENTS
 // ══════════════════════════════════════════════════════════════════
 function downloadFinal() {
     if (!state.finalBlob) return;
-    const ext = state.finalBlob.type.includes('mp4') ? 'mp4' : 'webm';
-    const a = document.createElement('a'); a.href = URL.createObjectURL(state.finalBlob); a.download = 'video-' + Date.now() + '.' + ext;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    saveBlob(state.finalBlob, 'video-' + Date.now() + '.' + state.finalExt);
 }
-function downloadSRT() {
-    const srt = generateSRT(); if (!srt) return;
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([srt], { type: 'text/srt' })); a.download = 'subs-' + Date.now() + '.srt';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+function downloadSRT() { saveBlob(new Blob([generateSRT()], { type: 'text/plain' }), 'sous-titres-' + Date.now() + '.srt'); }
+function downloadAudio() { if (state.finalAudioBlob) saveBlob(state.finalAudioBlob, 'voix-' + Date.now() + '.mp3'); }
+function downloadChapters() { saveBlob(new Blob([generateChapters()], { type: 'text/plain' }), 'chapitres-' + Date.now() + '.txt'); }
+function downloadScenes() {
+    return prepareThenSave('download-scenes-btn', 'scenes', async () => {
+        const items = state.queue.filter(q => q.status === 'done');
+        for (const it of items) await fetchClipBlob(it);
+        const files = items.map(it => new File([it.blob], 'scene-' + String(it.sceneIndex + 1).padStart(2, '0') + '.mp4', { type: it.blob.type || 'video/mp4' }));
+        if (typeof JSZip === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+        const zip = new JSZip();
+        files.forEach(f => zip.file(f.name, f));
+        return { blob: await zip.generateAsync({ type: 'blob' }), name: 'scenes-' + Date.now() + '.zip' };
+    });
 }
-function downloadAudio() {
-    if (!state.finalAudioBlob) return;
-    const a = document.createElement('a'); a.href = URL.createObjectURL(state.finalAudioBlob); a.download = 'audio-' + Date.now() + '.mp3';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+function downloadAsZip() { return prepareThenSave('download-zip-btn', 'zip', buildZip); }
+function downloadShorts() {
+    return prepareThenSave('download-shorts-btn', 'shorts', async () => {
+        if (assembling || state.isRunning) throw new Error('attends la fin du montage en cours');
+        assembling = true; state.stopRequested = false;
+        document.getElementById('stop-btn').classList.add('visible');
+        await ensureWakeLockActive();
+        try { const r = await generateShortsVersion(); return { blob: r.blob, name: 'shorts-' + Date.now() + '.' + r.ext }; }
+        finally { assembling = false; state.stopRequested = false; setStatus(null); setProgress(0); document.getElementById('stop-btn').classList.remove('visible'); }
+    });
 }
-async function downloadScenes() {
-    for (const item of state.queue.filter(q => q.status === 'done')) {
-        try {
-            const res = await fetch(item.videoUrl), blob = await res.blob();
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'scene-' + String(item.sceneIndex + 1).padStart(2, '0') + '.mp4';
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
-            await sleep(400);
-        } catch (e) {}
-    }
+function downloadThumbnail() {
+    return prepareThenSave('download-thumbnail-btn', 'thumbnail', async () => {
+        const blob = await generateThumbnailImage();
+        return blob ? { blob, name: 'miniature-' + Date.now() + '.jpg' } : null;
+    });
 }
-async function downloadShorts() {
-    if (!state.finalBlob) return;
-    const shorts = await generateShortsVersion(state.finalBlob);
-    if (shorts) { const a = document.createElement('a'); a.href = shorts.url; a.download = 'shorts-' + Date.now() + '.mp4'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+function downloadSEO() {
+    return prepareThenSave('download-seo-btn', 'seo', async () => {
+        const seo = await generateSEO();
+        return seo ? { blob: new Blob([seo], { type: 'text/plain' }), name: 'seo-' + Date.now() + '.txt' } : null;
+    });
 }
-async function downloadThumbnail() {
-    const blob = await generateThumbnailImage();
-    if (blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'thumbnail-' + Date.now() + '.jpg'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
-}
-async function downloadSEO() {
-    const seo = await generateSEO();
-    if (seo) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([seo], { type: 'text/plain' })); a.download = 'seo-' + Date.now() + '.txt'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
-}
-function downloadChapters() {
-    const chapters = generateChapters();
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([chapters], { type: 'text/plain' })); a.download = 'chapters-' + Date.now() + '.txt';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-}
-async function downloadQuiz() {
-    const quiz = await generateQuiz();
-    if (quiz) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([quiz], { type: 'text/plain' })); a.download = 'quiz-' + Date.now() + '.txt'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+function downloadQuiz() {
+    return prepareThenSave('download-quiz-btn', 'quiz', async () => {
+        const quiz = await generateQuiz();
+        return quiz ? { blob: new Blob([quiz], { type: 'text/plain' }), name: 'quiz-' + Date.now() + '.txt' } : null;
+    });
 }
 </script>
 <script>
@@ -2881,17 +3408,30 @@ async function pollDIDTalk(id) {
     throw new Error('D-ID timeout');
 }
 
+async function uploadToDID(kind, blob, filename) {
+    const fd = new FormData();
+    fd.append(kind === 'images' ? 'image' : 'audio', blob, filename);
+    const res = await fetch(DID_API + '/' + kind, { method: 'POST', headers: { 'Authorization': 'Basic ' + btoa(getAvatarKey() + ':') }, body: fd });
+    if (!res.ok) { const err = await res.text(); throw new Error('envoi ' + kind + ' ' + res.status + ' ' + err.slice(0, 120)); }
+    const data = await res.json();
+    if (!data.url) throw new Error('D-ID n\'a pas renvoyé de lien');
+    return data.url;
+}
 async function generateDIDVideo() {
     const img = state.images[0];
     if (!img) { showToast('Ajoutez une photo', 'error'); return null; }
-    const audioBlob = state.finalAudioBlob;
-    if (!audioBlob) { showToast('Aucun audio disponible', 'error'); return null; }
+    if (!getAvatarKey()) { showToast('Clé D-ID manquante', 'error'); return null; }
+    setStatus('Préparation de la voix…');
+    let audioBlob = state.finalAudioBlob;
+    try {
+        if (!audioBlob && state.ttsEngine !== 'browser' && state.script) audioBlob = await generateAudioUnified(state.scenes.join(' '));
+    } catch (e) { log('Voix D-ID : ' + e.message); }
+    if (!audioBlob) { setStatus(null); showToast('D-ID a besoin de la voix premium (ElevenLabs…) configurée', 'error', 5000); return null; }
     setStatus('Création D-ID…');
     try {
-        // Upload image + audio sur un service temporaire — D-ID accepte les data URLs
-        const imageDataUrl = img.dataUri;
-        const audioDataUrl = await blobToDataURL(audioBlob);
-        const id = await createDIDTalk(imageDataUrl, audioDataUrl);
+        const imageUrl = await uploadToDID('images', img.file || await (await fetch(img.dataUri)).blob(), 'personnage.jpg');
+        const audioUrl = await uploadToDID('audios', audioBlob, 'voix.mp3');
+        const id = await createDIDTalk(imageUrl, audioUrl);
         setStatus('Traitement D-ID (peut prendre 1-2 min)…');
         const url = await pollDIDTalk(id);
         const box = document.getElementById('avatar-preview-box');
@@ -2901,10 +3441,6 @@ async function generateDIDVideo() {
         return url;
     } catch (e) { showToast('D-ID échec : ' + e.message, 'error'); return null; }
     finally { setStatus(null); }
-}
-
-function blobToDataURL(blob) {
-    return new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2958,57 +3494,6 @@ async function testAvatarProvider() {
     if (state.avatarProvider === 'did') await generateDIDVideo();
     else if (state.avatarProvider === 'heygen') await generateHeyGenVideo();
     else showToast('Aucun avatar sélectionné', 'warn');
-}
-
-// ══════════════════════════════════════════════════════════════════
-// STABLE DIFFUSION / FLUX — RÉGÉNÉRATION D'IMAGES
-// ══════════════════════════════════════════════════════════════════
-async function regenerateImageWithSD(sceneText) {
-    const key = getSDKey();
-    if (!key) throw new Error('Clé API régénération manquante');
-    const prompt = sceneText + ', ' + (CARTOON_STYLES.find(s => s.id === state.selectedStyle)?.prompt || '') + ', portrait 9:16, character illustration';
-
-    if (state.sdProvider === 'replicate') {
-        const res = await fetch('https://api.replicate.com/v1/predictions', {
-            method: 'POST',
-            headers: { 'Authorization': 'Token ' + key, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                version: 'f178fa7a1ae43a9a9af01b833b9d2ecf97b1bcb0acfd2dc5dd04895e042863f1',
-                input: { prompt, width: 720, height: 1280, num_outputs: 1 }
-            })
-        });
-        if (!res.ok) throw new Error('Replicate ' + res.status);
-        const data = await res.json();
-        let predId = data.id;
-        for (let i = 0; i < 60; i++) {
-            await sleep(3000);
-            const c = await fetch('https://api.replicate.com/v1/predictions/' + predId, { headers: { 'Authorization': 'Token ' + key } });
-            const cd = await c.json();
-            if (cd.status === 'succeeded') return cd.output?.[0];
-            if (cd.status === 'failed') throw new Error('Replicate échec');
-        }
-        throw new Error('Replicate timeout');
-    } else if (state.sdProvider === 'openai-dalle') {
-        const res = await fetch('https://api.openai.com/v1/images/generations', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1792' })
-        });
-        if (!res.ok) throw new Error('DALL-E ' + res.status);
-        const data = await res.json();
-        return data.data?.[0]?.url;
-    } else if (state.sdProvider === 'stability') {
-        const res = await fetch('https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ text_prompts: [{ text: prompt }], width: 576, height: 1024, steps: 30 })
-        });
-        if (!res.ok) throw new Error('Stability ' + res.status);
-        const data = await res.json();
-        const base64 = data.artifacts?.[0]?.base64;
-        if (base64) return 'data:image/png;base64,' + base64;
-    }
-    return null;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3075,12 +3560,19 @@ function updateYouTubeStatus() {
     const el = document.getElementById('youtube-status-text');
     if (!el) return;
     const cid = getYouTubeClientId();
-    const token = getLS(STORAGE.YOUTUBE_TOKEN);
-    if (token) { el.textContent = '✅ YouTube connecté'; document.getElementById('youtube-upload-btn')?.classList.remove('hidden'); }
+    const token = getYouTubeToken();
+    if (!token && getLS(STORAGE.YOUTUBE_TOKEN)) { el.textContent = '⌛ Connexion YouTube expirée · clique sur Se connecter'; return; }
+    if (token) { el.textContent = '✅ YouTube connecté'; if (state.finalBlob) document.getElementById('youtube-upload-btn')?.classList.remove('hidden'); }
     else if (cid) el.textContent = '🔑 Client ID enregistré · cliquez sur Se connecter';
     else el.textContent = '📺 Non connecté';
 }
 
+function getYouTubeToken() {
+    const token = getLS(STORAGE.YOUTUBE_TOKEN);
+    const exp = parseInt(getLS(STORAGE.YOUTUBE_TOKEN_EXP, '0'), 10);
+    if (!token || (exp && Date.now() > exp)) return '';
+    return token;
+}
 function connectYouTube() {
     const cid = getYouTubeClientId();
     if (!cid) { showToast('Renseignez le Client ID Google', 'error'); return; }
@@ -3100,6 +3592,8 @@ function checkYouTubeTokenFromHash() {
     const token = params.get('access_token');
     if (token) {
         setLS(STORAGE.YOUTUBE_TOKEN, token);
+        const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
+        setLS(STORAGE.YOUTUBE_TOKEN_EXP, String(Date.now() + (expiresIn - 60) * 1000));
         window.history.replaceState({}, '', window.location.pathname);
         updateYouTubeStatus();
         showToast('Connecté à YouTube ✓', 'success');
@@ -3108,22 +3602,22 @@ function checkYouTubeTokenFromHash() {
 
 async function uploadToYouTube() {
     if (!state.finalBlob) { showToast('Aucune vidéo à uploader', 'error'); return; }
-    const token = getLS(STORAGE.YOUTUBE_TOKEN);
-    if (!token) { showToast('Connectez-vous à YouTube d\'abord', 'warn'); return; }
+    const token = getYouTubeToken();
+    if (!token) { updateYouTubeStatus(); showToast('Connexion YouTube expirée : reconnecte-toi (section Publication YouTube)', 'warn', 5000); return; }
     setStatus('Upload YouTube…');
     try {
         const metadata = {
             snippet: {
-                title: (state.theme || 'Vidéo pédagogique').slice(0, 100),
-                description: state.script.slice(0, 5000),
-                tags: state.scenes.slice(0, 10).map(s => s.split(' ')[0]),
+                title: (state.seo?.title || state.theme || 'Vidéo pédagogique').slice(0, 100),
+                description: (state.seo?.description || state.script).slice(0, 5000),
+                tags: (state.seo?.tags || []).slice(0, 15),
                 categoryId: '27'
             },
             status: { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false }
         };
         const boundary = '-------cartoon' + Date.now();
         const metaPart = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) + '\r\n';
-        const videoPart = '--' + boundary + '\r\nContent-Type: video/*\r\n\r\n';
+        const videoPart = '--' + boundary + '\r\nContent-Type: ' + (state.finalBlob.type || 'video/mp4') + '\r\n\r\n';
         const endPart = '\r\n--' + boundary + '--';
         const body = new Blob([metaPart, videoPart, state.finalBlob, endPart], { type: 'multipart/related; boundary=' + boundary });
         const res = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status', {
@@ -3131,6 +3625,7 @@ async function uploadToYouTube() {
             headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + boundary },
             body
         });
+        if (res.status === 401) { setLS(STORAGE.YOUTUBE_TOKEN_EXP, '1'); updateYouTubeStatus(); throw new Error('connexion expirée, reconnecte-toi'); }
         if (!res.ok) { const err = await res.text(); throw new Error('YouTube ' + res.status + ' ' + err.slice(0, 200)); }
         const data = await res.json();
         showToast('Vidéo uploadée : https://youtu.be/' + data.id, 'success', 8000);
@@ -3147,25 +3642,6 @@ window.addEventListener('beforeinstallprompt', e => {
     document.getElementById('install-banner')?.classList.add('visible');
 });
 window.addEventListener('appinstalled', () => { showToast('Application installée !', 'success'); deferredInstallPrompt = null; });
-if ('serviceWorker' in navigator) {
-    try {
-        const swCode = `
-            const CACHE = 'cartoon-v1';
-            self.addEventListener('install', e => self.skipWaiting());
-            self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
-            self.addEventListener('fetch', e => {
-                if (e.request.method !== 'GET') return;
-                if (!e.request.url.startsWith('http')) return;
-                e.respondWith(
-                    caches.open(CACHE).then(c => c.match(e.request).then(r => r || fetch(e.request).then(res => { c.put(e.request, res.clone()); return res; }).catch(() => r)))
-                );
-            });
-        `;
-        const blob = new Blob([swCode], { type: 'application/javascript' });
-        const swUrl = URL.createObjectURL(blob);
-        navigator.serviceWorker.register(swUrl).catch(e => log('SW fail: ' + e.message));
-    } catch (e) { log('SW init fail: ' + e.message); }
-}
 async function installPWA() {
     if (!deferredInstallPrompt) { showToast('Installation non disponible', 'warn'); return; }
     deferredInstallPrompt.prompt();
@@ -3267,58 +3743,6 @@ async function loadFromCloud() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// MUSIQUE DE FOND & SFX (Web Audio API — génération simple)
-// ══════════════════════════════════════════════════════════════════
-let audioCtx = null;
-function getAudioCtx() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
-
-async function generateAmbientMusic(durationSec) {
-    if (state.music === 'off') return null;
-    const ctx = getAudioCtx();
-    const sampleRate = ctx.sampleRate;
-    const length = Math.min(durationSec, 300) * sampleRate;
-    const buffer = ctx.createBuffer(2, length, sampleRate);
-    const L = buffer.getChannelData(0), R = buffer.getChannelData(1);
-    const notes = state.music === 'kids' ? [261.63, 329.63, 392, 523.25] :
-                  state.music === 'calm' ? [220, 277.18, 329.63, 415.30] :
-                  state.music === 'upbeat' ? [329.63, 415.30, 493.88, 659.25] :
-                  state.music === 'cinematic' ? [110, 164.81, 220, 329.63] :
-                  [174.61, 220, 261.63, 349.23];
-    for (let i = 0; i < length; i++) {
-        const t = i / sampleRate;
-        const noteIdx = Math.floor(t / 2) % notes.length;
-        const freq = notes[noteIdx];
-        const env = 0.5 + 0.5 * Math.sin(t * 0.5);
-        L[i] = Math.sin(2 * Math.PI * freq * t) * 0.15 * env;
-        R[i] = Math.sin(2 * Math.PI * freq * t * 1.005) * 0.15 * env;
-    }
-    // Convert to WAV
-    return bufferToWav(buffer);
-}
-
-function bufferToWav(buffer) {
-    const numCh = buffer.numberOfChannels, length = buffer.length * numCh * 2 + 44;
-    const arr = new ArrayBuffer(length);
-    const view = new DataView(arr);
-    let pos = 0;
-    const w = s => { for (let i = 0; i < s.length; i++) view.setUint8(pos++, s.charCodeAt(i)); };
-    const u32 = v => { view.setUint32(pos, v, true); pos += 4; };
-    const u16 = v => { view.setUint16(pos, v, true); pos += 2; };
-    w('RIFF'); u32(length - 8); w('WAVE'); w('fmt '); u32(16); u16(1); u16(numCh);
-    u32(buffer.sampleRate); u32(buffer.sampleRate * numCh * 2); u16(numCh * 2); u16(16);
-    w('data'); u32(length - 44);
-    const channels = [];
-    for (let i = 0; i < numCh; i++) channels.push(buffer.getChannelData(i));
-    for (let i = 0; i < buffer.length; i++) {
-        for (let c = 0; c < numCh; c++) {
-            let s = Math.max(-1, Math.min(1, channels[c][i]));
-            view.setInt16(pos, s < 0 ? s * 0x8000 : s * 0x7FFF, true); pos += 2;
-        }
-    }
-    return new Blob([arr], { type: 'audio/wav' });
-}
-
-// ══════════════════════════════════════════════════════════════════
 // INITIALISATION UI COMPLÈTE
 // ══════════════════════════════════════════════════════════════════
 function showTTSPanel(engine) {
@@ -3361,12 +3785,19 @@ function showCloudConfigRow(provider) {
         if (!ed.classList.contains('hidden')) renderScenesEditor();
     });
     document.getElementById('generate-script-ai-btn')?.addEventListener('click', async () => {
-        const theme = document.getElementById('theme-input').value.trim() || prompt('Thème :');
+        const theme = document.getElementById('theme-input').value.trim() || prompt('Thème de la vidéo :');
         if (!theme) return;
+        state.theme = theme; document.getElementById('theme-input').value = theme;
         const script = await generateScriptAI(theme);
         if (script) { document.getElementById('script-input').value = script; updateScriptStats(); renderScenesEditor(); showToast('Script généré', 'success'); }
     });
     document.getElementById('translate-script-btn')?.addEventListener('click', translateScript);
+    document.getElementById('improve-script-btn')?.addEventListener('click', improveScriptForSpeech);
+
+    // Claude
+    document.getElementById('claude-save-btn')?.addEventListener('click', saveClaudeKey);
+    document.getElementById('claude-key-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveClaudeKey(); } });
+    document.getElementById('claude-model-select')?.addEventListener('change', e => { setLS(STORAGE.CLAUDE_MODEL, e.target.value); updateClaudePanel(); });
 
     // Série
     document.getElementById('series-input')?.addEventListener('input', updateSeriesStats);
@@ -3374,7 +3805,6 @@ function showCloudConfigRow(provider) {
 
     // Sélecteurs généraux
     document.getElementById('language-select')?.addEventListener('change', e => { state.language = e.target.value; });
-    document.getElementById('multi-lang-select')?.addEventListener('change', e => { state.multiLang = Array.from(e.target.selectedOptions).map(o => o.value); setJSON(STORAGE.MULTI_LANG, state.multiLang); });
     document.getElementById('translate-engine-select')?.addEventListener('change', e => { state.translateEngine = e.target.value; });
     document.getElementById('audience-select')?.addEventListener('change', e => state.audience = e.target.value);
     document.getElementById('tone-select')?.addEventListener('change', e => state.tone = e.target.value);
@@ -3383,15 +3813,13 @@ function showCloudConfigRow(provider) {
     document.getElementById('lipsync-select')?.addEventListener('change', e => state.lipsync = e.target.value);
     document.getElementById('quiz-select')?.addEventListener('change', e => state.quizCount = parseInt(e.target.value, 10) || 0);
     document.getElementById('duration-select')?.addEventListener('change', e => state.durationFrames = parseInt(e.target.value, 10));
-    document.getElementById('framing-select')?.addEventListener('change', e => state.framing = e.target.value);
-    document.getElementById('intensity-select')?.addEventListener('change', e => state.intensity = e.target.value);
+    document.getElementById('chain-select')?.addEventListener('change', e => state.chainScenes = e.target.value === 'on');
+    document.getElementById('camera-select')?.addEventListener('change', e => state.camera = e.target.value);
     document.getElementById('transition-select')?.addEventListener('change', e => state.transition = e.target.value);
-    document.getElementById('export-format-select')?.addEventListener('change', e => state.exportFormat = e.target.value);
+    document.getElementById('trim-select')?.addEventListener('change', e => state.trimStart = parseFloat(e.target.value) || 0);
+    document.getElementById('video-format-select')?.addEventListener('change', e => state.videoFormat = e.target.value);
     document.getElementById('extra-exports-select')?.addEventListener('change', e => state.extraExports = Array.from(e.target.selectedOptions).map(o => o.value));
-    document.getElementById('subtitles-style-select')?.addEventListener('change', e => state.subtitlesStyle = e.target.value);
-    document.getElementById('music-select')?.addEventListener('change', e => state.music = e.target.value);
-    document.getElementById('music-volume-select')?.addEventListener('change', e => state.musicVolume = parseFloat(e.target.value));
-    document.getElementById('sfx-select')?.addEventListener('change', e => state.sfx = e.target.value);
+    document.getElementById('subtitles-style-select')?.addEventListener('change', e => { state.subtitlesStyle = e.target.value; state.subtitlesMode = e.target.value === 'off' ? 'off' : 'on'; });
 
     // Avatar
     document.getElementById('avatar-provider-select')?.addEventListener('change', e => {
@@ -3406,17 +3834,8 @@ function showCloudConfigRow(provider) {
     });
     document.getElementById('avatar-test-btn')?.addEventListener('click', testAvatarProvider);
 
-    // Régénération
-    document.getElementById('sd-provider-select')?.addEventListener('change', e => {
-        state.sdProvider = e.target.value;
-        document.getElementById('sd-key-row')?.classList.toggle('hidden', e.target.value === 'off');
-    });
-    document.getElementById('sd-save-btn')?.addEventListener('click', () => {
-        const k = document.getElementById('sd-key-input').value.trim();
-        if (k) { setLS(STORAGE.SD_KEY, k); showToast('Clé régénération enregistrée', 'success'); }
-    });
-
     // TTS
+    document.getElementById('voice-source-select')?.addEventListener('change', e => state.voiceSource = e.target.value);
     document.getElementById('tts-engine-select')?.addEventListener('change', e => { state.ttsEngine = e.target.value; showTTSPanel(e.target.value); });
     document.getElementById('elevenlabs-save-btn')?.addEventListener('click', saveElevenLabsKey);
     document.getElementById('elevenlabs-load-voices-btn')?.addEventListener('click', loadElevenLabsVoices);
@@ -3449,15 +3868,13 @@ function showCloudConfigRow(provider) {
         try {
             const fd = new FormData(); fd.append('file', file); fd.append('model', 'whisper-1');
             const res = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { 'Authorization': 'Bearer ' + key }, body: fd });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error?.message || ('HTTP ' + res.status));
             if (data.text) { document.getElementById('script-input').value = data.text; updateScriptStats(); renderScenesEditor(); showToast('Transcription appliquée', 'success'); }
-        } catch (err) { showToast('Erreur Whisper', 'error'); }
+        } catch (err) { showToast('Transcription impossible : ' + err.message, 'error', 5000); }
         finally { setStatus(null); }
         e.target.value = '';
     });
-
-    // Clé OpenAI générique
-    document.getElementById('openai-key-input')?.addEventListener('change', e => { setLS(STORAGE.OPENAI_KEY, e.target.value.trim()); });
 
     // YouTube
     document.getElementById('youtube-save-btn')?.addEventListener('click', saveYouTubeConfig);
@@ -3485,6 +3902,7 @@ function showCloudConfigRow(provider) {
     // Actions principales
     document.getElementById('generate-btn')?.addEventListener('click', startGeneration);
     document.getElementById('stop-btn')?.addEventListener('click', stopGeneration);
+    document.getElementById('assemble-btn')?.addEventListener('click', () => { unlockAudio(); runAssembly(); });
     document.getElementById('download-final-btn')?.addEventListener('click', downloadFinal);
     document.getElementById('download-srt-btn')?.addEventListener('click', downloadSRT);
     document.getElementById('download-scenes-btn')?.addEventListener('click', downloadScenes);
@@ -3496,7 +3914,6 @@ function showCloudConfigRow(provider) {
     document.getElementById('download-chapters-btn')?.addEventListener('click', downloadChapters);
     document.getElementById('download-quiz-btn')?.addEventListener('click', downloadQuiz);
     document.getElementById('wake-toggle-btn')?.addEventListener('click', toggleWakeLock);
-    document.getElementById('ffmpeg-load-btn')?.addEventListener('click', loadFFmpeg);
 
     // PWA
     document.getElementById('install-btn')?.addEventListener('click', installPWA);
@@ -3509,14 +3926,12 @@ function showCloudConfigRow(provider) {
     try { wakeLockEnabled = getLS(STORAGE.WAKE_LOCK) === '1'; } catch (e) {}
     if (wakeLockEnabled) activateWakeLock().then(updateWakeStatus);
 
-    // Restauration multi-langue
-    const savedMultiLang = getJSON(STORAGE.MULTI_LANG); if (savedMultiLang) state.multiLang = savedMultiLang;
-
     // Rendus initiaux
-    updateApiPanel(); updateTimingDisplay(); updateWakeStatus(); renderQuota();
+    updateApiPanel(); updateClaudePanel(); updateTimingDisplay(); updateWakeStatus(); renderQuota();
     renderScriptPresets(); renderStyles(); renderImages(); renderQueue(); renderHistory();
     updateScriptStats(); updateSeriesStats(); showTTSPanel(state.ttsEngine);
     showCloudConfigRow(state.cloudProvider); updateCloudStatus();
+    const whisperKey = document.getElementById('whisper-api-key'); if (whisperKey && getOpenAIKey()) whisperKey.value = getOpenAIKey();
     updateElevenLabsStatus(); updateGCloudStatus(); updateAzureStatus(); updatePollyStatus();
     renderAnalytics();
     initSubtitleSegmentsFromScript();
