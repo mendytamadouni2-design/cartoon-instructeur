@@ -1,0 +1,8 @@
+// Configuration Cloudflare : déploie le relais de téléchargement (et seulement lui).
+// L'appli elle-même reste hébergée par GitHub Pages.
+{
+    "name": "cartoon-instructeur",
+    "main": "relais/cloudflare-worker.js",
+    "compatibility_date": "2025-09-01",
+    "workers_dev": true
+}
