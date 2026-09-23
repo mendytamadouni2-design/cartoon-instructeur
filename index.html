@@ -506,6 +506,16 @@ select:focus { outline: none; border-color: var(--ink); }
 }
 .badge-pill.new { background: #d4f5df; color: var(--success); }
 
+/* Génération en arrière-plan */
+.bg-panel { background: var(--panel); border: 2px solid var(--accent); border-radius: var(--radius); padding: 1rem 1.1rem; margin: 1rem 0; }
+.bg-panel.ready { border-color: var(--success); background: #f1fbf4; }
+.bg-panel.error { border-color: var(--error); }
+.bg-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem; }
+.bg-text { font-size: 0.8rem; color: var(--ink-dim); margin-bottom: 0.7rem; line-height: 1.45; }
+.bg-bar { height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-bottom: 0.8rem; }
+.bg-bar > div { height: 100%; width: 0%; background: var(--accent); transition: width 0.4s ease; }
+.bg-panel.ready .bg-bar > div { background: var(--success); }
+
 /* Étiquettes obligatoire / recommandé / optionnel */
 .tag {
     display: inline-block; margin-left: 0.35rem; padding: 0.08rem 0.45rem;
@@ -1213,6 +1223,24 @@ Phrase 2..."></textarea>
 </div>
 
 <!-- ═══════════════ Actions ═══════════════ -->
+<div class="control-row" id="gen-mode-row" style="margin-top:1rem;">
+    <label class="control-label">Où faire la génération ?</label>
+    <select id="gen-mode-select">
+        <option value="background" selected>☁️ En arrière-plan sur Cloudflare (tu peux éteindre le téléphone)</option>
+        <option value="phone">📱 Sur le téléphone (écran allumé, scènes enchaînées)</option>
+    </select>
+    <div class="prompt-main-hint" id="gen-mode-hint"></div>
+</div>
+
+<div class="bg-panel hidden" id="bg-panel">
+    <div class="bg-title" id="bg-title">☁️ Génération en arrière-plan</div>
+    <div class="bg-text" id="bg-text">Envoi du projet…</div>
+    <div class="bg-bar"><div id="bg-progress"></div></div>
+    <button type="button" class="btn-primary hidden" id="bg-finish-btn">🎞️ Terminer la vidéo</button>
+    <button type="button" class="btn-secondary" id="bg-cancel-btn">⏹ Arrêter la génération</button>
+    <button type="button" class="btn-secondary hidden" id="bg-dismiss-btn">Fermer</button>
+</div>
+
 <button type="button" class="btn-primary" id="generate-btn" disabled>🎬 Générer la vidéo pédagogique</button>
 <button type="button" class="btn-stop" id="stop-btn">⏹ Arrêter</button>
 <button type="button" class="btn-secondary hidden" id="assemble-btn" style="margin-top:0.6rem;">🎞️ Assembler la vidéo finale</button>
@@ -1312,7 +1340,9 @@ const STORAGE = {
     WAKE_LOCK: 'agnes_wakelock_enabled',
     YOUTUBE_TOKEN_EXP: 'youtube_oauth_token_exp',
     ANALYTICS: 'cartoon_analytics',
-    LAST_PROJECT: 'cartoon_last_project'
+    LAST_PROJECT: 'cartoon_last_project',
+    BG_JOB: 'cartoon_background_job',
+    GEN_MODE: 'cartoon_generation_mode'
 };
 
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
@@ -1342,6 +1372,7 @@ const state = {
     cloudProvider: 'local',
     isLoadingImages: false, creationAttemptsSinceLastError: 0,
     scenePlan: null, timeline: null, drawings: [], drawingsPromise: null,
+    genMode: 'background', proxyJobs: false,
     finalVideoUrl: null, finalBlob: null, finalExt: 'mp4',
     finalAudioBlob: null, exportCache: {},
     isSeriesMode: false, seriesAbort: false, seriesEpisodes: [], seriesResults: [],
@@ -1684,6 +1715,13 @@ function updateClaudePanel() {
     else { panel.classList.remove('ok'); line.classList.remove('ok'); txt.textContent = 'Aucune clé Claude (mise en scène automatique)'; input.value = ''; }
 }
 function getProxyUrl() { return getLS(STORAGE.PROXY_URL).trim(); }
+function updateGenModeHint() {
+    const el = document.getElementById('gen-mode-hint'); if (!el) return;
+    if (state.genMode !== 'background') { el.textContent = 'Garde l\'appli ouverte et l\'écran allumé jusqu\'à la fin.'; return; }
+    if (!getProxyUrl()) el.textContent = '⚠️ Nécessite le relais Cloudflare (bloc en haut de la page).';
+    else if (!state.proxyJobs) el.textContent = '⚠️ Ton serveur Cloudflare n\'est pas encore à jour : la génération se fera sur le téléphone.';
+    else el.textContent = 'Tu peux fermer l\'appli et éteindre le téléphone. En revenant, un bouton te permettra de terminer la vidéo (1 à 2 min, appli ouverte).';
+}
 function normalizeProxyUrl(u) {
     u = String(u || '').trim();
     if (!u) return '';
@@ -1704,7 +1742,12 @@ async function testProxy() {
     try {
         const res = await withTimeout(fetch(p + '/'), 15000, 'pas de réponse');
         const body = await res.text();
-        if (res.ok && body.includes('Relais OK')) { setProxyStatus('✅ Relais opérationnel', true); return true; }
+        if (res.ok && body.includes('Relais OK')) {
+            state.proxyJobs = body.includes('jobs');
+            setProxyStatus('✅ Relais opérationnel' + (state.proxyJobs ? ' · arrière-plan disponible' : ''), true);
+            updateGenModeHint();
+            return true;
+        }
         if (res.status === 403) setProxyStatus('❌ Relais refusé : l\'adresse de l\'appli n\'est pas autorisée dans le code du relais (' + body.slice(0, 80) + ')', false);
         else setProxyStatus('❌ Réponse inattendue (' + res.status + ') : vérifie que le code du relais a bien été collé et déployé', false);
     } catch (e) { setProxyStatus('❌ Relais injoignable : vérifie l\'adresse (' + e.message + ')', false); }
@@ -2257,9 +2300,9 @@ function scenePlanFor(i) {
     return p || fallbackScenePlan(state.scenes).scenes[i] || { spoken: state.scenes[i] || '', action: '', camera: 'medium shot', bubble: '' };
 }
 
-function buildScenePrompt(item) {
-    const sceneIndex = item.sceneIndex, totalScenes = state.queue.length || state.scenes.length;
-    const plan = scenePlanFor(sceneIndex);
+function buildScenePrompt(item, override) {
+    const sceneIndex = item.sceneIndex, totalScenes = override?.total || state.queue.length || state.scenes.length;
+    const plan = override?.plan || scenePlanFor(sceneIndex);
     const style = CARTOON_STYLES.find(s => s.id === state.selectedStyle);
     const audience = AUDIENCE_PROMPTS[state.audience], tone = TONE_PROMPTS[state.tone];
     const lipsync = LIPSYNC_PROMPTS[state.lipsync];
@@ -2274,7 +2317,10 @@ function buildScenePrompt(item) {
     if (wb) {
         parts.push('Background: pure plain white (#FFFFFF), completely empty in every shot: no floor, no furniture, no objects, no decoration, no scenery. Replace the background of the input image with pure white.');
         parts.push('Composition: the character stays on the LEFT side of the frame (left third). The rest of the frame stays EMPTY white space, where drawings will be added later.');
-    } else if (state.scenePlan?.setting) parts.push('Setting, identical in every shot: ' + state.scenePlan.setting + '.');
+    } else {
+        const setting = override ? override.setting : state.scenePlan?.setting;
+        if (setting) parts.push('Setting, identical in every shot: ' + setting + '.');
+    }
     if (sceneIndex === 0) parts.push('Opening shot: the character greets the viewer.');
     else parts.push('This shot directly continues the previous one: it starts with the character already in motion, in the same place and the same lighting, with no intro.');
     if (sceneIndex === totalScenes - 1 && totalScenes > 1) parts.push('Final shot: the character wraps up warmly.');
@@ -2581,12 +2627,12 @@ const PLAN_SCHEMA = {
     },
     required: ['setting', 'scenes'], additionalProperties: false
 };
-async function planScenesWithClaude(scenes) {
+function planRequestFor(scenes) {
     const style = CARTOON_STYLES.find(s => s.id === state.selectedStyle);
     const wbRules = isWhiteboard()
         ? '\nMODE TABLEAU BLANC : le décor est un fond blanc vide ; "setting" doit valoir "". Le personnage reste à gauche de l\'image ; ses actions consistent à dessiner avec un feutre, montrer ou expliquer vers l\'espace vide à sa droite (où apparaîtront les dessins). "camera" vaut toujours "medium-wide shot".'
         : '';
-    const out = await callClaude({
+    return {
         system: 'Tu es réalisateur de dessins animés pédagogiques. Tu prépares la mise en scène d\'une vidéo générée scène par scène par une IA vidéo à partir de la photo d\'un personnage. Toutes les scènes doivent donner l\'impression d\'un seul plan-séquence continu : même décor, même lumière, gestes qui s\'enchaînent logiquement d\'une scène à l\'autre.',
         prompt: claudeContext() + '\nStyle visuel : ' + (style ? style.name : 'cartoon') + '.\n' +
             'Pour la vidéo entière, donne "setting" : une description en anglais (1 à 2 phrases) d\'un décor unique, lié au sujet, qui restera identique dans toutes les scènes. Aucun texte, panneau écrit ou lettre dans le décor.\n' +
@@ -2597,7 +2643,10 @@ async function planScenesWithClaude(scenes) {
             '- "bubble" : 2 à 5 mots-clés à afficher dans une bulle, dans la langue de la vidéo, ou "" si la scène n\'en a pas besoin (une scène sur deux environ)\n\n' +
             wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
         schema: PLAN_SCHEMA
-    });
+    };
+}
+async function planScenesWithClaude(scenes) {
+    const out = await callClaude(planRequestFor(scenes));
     if (!out || !Array.isArray(out.scenes) || !out.scenes.length) throw new Error('mise en scène vide');
     const fb = fallbackScenePlan(scenes).scenes;
     return {
@@ -2659,15 +2708,18 @@ function compileDrawing(raw) {
     }
     return strokes.length ? { strokes, total: strokes.reduce((a, b) => a + b.len, 0) } : null;
 }
-async function generateDrawing(sceneText, index, total) {
-    const out = await callClaude({
+function drawingRequestFor(sceneText, index, total) {
+    return {
         system: 'Tu es illustrateur de vidéos pédagogiques façon tableau blanc. Tu dessines au feutre, en quelques traits simples et lisibles, ce que dit le narrateur, comme un professeur qui illustre au tableau.',
         prompt: 'Sujet de la vidéo : ' + (state.theme || 'non précisé') + '. Phrase ' + (index + 1) + '/' + total + ' dite par le personnage : « ' + sceneText + ' »\n\n' +
             'Dessine une illustration concrète et compréhensible de cette phrase (objets, personnages simplifiés, flèches, symboles visuels), dans une zone de ' + DRAW_VB.w + ' × ' + DRAW_VB.h + ' (coordonnées SVG, origine en haut à gauche, marge de 20).\n' +
             'Contraintes :\n- 4 à 18 traits, chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer une forme)\n- dessin au trait uniquement (pas de remplissage)\n- AUCUNE lettre, AUCUN chiffre, AUCUN mot, aucun texte\n- ordre des traits = ordre dans lequel on les dessine (d\'abord l\'élément principal, puis les détails et les flèches)\n- surtout du noir ("black"), une ou deux couleurs d\'accent maximum pour ce qui est important',
         schema: DRAWING_SCHEMA,
         maxTokens: 8000
-    });
+    };
+}
+async function generateDrawing(sceneText, index, total) {
+    const out = await callClaude(drawingRequestFor(sceneText, index, total));
     const compiled = compileDrawing(out);
     if (compiled) compiled.raw = out;
     return compiled;
@@ -2841,6 +2893,145 @@ function restoreProject() {
     updateAssembleBtn();
     showToast('Dernier projet restauré (' + state.completed + ' scènes) : appuie sur « Assembler la vidéo finale »', 'success', 6000);
 }
+
+// ══════════════════════════════════════════════════════════════════
+// GÉNÉRATION EN ARRIÈRE-PLAN (serveur Cloudflare)
+// ══════════════════════════════════════════════════════════════════
+let bgPollTimer = null, bgPolling = false;
+function downscaleImage(dataUri, max = 1280, quality = 0.88) {
+    return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+            const s = Math.min(1, max / Math.max(img.width, img.height));
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+            const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+            g.drawImage(img, 0, 0, c.width, c.height);
+            resolve(c.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(dataUri);
+        img.src = dataUri;
+    });
+}
+function bgUI({ title, text, pct, ready, error, running }) {
+    const panel = document.getElementById('bg-panel'); if (!panel) return;
+    panel.classList.remove('hidden');
+    panel.classList.toggle('ready', !!ready); panel.classList.toggle('error', !!error);
+    if (title !== undefined) document.getElementById('bg-title').textContent = title;
+    if (text !== undefined) document.getElementById('bg-text').textContent = text;
+    if (pct !== undefined) document.getElementById('bg-progress').style.width = Math.max(3, Math.min(100, pct)) + '%';
+    document.getElementById('bg-finish-btn').classList.toggle('hidden', !ready);
+    document.getElementById('bg-cancel-btn').classList.toggle('hidden', !running);
+    document.getElementById('bg-dismiss-btn').classList.toggle('hidden', running || ready);
+}
+function hideBgPanel() { document.getElementById('bg-panel')?.classList.add('hidden'); }
+
+async function startBackgroundGeneration() {
+    const existing = getJSON(STORAGE.BG_JOB);
+    if (existing && !existing.finished && !confirm('Une génération est déjà en cours en arrière-plan. La remplacer par celle-ci ?')) return;
+    if (existing && !existing.finished) cancelBackgroundJob(true);
+    const scenes = state.scenes.slice(), n = scenes.length;
+    const withClaude = !!getClaudeKey();
+    bgUI({ title: '☁️ Envoi du projet…', text: 'Préparation de la photo et des scènes.', pct: 2, running: false });
+    try {
+        const templates = scenes.map((t, i) => buildScenePrompt({ sceneIndex: i, sceneText: t }, {
+            total: n, setting: '{{SETTING}}',
+            plan: { spoken: '{{SPOKEN}}', action: '{{ACTION}}', camera: '{{CAMERA}}' }
+        }));
+        const payload = {
+            agnesKey: getAgnesKey(), claudeKey: getClaudeKey(), claudeModel: getClaudeModel(),
+            image: await downscaleImage(state.images[0].dataUri),
+            frames: state.durationFrames, frameRate: FRAME_RATE,
+            templates, fallbackPlan: fallbackScenePlan(scenes),
+            planRequest: withClaude ? planRequestFor(scenes) : null,
+            drawingRequests: withClaude && isWhiteboard() ? scenes.map((t, i) => ({ ...drawingRequestFor('{{SPOKEN}}', i, n), fallbackText: t })) : []
+        };
+        const res = await withTimeout(fetch(getProxyUrl() + '/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }), 60000, 'le serveur ne répond pas');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.jobId) throw new Error(data.error || ('HTTP ' + res.status));
+        setJSON(STORAGE.BG_JOB, { id: data.jobId, date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle, n });
+        state.queue = []; renderQueue();
+        document.getElementById('gallery-grid').innerHTML = ''; document.getElementById('gallery').style.display = 'none';
+        document.getElementById('video-preview').classList.remove('visible'); hideResultButtons(); updateAssembleBtn();
+        bgUI({ title: '☁️ Génération en arrière-plan', text: 'C\'est parti ! Tu peux fermer l\'appli et éteindre ton téléphone. Reviens dans ' + Math.max(10, Math.round(n * 1.5)) + ' minutes environ.', pct: 4, running: true });
+        showToast('Projet envoyé ✓ Tu peux éteindre ton téléphone', 'success', 5000);
+        scheduleBgPoll(4000);
+    } catch (e) {
+        bgUI({ title: '❌ Envoi impossible', text: e.message + '. Tu peux réessayer, ou choisir « Sur le téléphone ».', pct: 0, error: true, running: false });
+        showToast('Envoi impossible : ' + e.message, 'error', 6000);
+    }
+}
+function scheduleBgPoll(ms) { clearTimeout(bgPollTimer); bgPollTimer = setTimeout(pollBackgroundJob, ms); }
+async function pollBackgroundJob() {
+    const saved = getJSON(STORAGE.BG_JOB);
+    if (!saved || saved.finished || !getProxyUrl() || bgPolling) return;
+    if (document.hidden) return;   // reprise au retour dans l'appli
+    bgPolling = true;
+    try {
+        const res = await withTimeout(fetch(getProxyUrl() + '/jobs/' + saved.id), 20000, 'pas de réponse');
+        const job = await res.json().catch(() => ({}));
+        if (res.status === 404) { setJSON(STORAGE.BG_JOB, { ...saved, finished: true }); bgUI({ title: 'Projet introuvable', text: 'Ce projet a expiré sur le serveur (plus de 3 jours).', pct: 0, error: true, running: false }); return; }
+        if (!res.ok) throw new Error(job.error || ('HTTP ' + res.status));
+        const n = job.scenes.length;
+        const done = job.scenes.filter(sc => sc.status === 'done').length;
+        const failed = job.scenes.filter(sc => sc.status === 'failed').length;
+        if (job.status === 'done') {
+            loadBackgroundResults(saved, job);
+            bgUI({ title: '✅ Tes scènes sont prêtes !', text: done + '/' + n + ' scènes générées' + (failed ? ' (' + failed + ' en échec)' : '') + '. Appuie sur le bouton et garde l\'appli ouverte 1 à 2 minutes pour le montage.', pct: 100, ready: true, running: false });
+            return;
+        }
+        if (job.status === 'failed' || job.status === 'cancelled') {
+            setJSON(STORAGE.BG_JOB, { ...saved, finished: true });
+            if (done) loadBackgroundResults(saved, job);
+            bgUI({ title: job.status === 'cancelled' ? '⏹ Génération arrêtée' : '❌ Génération échouée', text: (job.message || '') + (done ? ' · Les ' + done + ' scènes terminées peuvent être assemblées.' : ''), pct: n ? done / n * 100 : 0, error: job.status === 'failed', running: false });
+            if (done) { document.getElementById('bg-finish-btn').classList.remove('hidden'); }
+            return;
+        }
+        const planning = job.status === 'planning';
+        bgUI({ title: '☁️ Génération en arrière-plan', text: (planning ? 'Claude prépare la mise en scène…' : job.message) + ' · Tu peux éteindre ton téléphone.', pct: planning ? 4 : 5 + (done + failed) / n * 95, running: true });
+        scheduleBgPoll(15000);
+    } catch (e) {
+        bgUI({ text: 'Connexion au serveur impossible pour l\'instant (' + e.message + '). Nouvel essai dans 30 s. La génération continue de son côté.' });
+        scheduleBgPoll(30000);
+    } finally { bgPolling = false; }
+}
+function loadBackgroundResults(saved, job) {
+    const lines = splitScriptIntoScenes(saved.script || '');
+    document.getElementById('theme-input').value = saved.theme || '';
+    document.getElementById('script-input').value = saved.script || '';
+    state.theme = saved.theme || '';
+    if (saved.style && CARTOON_STYLES.some(st => st.id === saved.style)) { state.selectedStyle = saved.style; renderStyles(); }
+    updateScriptStats();
+    state.scenePlan = job.plan || fallbackScenePlan(lines);
+    state.drawings = (job.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
+    state.queue = job.scenes.map(sc => ({ sceneIndex: sc.index, sceneText: lines[sc.index] || '', image: null, status: sc.status === 'done' ? 'done' : 'failed', progress: sc.status === 'done' ? 'Terminé' : 'Échec', error: sc.error, videoUrl: sc.videoUrl, videoId: null, prompt: null, startTime: null }));
+    state.completed = state.queue.filter(q => q.status === 'done').length;
+    state.failed = state.queue.length - state.completed;
+    initSubtitleSegmentsFromScript();
+    renderQueue(); setProgress(0);
+    document.getElementById('gallery-grid').innerHTML = '';
+    state.queue.filter(q => q.status === 'done').forEach(q => addToGallery(q.videoUrl, 'Scène ' + (q.sceneIndex + 1)));
+    saveProject(); updateAssembleBtn();
+}
+async function finishBackgroundJob() {
+    unlockAudio();
+    const ok = await runAssembly();
+    if (ok) {
+        const saved = getJSON(STORAGE.BG_JOB);
+        if (saved) setJSON(STORAGE.BG_JOB, { ...saved, finished: true });
+        hideBgPanel();
+        document.getElementById('video-preview')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+async function cancelBackgroundJob(silent) {
+    const saved = getJSON(STORAGE.BG_JOB);
+    if (!saved) return;
+    if (!silent && !confirm('Arrêter la génération en arrière-plan ? Les scènes déjà prêtes resteront disponibles.')) return;
+    try { await fetch(getProxyUrl() + '/jobs/' + saved.id + '/cancel', { method: 'POST' }); } catch (e) {}
+    if (silent) { setJSON(STORAGE.BG_JOB, { ...saved, finished: true }); return; }
+    scheduleBgPoll(500);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleBgPoll(300); });
 
 // ══════════════════════════════════════════════════════════════════
 // PIPELINE DE GÉNÉRATION
@@ -3567,6 +3758,10 @@ async function startGeneration() {
     if (!getAgnesKey()) { showToast('Ajoute la clé Agnes', 'error'); return; }
     if (!state.scenes.length) { showToast('Écris un script', 'error'); return; }
     unlockAudio();
+    if (state.genMode === 'background' && !state.isSeriesMode) {
+        if (getProxyUrl() && state.proxyJobs) { await startBackgroundGeneration(); return; }
+        showToast('Arrière-plan indisponible (serveur Cloudflare pas à jour) : génération sur le téléphone', 'warn', 6000);
+    }
     if (!getProxyUrl()) showToast('Pas de relais Cloudflare : les scènes seront générées, mais le montage final échouera', 'warn', 6000);
 
     state.isRunning = true; state.stopRequested = false;
@@ -4096,6 +4291,14 @@ function showCloudConfigRow(provider) {
     document.getElementById('translate-script-btn')?.addEventListener('click', translateScript);
     document.getElementById('improve-script-btn')?.addEventListener('click', improveScriptForSpeech);
 
+    // Génération en arrière-plan
+    state.genMode = getLS(STORAGE.GEN_MODE) || 'background';
+    const gm = document.getElementById('gen-mode-select'); if (gm) gm.value = state.genMode;
+    gm?.addEventListener('change', e => { state.genMode = e.target.value; setLS(STORAGE.GEN_MODE, e.target.value); updateGenModeHint(); });
+    document.getElementById('bg-finish-btn')?.addEventListener('click', finishBackgroundJob);
+    document.getElementById('bg-cancel-btn')?.addEventListener('click', () => cancelBackgroundJob(false));
+    document.getElementById('bg-dismiss-btn')?.addEventListener('click', hideBgPanel);
+
     // Relais
     document.getElementById('proxy-save-btn')?.addEventListener('click', saveProxy);
     document.getElementById('proxy-url-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveProxy(); } });
@@ -4248,7 +4451,10 @@ function showCloudConfigRow(provider) {
     renderAnalytics();
     initSubtitleSegmentsFromScript();
     updateYouTubeStatus();
-    restoreProject();
+    updateGenModeHint();
+    const bgJob = getJSON(STORAGE.BG_JOB);
+    if (bgJob && !bgJob.finished) { bgUI({ title: '☁️ Génération en arrière-plan', text: 'Vérification de l\'avancement…', pct: 3, running: true }); pollBackgroundJob(); }
+    else restoreProject();
 
     log('🎓 Cartoon Instructeur ULTIMATE prêt.');
 })();

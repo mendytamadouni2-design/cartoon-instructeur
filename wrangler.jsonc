@@ -1,8 +1,14 @@
-// Configuration Cloudflare : déploie le relais de téléchargement (et seulement lui).
+// Configuration Cloudflare : relais de téléchargement + génération en arrière-plan.
 // L'appli elle-même reste hébergée par GitHub Pages.
 {
     "name": "cartoon-instructeur",
     "main": "relais/cloudflare-worker.js",
     "compatibility_date": "2025-09-01",
-    "workers_dev": true
+    "workers_dev": true,
+    "durable_objects": {
+        "bindings": [{ "name": "JOBS", "class_name": "VideoJob" }]
+    },
+    "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["VideoJob"] }
+    ]
 }
