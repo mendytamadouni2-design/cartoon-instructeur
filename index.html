@@ -585,6 +585,16 @@ select:focus { outline: none; border-color: var(--ink); }
     </div>
 </div>
 
+<!-- ═══════════════ Sauvegarde des clés ═══════════════ -->
+<div class="api-panel" id="keys-panel">
+    <div class="api-title">🔐 Mes clés sur ce téléphone</div>
+    <div class="api-hint">Tes clés restent enregistrées sur ce téléphone : pas besoin de les retaper. Pour les retrouver après une réinstallation ou sur un autre appareil, sauvegarde-les une fois dans un fichier (dans l'app Fichiers / iCloud), puis restaure-le en un appui. Ce fichier est privé : ne le partage pas et ne le mets jamais sur GitHub.</div>
+    <input type="file" id="keys-import-input" accept=".json,application/json,text/plain" style="display:none;">
+    <button type="button" class="btn-secondary" id="keys-export-btn">💾 Sauvegarder mes clés dans un fichier</button>
+    <button type="button" class="btn-secondary" id="keys-import-btn" style="margin-top:0.4rem;">📂 Restaurer mes clés depuis le fichier</button>
+    <div class="api-hint" id="keys-summary" style="margin:0.6rem 0 0;"></div>
+</div>
+
 <!-- ═══════════════ Personnage ═══════════════ -->
 <div class="section open" id="section-character">
     <div class="section-header" data-toggle="section-character">
@@ -1301,7 +1311,7 @@ const TARGET_SCENE_DURATION = 7;
 const state = {
     images: [], isRunning: false, stopRequested: false,
     queue: [], completed: 0, failed: 0,
-    selectedStyle: 'vector-edu',
+    selectedStyle: 'whiteboard',
     theme: '', script: '', scenes: [],
     audience: 'teens', tone: 'friendly', motion: 'auto',
     pedagoFx: ['arrows', 'bubbles', 'highlight', 'schemas'],
@@ -1317,7 +1327,7 @@ const state = {
     avatarProvider: 'off',
     cloudProvider: 'local',
     isLoadingImages: false, creationAttemptsSinceLastError: 0,
-    scenePlan: null, timeline: null,
+    scenePlan: null, timeline: null, drawings: [], drawingsPromise: null,
     finalVideoUrl: null, finalBlob: null, finalExt: 'mp4',
     finalAudioBlob: null, exportCache: {},
     isSeriesMode: false, seriesAbort: false, seriesEpisodes: [], seriesResults: [],
@@ -1497,6 +1507,7 @@ function renderQuota() {
 // STYLES CARTOON
 // ══════════════════════════════════════════════════════════════════
 const CARTOON_STYLES = [
+    { id: 'whiteboard', name: 'Tableau blanc dessiné', emoji: '✏️', desc: 'Fond blanc + dessins', prompt: 'clean whiteboard explainer animation style: pure plain white background, flat cartoon character with clean dark outlines and soft flat colors. Character keeps the same face, hairstyle, and identity as the source photo.' },
     { id: 'vector-edu', name: 'Vecteur éducatif', emoji: '📐', desc: 'TED-Ed / Duolingo', prompt: 'flat vector illustration style, clean geometric shapes, bright educational colors, thick outlines, simple shading, modern infographic aesthetic. Character keeps the same face, hairstyle, and identity as the source photo.' },
     { id: 'cartoon-modern', name: 'Cartoon moderne', emoji: '🎨', desc: 'Contours épais', prompt: 'modern cartoon style, thick black outlines, flat saturated colors, expressive characters, Adventure Time aesthetic. Character keeps the same identity as the source photo.' },
     { id: 'ghibli', name: 'Studio Ghibli', emoji: '🌿', desc: 'Anime poétique', prompt: 'Studio Ghibli anime style, Hayao Miyazaki aesthetic, soft watercolor backgrounds, warm lighting. Character keeps identity.' },
@@ -1658,6 +1669,39 @@ function updateClaudePanel() {
     if (key) { panel.classList.add('ok'); line.classList.add('ok'); txt.textContent = 'Clé active · ' + key.slice(0, 10) + '…' + key.slice(-4) + ' · ' + modelName; input.value = key; }
     else { panel.classList.remove('ok'); line.classList.remove('ok'); txt.textContent = 'Aucune clé Claude (mise en scène automatique)'; input.value = ''; }
 }
+const BACKUP_KEYS = ['AGNES_KEY', 'CLAUDE_KEY', 'CLAUDE_MODEL', 'ELEVENLABS_KEY', 'ELEVENLABS_VOICE', 'GCLOUD_KEY', 'GCLOUD_VOICE', 'AZURE_KEY', 'AZURE_REGION', 'AZURE_VOICE', 'POLLY_KEY', 'POLLY_SECRET', 'POLLY_REGION', 'POLLY_VOICE', 'OPENAI_KEY', 'DEEPL_KEY', 'GTRANSLATE_KEY', 'AVATAR_KEY', 'YOUTUBE_CLIENT', 'YOUTUBE_APIKEY'];
+function exportKeys() {
+    const data = { app: 'cartoon-instructeur', version: 1, date: new Date().toISOString(), keys: {} };
+    BACKUP_KEYS.forEach(k => { const v = getLS(STORAGE[k]); if (v) data.keys[k] = v; });
+    if (!Object.keys(data.keys).length) { showToast('Aucune clé à sauvegarder', 'warn'); return; }
+    saveBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), 'cles-cartoon-instructeur.json');
+}
+async function importKeys(file) {
+    try {
+        const data = JSON.parse(await file.text());
+        if (!data || data.app !== 'cartoon-instructeur' || !data.keys) throw new Error('fichier non reconnu');
+        let n = 0;
+        BACKUP_KEYS.forEach(k => { if (typeof data.keys[k] === 'string' && data.keys[k]) { setLS(STORAGE[k], data.keys[k]); n++; } });
+        showToast(n + ' réglage' + (n > 1 ? 's' : '') + ' restauré' + (n > 1 ? 's' : '') + ' ✓', 'success');
+        refreshKeyFields();
+    } catch (e) { showToast('Restauration impossible : ' + e.message, 'error', 5000); }
+}
+// Affiche dans les champs les clés déjà enregistrées, pour qu'on voie qu'elles sont bien là.
+function refreshKeyFields() {
+    const fill = (id, k) => { const el = document.getElementById(id); const v = getLS(STORAGE[k]); if (el && v) el.value = v; };
+    fill('elevenlabs-key', 'ELEVENLABS_KEY'); fill('gcloud-key', 'GCLOUD_KEY');
+    fill('azure-key', 'AZURE_KEY'); fill('azure-region', 'AZURE_REGION');
+    fill('polly-key', 'POLLY_KEY'); fill('polly-secret', 'POLLY_SECRET'); fill('polly-region', 'POLLY_REGION');
+    fill('whisper-api-key', 'OPENAI_KEY'); fill('avatar-key-input', 'AVATAR_KEY');
+    fill('youtube-client-id', 'YOUTUBE_CLIENT'); fill('youtube-api-key', 'YOUTUBE_APIKEY');
+    updateApiPanel(); updateClaudePanel();
+    updateElevenLabsStatus(); updateGCloudStatus(); updateAzureStatus(); updatePollyStatus();
+    const names = { AGNES_KEY: 'Agnes', CLAUDE_KEY: 'Claude', ELEVENLABS_KEY: 'ElevenLabs', GCLOUD_KEY: 'Google Cloud', AZURE_KEY: 'Azure', POLLY_KEY: 'Amazon Polly', OPENAI_KEY: 'OpenAI', DEEPL_KEY: 'DeepL', GTRANSLATE_KEY: 'Google Translate', AVATAR_KEY: 'Avatar' };
+    const saved = Object.keys(names).filter(k => getLS(STORAGE[k])).map(k => names[k]);
+    const sum = document.getElementById('keys-summary');
+    if (sum) sum.textContent = saved.length ? '✅ Clés enregistrées sur ce téléphone : ' + saved.join(', ') : 'Aucune clé enregistrée pour l\'instant.';
+    if (getElevenLabsKey() && !elevenlabsVoices.length && typeof loadElevenLabsVoicesQuiet === 'function') loadElevenLabsVoicesQuiet();
+}
 function updateGenerateBtn() {
     const btn = document.getElementById('generate-btn');
     if (!btn) return;
@@ -1707,6 +1751,16 @@ async function loadElevenLabsVoices() {
         showToast(elevenlabsVoices.length + ' voix chargées', 'success');
     } catch (e) { showToast('Erreur ElevenLabs : ' + e.message, 'error'); }
     finally { setStatus(null); }
+}
+async function loadElevenLabsVoicesQuiet() {
+    try {
+        const res = await fetch(ELEVENLABS_API + '/voices', { headers: { 'xi-api-key': getElevenLabsKey() } });
+        if (!res.ok) return;
+        const data = await res.json();
+        elevenlabsVoices = data.voices || []; elevenlabsKeyValid = true;
+        renderElevenLabsVoices(); updateElevenLabsStatus();
+        ['elevenlabs-voices-row', 'elevenlabs-model-row', 'elevenlabs-settings-row'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+    } catch (e) {}
 }
 function renderElevenLabsVoices() {
     const list = document.getElementById('elevenlabs-voices-list'); if (!list) return;
@@ -1980,7 +2034,7 @@ function stopSpeech() { if ('speechSynthesis' in window) window.speechSynthesis.
 async function generateAudioUnified(text) {
     switch (state.ttsEngine) {
         case 'elevenlabs':
-            return await generateElevenLabsAudio(text, elevenlabsSelectedVoiceId, document.getElementById('elevenlabs-model-select')?.value || 'eleven_multilingual_v2', '0.5', '0.75');
+            return await generateElevenLabsAudio(text, elevenlabsSelectedVoiceId || getLS(STORAGE.ELEVENLABS_VOICE), document.getElementById('elevenlabs-model-select')?.value || 'eleven_multilingual_v2', '0.5', '0.75');
         case 'gcloud':
             return await generateGCloudAudio(text, gcloudSelectedVoiceName);
         case 'azure':
@@ -2134,12 +2188,15 @@ const CAMERA_SHOTS = ['medium shot', 'medium close-up', 'medium-wide shot', 'clo
 const AUTO_ACTIONS = ['explains with open, expressive hand gestures', 'points toward something next to them', 'counts on their fingers', 'holds up and presents an object related to the topic', 'thinks with a hand on the chin, then smiles', 'nods enthusiastically', 'draws shapes in the air with one hand'];
 
 // Mise en scène de secours (sans Claude) : plans et gestes variés, décor constant.
+const WHITEBOARD_ACTIONS = ['holds a black marker and draws in the air toward the empty white space on the right', 'points with the marker toward the empty space on the right, smiling', 'turns slightly toward the right and sketches with the marker', 'explains with open hands, then gestures toward the right side', 'taps the marker in the air toward the right as if underlining something'];
+function isWhiteboard() { return state.selectedStyle === 'whiteboard'; }
 function fallbackScenePlan(scenes) {
+    const actions = isWhiteboard() ? WHITEBOARD_ACTIONS : AUTO_ACTIONS;
     return {
         setting: '',
         scenes: scenes.map((text, i) => ({
             spoken: text,
-            action: state.motion === 'auto' ? AUTO_ACTIONS[i % AUTO_ACTIONS.length] : (MOTION_PROMPTS[state.motion] || AUTO_ACTIONS[0]),
+            action: state.motion === 'auto' || isWhiteboard() ? actions[i % actions.length] : (MOTION_PROMPTS[state.motion] || AUTO_ACTIONS[0]),
             camera: CAMERA_SHOTS[i % CAMERA_SHOTS.length],
             bubble: i === 0 ? (state.theme || '').slice(0, 40) : ''
         }))
@@ -2162,18 +2219,23 @@ function buildScenePrompt(item) {
     const parts = [];
     parts.push('Educational cartoon animation. This is shot ' + (sceneIndex + 1) + ' of ' + totalScenes + ' of ONE continuous video.');
     parts.push('The character from the input image MUST stay IDENTICAL: same face, hairstyle, body shape, clothing and colors.');
+    const wb = isWhiteboard();
     if (style) parts.push('Visual style: ' + style.prompt);
-    if (state.scenePlan?.setting) parts.push('Setting, identical in every shot: ' + state.scenePlan.setting + '.');
+    if (wb) {
+        parts.push('Background: pure plain white (#FFFFFF), completely empty in every shot: no floor, no furniture, no objects, no decoration, no scenery. Replace the background of the input image with pure white.');
+        parts.push('Composition: the character stays on the LEFT side of the frame (left third). The rest of the frame stays EMPTY white space, where drawings will be added later.');
+    } else if (state.scenePlan?.setting) parts.push('Setting, identical in every shot: ' + state.scenePlan.setting + '.');
     if (sceneIndex === 0) parts.push('Opening shot: the character greets the viewer.');
     else parts.push('This shot directly continues the previous one: it starts with the character already in motion, in the same place and the same lighting, with no intro.');
     if (sceneIndex === totalScenes - 1 && totalScenes > 1) parts.push('Final shot: the character wraps up warmly.');
     if (plan.action) parts.push('Action: the character ' + plan.action + '.');
-    if (state.camera === 'static') parts.push('Camera: locked-off static medium shot. No zoom, no push-in, no camera movement at all.');
+    if (wb) parts.push('Camera: locked-off static medium-wide shot, identical framing in every shot. No zoom, no push-in, no camera movement at all.');
+    else if (state.camera === 'static') parts.push('Camera: locked-off static medium shot. No zoom, no push-in, no camera movement at all.');
     else parts.push('Camera: ' + (plan.camera || 'medium shot') + ', steady. No zoom-in at the start, no push-in intro, no dolly.');
     parts.push('The character talks to the viewer in ' + langName + ' and says (spoken audio only, never written): "' + spoken + '"');
     if (lipsync) parts.push(lipsync + '.');
     parts.push(tone + '.'); parts.push(audience);
-    if (fxList.length) parts.push('Effects: ' + fxList.join(', ') + '.');
+    if (fxList.length && !wb) parts.push('Effects: ' + fxList.join(', ') + '.');
     parts.push('STRICTLY NO TEXT anywhere in the image: no letters, words, numbers, captions, subtitles, labels, logos, signs or writing. Speech bubbles, boards and screens stay empty or show simple pictures only.');
     if (state.videoFormat === 'portrait') parts.push('Vertical 9:16 composition.');
     else if (state.videoFormat === 'landscape') parts.push('Horizontal 16:9 composition.');
@@ -2471,6 +2533,9 @@ const PLAN_SCHEMA = {
 };
 async function planScenesWithClaude(scenes) {
     const style = CARTOON_STYLES.find(s => s.id === state.selectedStyle);
+    const wbRules = isWhiteboard()
+        ? '\nMODE TABLEAU BLANC : le décor est un fond blanc vide ; "setting" doit valoir "". Le personnage reste à gauche de l\'image ; ses actions consistent à dessiner avec un feutre, montrer ou expliquer vers l\'espace vide à sa droite (où apparaîtront les dessins). "camera" vaut toujours "medium-wide shot".'
+        : '';
     const out = await callClaude({
         system: 'Tu es réalisateur de dessins animés pédagogiques. Tu prépares la mise en scène d\'une vidéo générée scène par scène par une IA vidéo à partir de la photo d\'un personnage. Toutes les scènes doivent donner l\'impression d\'un seul plan-séquence continu : même décor, même lumière, gestes qui s\'enchaînent logiquement d\'une scène à l\'autre.',
         prompt: claudeContext() + '\nStyle visuel : ' + (style ? style.name : 'cartoon') + '.\n' +
@@ -2480,18 +2545,96 @@ async function planScenesWithClaude(scenes) {
             '- "action" : en anglais, le geste ou l\'action du personnage (commence par un verbe, ex. "points at a glowing drop of water floating beside him"), qui prolonge naturellement l\'action précédente et illustre la réplique\n' +
             '- "camera" : le cadrage, en variant les plans d\'une scène à l\'autre\n' +
             '- "bubble" : 2 à 5 mots-clés à afficher dans une bulle, dans la langue de la vidéo, ou "" si la scène n\'en a pas besoin (une scène sur deux environ)\n\n' +
-            'Répliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
+            wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
         schema: PLAN_SCHEMA
     });
     if (!out || !Array.isArray(out.scenes) || !out.scenes.length) throw new Error('mise en scène vide');
     const fb = fallbackScenePlan(scenes).scenes;
     return {
-        setting: String(out.setting || '').replace(/"/g, "'"),
+        setting: isWhiteboard() ? '' : String(out.setting || '').replace(/"/g, "'"),
         scenes: scenes.map((text, i) => {
             const p = out.scenes[i] || {};
             return { spoken: p.spoken || text, action: p.action || fb[i].action, camera: p.camera || fb[i].camera, bubble: String(p.bubble || '').slice(0, 60) };
         })
     };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DESSINS DU TABLEAU BLANC (conçus par Claude, animés par l'appli)
+// ══════════════════════════════════════════════════════════════════
+const DRAW_VB = { w: 400, h: 300 };
+const INK = { black: '#1f1f1f', blue: '#2563eb', red: '#e03e3e', green: '#1f9d55', orange: '#f08c00' };
+const DRAWING_SCHEMA = {
+    type: 'object',
+    properties: {
+        paths: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: { d: { type: 'string' }, color: { type: 'string', enum: Object.keys(INK) } },
+                required: ['d', 'color'], additionalProperties: false
+            }
+        }
+    },
+    required: ['paths'], additionalProperties: false
+};
+let measureSvgEl = null;
+function measurePath(d) {
+    if (!measureSvgEl) {
+        measureSvgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        measureSvgEl.setAttribute('width', '0'); measureSvgEl.setAttribute('height', '0');
+        measureSvgEl.style.position = 'absolute'; measureSvgEl.style.visibility = 'hidden';
+        document.body.appendChild(measureSvgEl);
+    }
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    el.setAttribute('d', d);
+    measureSvgEl.appendChild(el);
+    let len = 0;
+    try { len = el.getTotalLength(); } catch (e) {}
+    return { el, len };
+}
+// Transforme la réponse de Claude en traits prêts à animer (un trait = un seul tracé continu).
+function compileDrawing(raw) {
+    const strokes = [];
+    for (const p of (raw?.paths || [])) {
+        const pieces = String(p.d || '').split(/(?=M)/).map(x => x.trim()).filter(x => /^M/.test(x));
+        for (const d of pieces) {
+            if (strokes.length >= 40) break;
+            let path2d;
+            try { path2d = new Path2D(d); } catch (e) { continue; }
+            const { el, len } = measurePath(d);
+            if (!len || !isFinite(len)) continue;
+            strokes.push({ d, path2d, el, len, color: INK[p.color] || INK.black });
+        }
+    }
+    return strokes.length ? { strokes, total: strokes.reduce((a, b) => a + b.len, 0) } : null;
+}
+async function generateDrawing(sceneText, index, total) {
+    const out = await callClaude({
+        system: 'Tu es illustrateur de vidéos pédagogiques façon tableau blanc. Tu dessines au feutre, en quelques traits simples et lisibles, ce que dit le narrateur, comme un professeur qui illustre au tableau.',
+        prompt: 'Sujet de la vidéo : ' + (state.theme || 'non précisé') + '. Phrase ' + (index + 1) + '/' + total + ' dite par le personnage : « ' + sceneText + ' »\n\n' +
+            'Dessine une illustration concrète et compréhensible de cette phrase (objets, personnages simplifiés, flèches, symboles visuels), dans une zone de ' + DRAW_VB.w + ' × ' + DRAW_VB.h + ' (coordonnées SVG, origine en haut à gauche, marge de 20).\n' +
+            'Contraintes :\n- 4 à 18 traits, chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer une forme)\n- dessin au trait uniquement (pas de remplissage)\n- AUCUNE lettre, AUCUN chiffre, AUCUN mot, aucun texte\n- ordre des traits = ordre dans lequel on les dessine (d\'abord l\'élément principal, puis les détails et les flèches)\n- surtout du noir ("black"), une ou deux couleurs d\'accent maximum pour ce qui est important',
+        schema: DRAWING_SCHEMA,
+        maxTokens: 8000
+    });
+    return compileDrawing(out);
+}
+async function prepareDrawings() {
+    state.drawings = [];
+    if (!isWhiteboard() || !getClaudeKey()) return;
+    const scenes = state.scenes.slice();
+    let next = 0, failures = 0;
+    const worker = async () => {
+        while (next < scenes.length && !state.stopRequested) {
+            const i = next++;
+            const text = scenePlanFor(i).spoken || scenes[i];
+            try { state.drawings[i] = await generateDrawing(text, i, scenes.length); }
+            catch (e) { failures++; log('Dessin ' + (i + 1) + ' : ' + e.message); }
+        }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    if (failures) showToast(failures + ' dessin' + (failures > 1 ? 's' : '') + ' n\'ont pas pu être créés', 'warn', 4000);
 }
 
 async function prepareScenePlan() {
@@ -2727,9 +2870,11 @@ function computeOutputSize(v) {
 }
 function drawFrame(ctx, v, cw, ch) {
     const vw = v.videoWidth, vh = v.videoHeight;
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cw, ch);
+    const wb = isWhiteboard();
+    ctx.fillStyle = wb ? '#fff' : '#000'; ctx.fillRect(0, 0, cw, ch);
     if (!vw || !vh) return;
     if (Math.abs(vw / vh - cw / ch) < 0.02) { ctx.drawImage(v, 0, 0, cw, ch); return; }
+    if (wb) { const f = Math.min(cw / vw, ch / vh); ctx.drawImage(v, (cw - vw * f) / 2, (ch - vh * f) / 2, vw * f, vh * f); return; }
     // Format différent : fond agrandi et estompé + image entière au centre (rien n'est coupé)
     const cover = Math.max(cw / vw, ch / vh);
     ctx.save();
@@ -2818,9 +2963,66 @@ function drawBubble(ctx, cw, ch, text, t) {
     lines.forEach((l, i) => ctx.fillText(l, x + pad, y + pad * 0.8 + lh * (i + 0.5)));
     ctx.restore();
 }
-function drawOverlays(ctx, cw, ch, item, elapsed, duration) {
+// Où dessiner : l'espace blanc libre à droite du personnage (ou au-dessus de la vidéo en format portrait).
+function drawingArea(v, cw, ch) {
+    const vw = v.videoWidth || cw, vh = v.videoHeight || ch;
+    const f = Math.min(cw / vw, ch / vh), rw = vw * f, rh = vh * f, rx = (cw - rw) / 2, ry = (ch - rh) / 2;
+    if (ry > ch * 0.2) return { x: cw * 0.06, y: ch * 0.04, w: cw * 0.88, h: ry - ch * 0.06 };
+    if (rw >= rh) return { x: rx + rw * 0.4, y: ry + rh * 0.07, w: rw * 0.56, h: rh * 0.6 };
+    return { x: rx + rw * 0.42, y: ry + rh * 0.1, w: rw * 0.54, h: rh * 0.42 };
+}
+function drawSketch(ctx, area, drawing, progress, alpha) {
+    if (!drawing) return;
+    const s = Math.min(area.w / DRAW_VB.w, area.h / DRAW_VB.h);
+    const ox = area.x + (area.w - DRAW_VB.w * s) / 2, oy = area.y + (area.h - DRAW_VB.h * s) / 2;
+    let remaining = drawing.total * Math.max(0, Math.min(1, progress)), tip = null;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(ox, oy); ctx.scale(s, s);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 4.5;
+    for (const st of drawing.strokes) {
+        if (remaining <= 0) break;
+        ctx.strokeStyle = st.color;
+        if (remaining >= st.len) { ctx.setLineDash([]); ctx.stroke(st.path2d); }
+        else {
+            ctx.setLineDash([remaining, st.len + 10]); ctx.lineDashOffset = 0; ctx.stroke(st.path2d);
+            try { tip = st.el.getPointAtLength(remaining); } catch (e) {}
+        }
+        remaining -= st.len;
+    }
+    ctx.restore();
+    if (tip && alpha > 0.5) {
+        // pointe du feutre qui avance
+        const x = ox + tip.x * s, y = oy + tip.y * s, r = Math.max(4, s * 6);
+        ctx.save();
+        ctx.fillStyle = '#1f1f1f'; ctx.strokeStyle = '#1f1f1f'; ctx.lineWidth = r * 0.9; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x + r * 0.6, y - r * 0.6); ctx.lineTo(x + r * 4.2, y - r * 4.2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, r * 0.55, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+}
+function drawSketchLabel(ctx, area, text, alpha) {
+    if (!text || alpha <= 0) return;
+    const fs = Math.round(Math.max(14, Math.min(area.w * 0.09, area.h * 0.13)));
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = '800 ' + fs + 'px "Marker Felt", "Chalkboard SE", "Comic Sans MS", -apple-system, sans-serif';
+    ctx.fillStyle = '#1f1f1f'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const lines = wrapLines(ctx, text, area.w * 0.95);
+    lines.forEach((l, i) => ctx.fillText(l, area.x + area.w / 2, area.y + area.h + fs * 0.2 + i * fs * 1.1));
+    ctx.restore();
+}
+let prevSketch = null;
+function drawOverlays(ctx, cw, ch, item, elapsed, duration, v) {
     const progress = duration > 0 ? elapsed / duration : 0;
-    if (state.pedagoFx.includes('bubbles')) drawBubble(ctx, cw, ch, scenePlanFor(item.sceneIndex).bubble, elapsed);
+    if (isWhiteboard() && v) {
+        const area = drawingArea(v, cw, ch);
+        if (prevSketch && elapsed < FADE_SEC) drawSketch(ctx, prevSketch.area, prevSketch.drawing, 1, 1 - elapsed / FADE_SEC);
+        const drawP = Math.min(1, progress / 0.75);
+        const eased = 1 - Math.pow(1 - drawP, 1.6);
+        drawSketch(ctx, area, state.drawings[item.sceneIndex], eased, Math.min(1, elapsed / 0.15));
+        if (state.pedagoFx.includes('bubbles')) drawSketchLabel(ctx, area, scenePlanFor(item.sceneIndex).bubble, Math.max(0, Math.min(1, (progress - 0.45) / 0.2)));
+    } else if (state.pedagoFx.includes('bubbles')) drawBubble(ctx, cw, ch, scenePlanFor(item.sceneIndex).bubble, elapsed);
     if (state.subtitlesStyle !== 'off') {
         const st = subtitleTextAt(item.sceneIndex, progress);
         drawSubtitle(ctx, cw, ch, st.text, st.local);
@@ -2883,6 +3085,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
     const stopped = new Promise(res => { rec.onstop = res; });
     const timeline = [];
     let timelineT = 0, hasPrev = false;
+    prevSketch = null;
     rec.start(1000);
 
     try {
@@ -2920,7 +3123,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
                     if (hasPrev && state.transition === 'fade' && el < FADE_SEC) {
                         g.save(); g.globalAlpha = 1 - el / FADE_SEC; g.drawImage(prevCanvas, 0, 0); g.restore();
                     }
-                    drawOverlays(g, W, H, item, el, sceneDur);
+                    drawOverlays(g, W, H, item, el, sceneDur, v);
                     requestAnimationFrame(tick);
                 };
                 const safety = setTimeout(finish, (sceneDur + 6) * 1000);
@@ -2928,6 +3131,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
             });
             if (src) { try { src.stop(); } catch (e) {} }
             timeline.push({ sceneIndex: item.sceneIndex, start: timelineT, duration: played });
+            prevSketch = state.drawings[item.sceneIndex] ? { drawing: state.drawings[item.sceneIndex], area: drawingArea(v, W, H) } : null;
             drawFrame(pg, v, W, H); hasPrev = true;
             disposeStageVideo(v);
             if (i === 0) firstV = null;
@@ -2979,6 +3183,7 @@ async function runAssembly() {
     assembling = true; updateAssembleBtn();
     if (standalone) { state.stopRequested = false; document.getElementById('stop-btn').classList.add('visible'); }
     await ensureWakeLockActive();
+    if (state.drawingsPromise) { setStatus('Finalisation des dessins…'); await state.drawingsPromise; }
     try {
         const result = await assembleVideo({ label: 'Montage' });
         if (state.finalVideoUrl) URL.revokeObjectURL(state.finalVideoUrl);
@@ -3293,10 +3498,12 @@ async function startGeneration() {
 
     try {
         await prepareScenePlan();
+        state.drawingsPromise = prepareDrawings().catch(e => log('Dessins : ' + e.message));
         if (!state.stopRequested) {
             if (state.chainScenes) await runChained(); else await runParallel();
         }
         if (!state.stopRequested && state.queue.some(q => q.status === 'done')) {
+            if (state.drawingsPromise) { setStatus('Finalisation des dessins…'); await state.drawingsPromise; }
             state.isRunning = false;   // le montage gère lui-même l'arrêt et l'affichage
             updateGenerateBtn();
             assembled = await runAssembly();
@@ -3794,6 +4001,11 @@ function showCloudConfigRow(provider) {
     document.getElementById('translate-script-btn')?.addEventListener('click', translateScript);
     document.getElementById('improve-script-btn')?.addEventListener('click', improveScriptForSpeech);
 
+    // Sauvegarde des clés
+    document.getElementById('keys-export-btn')?.addEventListener('click', exportKeys);
+    document.getElementById('keys-import-btn')?.addEventListener('click', () => document.getElementById('keys-import-input').click());
+    document.getElementById('keys-import-input')?.addEventListener('change', e => { const f = e.target.files[0]; if (f) importKeys(f); e.target.value = ''; });
+
     // Claude
     document.getElementById('claude-save-btn')?.addEventListener('click', saveClaudeKey);
     document.getElementById('claude-key-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveClaudeKey(); } });
@@ -3931,7 +4143,7 @@ function showCloudConfigRow(provider) {
     renderScriptPresets(); renderStyles(); renderImages(); renderQueue(); renderHistory();
     updateScriptStats(); updateSeriesStats(); showTTSPanel(state.ttsEngine);
     showCloudConfigRow(state.cloudProvider); updateCloudStatus();
-    const whisperKey = document.getElementById('whisper-api-key'); if (whisperKey && getOpenAIKey()) whisperKey.value = getOpenAIKey();
+    refreshKeyFields();
     updateElevenLabsStatus(); updateGCloudStatus(); updateAzureStatus(); updatePollyStatus();
     renderAnalytics();
     initSubtitleSegmentsFromScript();
