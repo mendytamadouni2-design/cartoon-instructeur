@@ -585,6 +585,18 @@ select:focus { outline: none; border-color: var(--ink); }
     </div>
 </div>
 
+<!-- ═══════════════ Relais de téléchargement ═══════════════ -->
+<div class="api-panel" id="proxy-panel">
+    <div class="api-title">🔁 Relais de téléchargement <span class="tag req">obligatoire pour le montage</span></div>
+    <div class="api-hint">Le serveur d'Agnes empêche le navigateur de télécharger les scènes. Sans ce relais gratuit (Cloudflare), les scènes se génèrent mais le montage final, les dessins et l'enchaînement échouent (« Load failed »). <a href="https://github.com/mendytamadouni2-design/cartoon-instructeur/blob/main/relais/INSTALLATION.md" target="_blank" rel="noopener">👉 Guide d'installation (10 min)</a></div>
+    <input type="url" class="api-key-input" id="proxy-url-input" placeholder="https://cartoon-relais.ton-nom.workers.dev" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button type="button" class="api-save-btn" id="proxy-save-btn">Enregistrer et tester le relais</button>
+    <div class="api-status-line" id="proxy-status-line">
+        <span class="status-dot"></span>
+        <span id="proxy-status-text">Aucun relais</span>
+    </div>
+</div>
+
 <!-- ═══════════════ Sauvegarde des clés ═══════════════ -->
 <div class="api-panel" id="keys-panel">
     <div class="api-title">🔐 Mes clés sur ce téléphone</div>
@@ -1285,6 +1297,7 @@ const STORAGE = {
     OPENAI_KEY: 'openai_api_key',
     CLAUDE_KEY: 'claude_api_key',
     CLAUDE_MODEL: 'claude_model',
+    PROXY_URL: 'download_proxy_url',
     DEEPL_KEY: 'deepl_api_key',
     GTRANSLATE_KEY: 'gtranslate_api_key',
     AVATAR_KEY: 'avatar_api_key',
@@ -1298,7 +1311,8 @@ const STORAGE = {
     SERIES: 'cartoon_series',
     WAKE_LOCK: 'agnes_wakelock_enabled',
     YOUTUBE_TOKEN_EXP: 'youtube_oauth_token_exp',
-    ANALYTICS: 'cartoon_analytics'
+    ANALYTICS: 'cartoon_analytics',
+    LAST_PROJECT: 'cartoon_last_project'
 };
 
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
@@ -1669,7 +1683,42 @@ function updateClaudePanel() {
     if (key) { panel.classList.add('ok'); line.classList.add('ok'); txt.textContent = 'Clé active · ' + key.slice(0, 10) + '…' + key.slice(-4) + ' · ' + modelName; input.value = key; }
     else { panel.classList.remove('ok'); line.classList.remove('ok'); txt.textContent = 'Aucune clé Claude (mise en scène automatique)'; input.value = ''; }
 }
-const BACKUP_KEYS = ['AGNES_KEY', 'CLAUDE_KEY', 'CLAUDE_MODEL', 'ELEVENLABS_KEY', 'ELEVENLABS_VOICE', 'GCLOUD_KEY', 'GCLOUD_VOICE', 'AZURE_KEY', 'AZURE_REGION', 'AZURE_VOICE', 'POLLY_KEY', 'POLLY_SECRET', 'POLLY_REGION', 'POLLY_VOICE', 'OPENAI_KEY', 'DEEPL_KEY', 'GTRANSLATE_KEY', 'AVATAR_KEY', 'YOUTUBE_CLIENT', 'YOUTUBE_APIKEY'];
+function getProxyUrl() { return getLS(STORAGE.PROXY_URL).trim(); }
+function normalizeProxyUrl(u) {
+    u = String(u || '').trim();
+    if (!u) return '';
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    return u.replace(/[?#].*$/, '').replace(/\/+$/, '');
+}
+function proxied(url) { const p = getProxyUrl(); return p ? p + '/?url=' + encodeURIComponent(url) : url; }
+function setProxyStatus(text, ok) {
+    const line = document.getElementById('proxy-status-line'), txt = document.getElementById('proxy-status-text'), panel = document.getElementById('proxy-panel');
+    if (!line || !txt) return;
+    txt.textContent = text;
+    line.classList.toggle('ok', !!ok); panel?.classList.toggle('ok', !!ok);
+}
+async function testProxy() {
+    const p = getProxyUrl();
+    if (!p) { setProxyStatus('Aucun relais : le montage final ne pourra pas se faire', false); return false; }
+    setProxyStatus('Test du relais…', false);
+    try {
+        const res = await withTimeout(fetch(p + '/'), 15000, 'pas de réponse');
+        const body = await res.text();
+        if (res.ok && body.includes('Relais OK')) { setProxyStatus('✅ Relais opérationnel', true); return true; }
+        if (res.status === 403) setProxyStatus('❌ Relais refusé : l\'adresse de l\'appli n\'est pas autorisée dans le code du relais (' + body.slice(0, 80) + ')', false);
+        else setProxyStatus('❌ Réponse inattendue (' + res.status + ') : vérifie que le code du relais a bien été collé et déployé', false);
+    } catch (e) { setProxyStatus('❌ Relais injoignable : vérifie l\'adresse (' + e.message + ')', false); }
+    return false;
+}
+async function saveProxy() {
+    const input = document.getElementById('proxy-url-input');
+    const u = normalizeProxyUrl(input.value);
+    if (!u) { localStorage.removeItem(STORAGE.PROXY_URL); input.value = ''; testProxy(); showToast('Relais supprimé', 'warn'); return; }
+    input.value = u; setLS(STORAGE.PROXY_URL, u);
+    const ok = await testProxy();
+    showToast(ok ? 'Relais enregistré et opérationnel ✓' : 'Relais enregistré, mais le test a échoué', ok ? 'success' : 'error', 4000);
+}
+const BACKUP_KEYS = ['AGNES_KEY', 'CLAUDE_KEY', 'CLAUDE_MODEL', 'PROXY_URL', 'ELEVENLABS_KEY', 'ELEVENLABS_VOICE', 'GCLOUD_KEY', 'GCLOUD_VOICE', 'AZURE_KEY', 'AZURE_REGION', 'AZURE_VOICE', 'POLLY_KEY', 'POLLY_SECRET', 'POLLY_REGION', 'POLLY_VOICE', 'OPENAI_KEY', 'DEEPL_KEY', 'GTRANSLATE_KEY', 'AVATAR_KEY', 'YOUTUBE_CLIENT', 'YOUTUBE_APIKEY'];
 function exportKeys() {
     const data = { app: 'cartoon-instructeur', version: 1, date: new Date().toISOString(), keys: {} };
     BACKUP_KEYS.forEach(k => { const v = getLS(STORAGE[k]); if (v) data.keys[k] = v; });
@@ -1694,9 +1743,10 @@ function refreshKeyFields() {
     fill('polly-key', 'POLLY_KEY'); fill('polly-secret', 'POLLY_SECRET'); fill('polly-region', 'POLLY_REGION');
     fill('whisper-api-key', 'OPENAI_KEY'); fill('avatar-key-input', 'AVATAR_KEY');
     fill('youtube-client-id', 'YOUTUBE_CLIENT'); fill('youtube-api-key', 'YOUTUBE_APIKEY');
+    fill('proxy-url-input', 'PROXY_URL');
     updateApiPanel(); updateClaudePanel();
     updateElevenLabsStatus(); updateGCloudStatus(); updateAzureStatus(); updatePollyStatus();
-    const names = { AGNES_KEY: 'Agnes', CLAUDE_KEY: 'Claude', ELEVENLABS_KEY: 'ElevenLabs', GCLOUD_KEY: 'Google Cloud', AZURE_KEY: 'Azure', POLLY_KEY: 'Amazon Polly', OPENAI_KEY: 'OpenAI', DEEPL_KEY: 'DeepL', GTRANSLATE_KEY: 'Google Translate', AVATAR_KEY: 'Avatar' };
+    const names = { AGNES_KEY: 'Agnes', CLAUDE_KEY: 'Claude', PROXY_URL: 'Relais', ELEVENLABS_KEY: 'ElevenLabs', GCLOUD_KEY: 'Google Cloud', AZURE_KEY: 'Azure', POLLY_KEY: 'Amazon Polly', OPENAI_KEY: 'OpenAI', DEEPL_KEY: 'DeepL', GTRANSLATE_KEY: 'Google Translate', AVATAR_KEY: 'Avatar' };
     const saved = Object.keys(names).filter(k => getLS(STORAGE[k])).map(k => names[k]);
     const sum = document.getElementById('keys-summary');
     if (sum) sum.textContent = saved.length ? '✅ Clés enregistrées sur ce téléphone : ' + saved.join(', ') : 'Aucune clé enregistrée pour l\'instant.';
@@ -2618,7 +2668,9 @@ async function generateDrawing(sceneText, index, total) {
         schema: DRAWING_SCHEMA,
         maxTokens: 8000
     });
-    return compileDrawing(out);
+    const compiled = compileDrawing(out);
+    if (compiled) compiled.raw = out;
+    return compiled;
 }
 async function prepareDrawings() {
     state.drawings = [];
@@ -2634,6 +2686,7 @@ async function prepareDrawings() {
         }
     };
     await Promise.all([worker(), worker(), worker()]);
+    saveProject();
     if (failures) showToast(failures + ' dessin' + (failures > 1 ? 's' : '') + ' n\'ont pas pu être créés', 'warn', 4000);
 }
 
@@ -2641,7 +2694,7 @@ async function prepareScenePlan() {
     state.scenePlan = null;
     if (getClaudeKey()) {
         setStatus('Claude prépare la mise en scène…');
-        try { state.scenePlan = await planScenesWithClaude(state.scenes); }
+        try { state.scenePlan = await planScenesWithClaude(state.scenes); saveProject(); }
         catch (e) { showToast('Mise en scène Claude indisponible (' + e.message + ') : mode automatique', 'warn', 5000); }
         finally { setStatus(null); }
     }
@@ -2690,18 +2743,25 @@ async function seekTo(v, t) {
 }
 async function fetchClipBlob(item) {
     if (item.blob) return item.blob;
+    const viaProxy = !!getProxyUrl();
     let lastErr = null;
     for (let a = 0; a < 3; a++) {
         try {
-            const res = await withTimeout(fetch(item.videoUrl), 90000, 'téléchargement trop long');
+            const res = await withTimeout(fetch(proxied(item.videoUrl)), 90000, 'téléchargement trop long');
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const blob = await res.blob();
             if (!blob.size) throw new Error('fichier vide');
             item.blob = blob;
             return blob;
-        } catch (e) { lastErr = e; await sleep(2000); }
+        } catch (e) {
+            lastErr = e;
+            // Sans relais, un refus du serveur d'Agnes ne se corrige pas en réessayant
+            if (!viaProxy && e instanceof TypeError) break;
+            await sleep(2000);
+        }
     }
-    throw new Error('impossible de récupérer la scène ' + (item.sceneIndex + 1) + ' (' + (lastErr?.message || 'erreur réseau') + ')');
+    if (!viaProxy) throw new Error('le serveur d\'Agnes bloque le téléchargement des scènes. Installe le relais Cloudflare (bloc « Relais de téléchargement » en haut de la page), puis appuie sur « Assembler la vidéo finale »');
+    throw new Error('impossible de récupérer la scène ' + (item.sceneIndex + 1) + ' via le relais (' + (lastErr?.message || 'erreur réseau') + ')');
 }
 async function extractLastFrame(item) {
     const blob = await fetchClipBlob(item);
@@ -2750,6 +2810,39 @@ async function countdown(ms, label) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// SAUVEGARDE DU DERNIER PROJET (iOS peut fermer l'appli en arrière-plan)
+// ══════════════════════════════════════════════════════════════════
+function saveProject() {
+    if (!state.queue.length) return;
+    setJSON(STORAGE.LAST_PROJECT, {
+        date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle,
+        scenePlan: state.scenePlan,
+        drawings: state.scenes.map((_, i) => state.drawings[i]?.raw || null),
+        queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null }))
+    });
+}
+function restoreProject() {
+    const p = getJSON(STORAGE.LAST_PROJECT);
+    if (!p || !Array.isArray(p.queue) || !p.queue.some(q => q.status === 'done' && q.videoUrl)) return;
+    if (Date.now() - (p.date || 0) > 3 * 24 * 3600 * 1000) return;
+    document.getElementById('theme-input').value = p.theme || '';
+    document.getElementById('script-input').value = p.script || '';
+    state.theme = p.theme || '';
+    if (p.style && CARTOON_STYLES.some(st => st.id === p.style)) { state.selectedStyle = p.style; renderStyles(); }
+    updateScriptStats();
+    state.scenePlan = p.scenePlan || null;
+    state.drawings = (p.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
+    state.queue = p.queue.map(q => ({ ...q, image: null, progress: q.status === 'done' ? 'Terminé' : 'Échec', videoId: null, prompt: null, startTime: null }));
+    state.completed = state.queue.filter(q => q.status === 'done').length;
+    state.failed = state.queue.length - state.completed;
+    initSubtitleSegmentsFromScript();
+    renderQueue(); setProgress(0);
+    state.queue.filter(q => q.status === 'done').forEach(q => addToGallery(q.videoUrl, 'Scène ' + (q.sceneIndex + 1)));
+    updateAssembleBtn();
+    showToast('Dernier projet restauré (' + state.completed + ' scènes) : appuie sur « Assembler la vidéo finale »', 'success', 6000);
+}
+
+// ══════════════════════════════════════════════════════════════════
 // PIPELINE DE GÉNÉRATION
 // ══════════════════════════════════════════════════════════════════
 async function createTaskOnly(item) {
@@ -2766,6 +2859,7 @@ async function pollTaskAndDisplay(item) {
         recordGenerationTime(state.durationFrames, elapsed);
         item.status = 'done'; item.videoUrl = videoUrl; item.progress = 'Terminé';
         state.completed++; renderQueue(); updateGenerateBtn(); renderQuota();
+        saveProject();
         addToGallery(videoUrl, 'Scène ' + (item.sceneIndex + 1));
         trackAnalytics('scenes');
     } catch (e) {
@@ -3473,6 +3567,7 @@ async function startGeneration() {
     if (!getAgnesKey()) { showToast('Ajoute la clé Agnes', 'error'); return; }
     if (!state.scenes.length) { showToast('Écris un script', 'error'); return; }
     unlockAudio();
+    if (!getProxyUrl()) showToast('Pas de relais Cloudflare : les scènes seront générées, mais le montage final échouera', 'warn', 6000);
 
     state.isRunning = true; state.stopRequested = false;
     state.completed = 0; state.failed = 0;
@@ -4001,6 +4096,10 @@ function showCloudConfigRow(provider) {
     document.getElementById('translate-script-btn')?.addEventListener('click', translateScript);
     document.getElementById('improve-script-btn')?.addEventListener('click', improveScriptForSpeech);
 
+    // Relais
+    document.getElementById('proxy-save-btn')?.addEventListener('click', saveProxy);
+    document.getElementById('proxy-url-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveProxy(); } });
+
     // Sauvegarde des clés
     document.getElementById('keys-export-btn')?.addEventListener('click', exportKeys);
     document.getElementById('keys-import-btn')?.addEventListener('click', () => document.getElementById('keys-import-input').click());
@@ -4144,10 +4243,12 @@ function showCloudConfigRow(provider) {
     updateScriptStats(); updateSeriesStats(); showTTSPanel(state.ttsEngine);
     showCloudConfigRow(state.cloudProvider); updateCloudStatus();
     refreshKeyFields();
+    testProxy();
     updateElevenLabsStatus(); updateGCloudStatus(); updateAzureStatus(); updatePollyStatus();
     renderAnalytics();
     initSubtitleSegmentsFromScript();
     updateYouTubeStatus();
+    restoreProject();
 
     log('🎓 Cartoon Instructeur ULTIMATE prêt.');
 })();
