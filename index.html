@@ -506,6 +506,8 @@ select:focus { outline: none; border-color: var(--ink); }
 }
 .badge-pill.new { background: #d4f5df; color: var(--success); }
 
+.queue-item .q-regen { margin-left: 0.5rem; padding: 0.25rem 0.55rem; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); font-size: 0.7rem; cursor: pointer; white-space: nowrap; }
+
 /* Génération en arrière-plan */
 .bg-panel { background: var(--panel); border: 2px solid var(--accent); border-radius: var(--radius); padding: 1rem 1.1rem; margin: 1rem 0; }
 .bg-panel.ready { border-color: var(--success); background: #f1fbf4; }
@@ -776,16 +778,52 @@ Phrase 2..."></textarea>
         <div class="control-row">
             <label class="control-label">Transition entre les scènes</label>
             <select id="transition-select">
-                <option value="fade" selected>Fondu enchaîné</option>
-                <option value="cut">Coupe nette</option>
+                <option value="smart" selected>Intelligentes : coupes nettes, fondu entre les parties (recommandé)</option>
+                <option value="fade">Fondu enchaîné partout</option>
+                <option value="cut">Coupes nettes partout</option>
             </select>
         </div>
         <div class="control-row">
-            <label class="control-label">Couper le début de chaque scène (masque le zoom)</label>
+            <label class="control-label">Blancs au début et à la fin des scènes</label>
             <select id="trim-select">
-                <option value="0">Ne rien couper</option>
-                <option value="0.4" selected>0,4 seconde</option>
-                <option value="0.8">0,8 seconde</option>
+                <option value="auto" selected>Coupés automatiquement (détection de la voix)</option>
+                <option value="fixed">Couper seulement 0,4 s au début</option>
+                <option value="none">Ne rien couper</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Zooms sur les mots importants</label>
+            <select id="zoom-select">
+                <option value="on" selected>Oui (choisis par Claude)</option>
+                <option value="off">Non</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Habillage</label>
+            <select id="intro-select">
+                <option value="on" selected>Intro animée avec le titre (thème)</option>
+                <option value="off">Pas d'intro</option>
+            </select>
+            <select id="sections-select" style="margin-top:0.4rem;">
+                <option value="on" selected>Titres des parties (choisis par Claude)</option>
+                <option value="off">Pas de titres de parties</option>
+            </select>
+            <select id="outro-select" style="margin-top:0.4rem;">
+                <option value="on" selected>Fin : récap des dessins + « Abonne-toi »</option>
+                <option value="off">Pas d'écran de fin</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Logo de ta chaîne (en haut à droite)</label>
+            <input type="file" id="logo-input" accept="image/*" style="display:none;">
+            <button type="button" class="btn-secondary" id="logo-btn">🖼️ Choisir un logo</button>
+            <button type="button" class="btn-secondary hidden" id="logo-remove-btn" style="margin-top:0.4rem;">Retirer le logo</button>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Qualité d'export</label>
+            <select id="quality-select">
+                <option value="1080" selected>1080p (Full HD)</option>
+                <option value="720">720p (plus léger)</option>
             </select>
         </div>
         <div class="control-row">
@@ -869,6 +907,54 @@ Phrase 2..."></textarea>
                 <option value="3">3 questions</option>
                 <option value="5">5 questions</option>
                 <option value="10">10 questions</option>
+            </select>
+        </div>
+    </div></div>
+</div>
+
+<!-- ═══════════════ Musique & bruitages ═══════════════ -->
+<div class="section" id="section-music">
+    <div class="section-header" data-toggle="section-music">
+        <span class="section-title">🎵 Musique & bruitages <span class="tag rec">recommandé</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="control-row">
+            <label class="control-label">Musique de fond</label>
+            <select id="music-source-select">
+                <option value="app" selected>Une seule musique continue sur toute la vidéo (recommandé)</option>
+                <option value="agnes">Musique générée par Agnes dans chaque scène</option>
+                <option value="none">Pas de musique</option>
+            </select>
+            <div class="prompt-main-hint" id="music-status">Aucune musique choisie : Agnes garde sa propre musique.</div>
+        </div>
+        <div class="control-row" id="music-pick-row">
+            <input type="file" id="music-input" accept="audio/*" style="display:none;">
+            <button type="button" class="btn-secondary" id="music-upload-btn">📁 Choisir un fichier musique (libre de droits)</button>
+            <label class="control-label" style="margin-top:0.7rem;">…ou la créer avec ElevenLabs</label>
+            <select id="music-style-select">
+                <option value="calm">Calme et pédagogique</option>
+                <option value="lofi">Lo-fi détendue</option>
+                <option value="upbeat">Énergique et joyeuse</option>
+                <option value="kids">Enfantine et ludique</option>
+                <option value="cinematic">Cinématique et inspirante</option>
+            </select>
+            <button type="button" class="btn-secondary" id="music-gen-btn" style="margin-top:0.4rem;">🎼 Créer une musique avec ElevenLabs</button>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Volume de la musique</label>
+            <select id="music-volume-select">
+                <option value="0.2">Discret</option>
+                <option value="0.35" selected>Normal</option>
+                <option value="0.5">Présent</option>
+            </select>
+            <div class="prompt-main-hint">La musique baisse automatiquement quand le personnage parle.</div>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Bruitages</label>
+            <select id="sfx-select">
+                <option value="on" selected>Oui : feutre qui gratte, « pop », « whoosh »</option>
+                <option value="off">Non</option>
             </select>
         </div>
     </div></div>
@@ -1055,11 +1141,19 @@ Phrase 2..."></textarea>
         <div class="control-row">
             <label class="control-label">Style des sous-titres</label>
             <select id="subtitles-style-select">
-                <option value="classic" selected>Classique (bandeau)</option>
+                <option value="words" selected>Mots animés façon TikTok (recommandé)</option>
+                <option value="classic">Classique (bandeau)</option>
                 <option value="karaoke">Karaoké (le mot prononcé s'allume)</option>
-                <option value="tiktok">TikTok (gros, coloré)</option>
+                <option value="tiktok">Grand texte contouré</option>
                 <option value="minimal">Minimal (bas de page)</option>
                 <option value="off">Désactivés</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Synchronisation au mot près</label>
+            <select id="sync-select">
+                <option value="on" selected>Avec ElevenLabs (transcription, recommandé)</option>
+                <option value="off">Estimation automatique</option>
             </select>
         </div>
         <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Les sous-titres reprennent exactement le texte du script. Les bulles de mots-clés s'activent dans « Options pédagogiques ».</div>
@@ -1342,7 +1436,9 @@ const STORAGE = {
     ANALYTICS: 'cartoon_analytics',
     LAST_PROJECT: 'cartoon_last_project',
     BG_JOB: 'cartoon_background_job',
-    GEN_MODE: 'cartoon_generation_mode'
+    GEN_MODE: 'cartoon_generation_mode',
+    MUSIC_NAME: 'cartoon_music_name',
+    LOGO_SET: 'cartoon_logo_set'
 };
 
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
@@ -1362,10 +1458,12 @@ const state = {
     lipsync: 'basic',
     quizCount: 0,
     voiceEnabled: true, voicePref: '', voiceRate: 1, voicePitch: 1,
-    subtitlesMode: 'on', subtitlesStyle: 'classic',
+    subtitlesMode: 'on', subtitlesStyle: 'words', syncWords: true,
     language: 'fr-FR', ttsEngine: 'elevenlabs', voiceSource: 'agnes',
     translateEngine: 'claude',
-    chainScenes: true, camera: 'varied', transition: 'fade', trimStart: 0.4, videoFormat: 'auto',
+    chainScenes: true, camera: 'varied', transition: 'smart', trimMode: 'auto', videoFormat: 'auto',
+    zoomOn: true, introOn: true, outroOn: true, sectionCards: true, exportQuality: '1080',
+    musicSource: 'app', musicVolume: 0.35, sfxOn: true, photoSmall: null, regenerating: false,
     durationFrames: 153,
     extraExports: ['zip', 'shorts', 'chapters'],
     avatarProvider: 'off',
@@ -2294,7 +2392,8 @@ function fallbackScenePlan(scenes) {
             spoken: text,
             action: state.motion === 'auto' || isWhiteboard() ? actions[i % actions.length] : (MOTION_PROMPTS[state.motion] || AUTO_ACTIONS[0]),
             camera: CAMERA_SHOTS[i % CAMERA_SHOTS.length],
-            bubble: i === 0 ? (state.theme || '').slice(0, 40) : ''
+            bubble: i === 0 ? (state.theme || '').slice(0, 40) : '',
+            zoom: i % 3 === 1 ? 'in' : 'none', emphasis: '', section: ''
         }))
     };
 }
@@ -2338,6 +2437,7 @@ function buildScenePrompt(item, override) {
     parts.push('STRICTLY NO TEXT anywhere in the image: no letters, words, numbers, captions, subtitles, labels, logos, signs or writing. Speech bubbles, boards and screens stay empty or show simple pictures only.');
     if (state.videoFormat === 'portrait') parts.push('Vertical 9:16 composition.');
     else if (state.videoFormat === 'landscape') parts.push('Horizontal 16:9 composition.');
+    if (effectiveMusicMode() !== 'agnes') parts.push('Audio: only the character\'s clear voice. No background music, no sound effects.');
     parts.push('24fps, no watermark.');
     return parts.join(' ');
 }
@@ -2622,9 +2722,12 @@ const PLAN_SCHEMA = {
                     spoken: { type: 'string' },
                     action: { type: 'string' },
                     camera: { type: 'string', enum: CAMERA_SHOTS },
-                    bubble: { type: 'string' }
+                    bubble: { type: 'string' },
+                    zoom: { type: 'string', enum: ['in', 'none'] },
+                    emphasis: { type: 'string' },
+                    section: { type: 'string' }
                 },
-                required: ['spoken', 'action', 'camera', 'bubble'], additionalProperties: false
+                required: ['spoken', 'action', 'camera', 'bubble', 'zoom', 'emphasis', 'section'], additionalProperties: false
             }
         }
     },
@@ -2643,7 +2746,10 @@ function planRequestFor(scenes) {
             '- "spoken" : la réplique à prononcer, dans la langue de la vidéo, sans changer le sens, adaptée à une voix de synthèse (' + SPEECH_RULES + ')\n' +
             '- "action" : en anglais, le geste ou l\'action du personnage (commence par un verbe, ex. "points at a glowing drop of water floating beside him"), qui prolonge naturellement l\'action précédente et illustre la réplique\n' +
             '- "camera" : le cadrage, en variant les plans d\'une scène à l\'autre\n' +
-            '- "bubble" : 2 à 5 mots-clés à afficher dans une bulle, dans la langue de la vidéo, ou "" si la scène n\'en a pas besoin (une scène sur deux environ)\n\n' +
+            '- "bubble" : 2 à 5 mots-clés à afficher dans une bulle, dans la langue de la vidéo, ou "" si la scène n\'en a pas besoin (une scène sur deux environ)\n' +
+            '- "zoom" : "in" pour les moments forts (environ une scène sur trois, jamais deux de suite), sinon "none"\n' +
+            '- "emphasis" : si zoom vaut "in", LE mot de "spoken" (écrit exactement pareil) sur lequel le zoom démarre, sinon ""\n' +
+            '- "section" : si cette réplique ouvre une nouvelle partie de la vidéo, un titre très court (2 à 4 mots) ; sinon "". 2 à 4 parties au total, jamais sur la première réplique, aucune partie si la vidéo a moins de 6 répliques\n\n' +
             wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
         schema: PLAN_SCHEMA
     };
@@ -2656,9 +2762,90 @@ async function planScenesWithClaude(scenes) {
         setting: isWhiteboard() ? '' : String(out.setting || '').replace(/"/g, "'"),
         scenes: scenes.map((text, i) => {
             const p = out.scenes[i] || {};
-            return { spoken: p.spoken || text, action: p.action || fb[i].action, camera: p.camera || fb[i].camera, bubble: String(p.bubble || '').slice(0, 60) };
+            return { spoken: p.spoken || text, action: p.action || fb[i].action, camera: p.camera || fb[i].camera, bubble: String(p.bubble || '').slice(0, 60),
+                zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '' };
         })
     };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FICHIERS LOCAUX (musique, logo) — IndexedDB, reste sur le téléphone
+// ══════════════════════════════════════════════════════════════════
+function idbOpen() {
+    return new Promise((res, rej) => {
+        const r = indexedDB.open('cartoon-instructeur', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('files');
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+}
+async function idbTx(mode, fn) {
+    const db = await idbOpen();
+    return new Promise((res, rej) => {
+        const tx = db.transaction('files', mode), store = tx.objectStore('files');
+        const req = fn(store);
+        tx.oncomplete = () => res(req ? req.result : undefined); tx.onerror = () => rej(tx.error);
+    });
+}
+const idbPut = (k, v) => idbTx('readwrite', st => st.put(v, k));
+const idbGet = k => idbTx('readonly', st => st.get(k));
+const idbDel = k => idbTx('readwrite', st => st.delete(k));
+
+// Musique réellement utilisée : celle de l'appli seulement si un fichier est choisi.
+function effectiveMusicMode() {
+    if (state.musicSource === 'none') return 'none';
+    if (state.musicSource === 'app' && getLS(STORAGE.MUSIC_NAME)) return 'app';
+    return 'agnes';
+}
+function updateMusicStatus() {
+    const el = document.getElementById('music-status'); if (!el) return;
+    const name = getLS(STORAGE.MUSIC_NAME);
+    document.getElementById('music-pick-row')?.classList.toggle('hidden', state.musicSource !== 'app');
+    if (state.musicSource === 'none') el.textContent = 'Pas de musique : seule la voix du personnage.';
+    else if (state.musicSource === 'agnes') el.textContent = 'Chaque scène garde la musique générée par Agnes (elle change à chaque scène).';
+    else el.textContent = name ? '✅ Musique : ' + name + ' · Agnes générera la voix seule.' : 'Aucune musique choisie : en attendant, Agnes garde sa propre musique.';
+}
+async function setMusicFile(blob, name) {
+    try {
+        await idbPut('music', blob);
+        setLS(STORAGE.MUSIC_NAME, name.slice(0, 60));
+        state.musicSource = 'app';
+        const sel = document.getElementById('music-source-select'); if (sel) sel.value = 'app';
+        updateMusicStatus();
+        showToast('Musique enregistrée ✓', 'success');
+    } catch (e) { showToast('Musique impossible à enregistrer', 'error'); }
+}
+const MUSIC_PROMPTS = {
+    calm: 'calm, warm and gentle educational background music, soft piano and light acoustic guitar',
+    lofi: 'relaxed lo-fi hip hop background music, mellow keys, soft drums',
+    upbeat: 'upbeat, cheerful and energetic background music, ukulele, claps and light percussion',
+    kids: 'playful and joyful children background music, xylophone, pizzicato strings',
+    cinematic: 'inspiring cinematic background music, light strings and piano, hopeful mood'
+};
+async function generateMusicWithEleven() {
+    const key = getElevenLabsKey();
+    if (!key) { showToast('Ajoute ta clé ElevenLabs (section Voix)', 'error'); return; }
+    const btn = document.getElementById('music-gen-btn');
+    const style = document.getElementById('music-style-select')?.value || 'calm';
+    const seconds = Math.max(30, Math.min(180, Math.round((state.scenes.length || 10) * 6.5 + 10)));
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Création de la musique (≈ 1 min)…'; }
+    try {
+        const res = await withTimeout(fetch(ELEVENLABS_API + '/music', {
+            method: 'POST',
+            headers: { 'xi-api-key': key, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
+            body: JSON.stringify({ prompt: MUSIC_PROMPTS[style] + ', instrumental only, no vocals, steady and loopable, suitable under a voice-over', music_length_ms: seconds * 1000 })
+        }), 180000, 'ElevenLabs ne répond pas');
+        if (!res.ok) { const t = await res.text(); throw new Error('ElevenLabs ' + res.status + ' ' + t.slice(0, 120)); }
+        const blob = await res.blob();
+        if (!blob.size) throw new Error('musique vide');
+        await setMusicFile(blob, 'ElevenLabs · ' + (document.getElementById('music-style-select')?.selectedOptions?.[0]?.textContent || style));
+    } catch (e) { showToast('Création impossible : ' + e.message, 'error', 7000); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = '🎼 Créer une musique avec ElevenLabs'; } }
+}
+function updateLogoStatus() {
+    const has = !!getLS(STORAGE.LOGO_SET);
+    const b = document.getElementById('logo-btn'), r = document.getElementById('logo-remove-btn');
+    if (b) b.textContent = has ? '✅ Logo ajouté · changer' : '🖼️ Choisir un logo';
+    r?.classList.toggle('hidden', !has);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -2673,8 +2860,8 @@ const DRAWING_SCHEMA = {
             type: 'array',
             items: {
                 type: 'object',
-                properties: { d: { type: 'string' }, color: { type: 'string', enum: Object.keys(INK) } },
-                required: ['d', 'color'], additionalProperties: false
+                properties: { d: { type: 'string' }, color: { type: 'string', enum: Object.keys(INK) }, word: { type: 'string' } },
+                required: ['d', 'color', 'word'], additionalProperties: false
             }
         }
     },
@@ -2700,13 +2887,15 @@ function compileDrawing(raw) {
     const strokes = [];
     for (const p of (raw?.paths || [])) {
         const pieces = String(p.d || '').split(/(?=M)/).map(x => x.trim()).filter(x => /^M/.test(x));
+        let first = true;
         for (const d of pieces) {
             if (strokes.length >= 40) break;
             let path2d;
             try { path2d = new Path2D(d); } catch (e) { continue; }
             const { el, len } = measurePath(d);
             if (!len || !isFinite(len)) continue;
-            strokes.push({ d, path2d, el, len, color: INK[p.color] || INK.black });
+            strokes.push({ d, path2d, el, len, color: INK[p.color] || INK.black, word: first ? String(p.word || '') : '' });
+            first = false;
         }
     }
     return strokes.length ? { strokes, total: strokes.reduce((a, b) => a + b.len, 0) } : null;
@@ -2716,7 +2905,7 @@ function drawingRequestFor(sceneText, index, total) {
         system: 'Tu es illustrateur de vidéos pédagogiques façon tableau blanc. Tu dessines au feutre, en quelques traits simples et lisibles, ce que dit le narrateur, comme un professeur qui illustre au tableau.',
         prompt: 'Sujet de la vidéo : ' + (state.theme || 'non précisé') + '. Phrase ' + (index + 1) + '/' + total + ' dite par le personnage : « ' + sceneText + ' »\n\n' +
             'Dessine une illustration concrète et compréhensible de cette phrase (objets, personnages simplifiés, flèches, symboles visuels), dans une zone de ' + DRAW_VB.w + ' × ' + DRAW_VB.h + ' (coordonnées SVG, origine en haut à gauche, marge de 20).\n' +
-            'Contraintes :\n- 4 à 18 traits, chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer une forme)\n- dessin au trait uniquement (pas de remplissage)\n- AUCUNE lettre, AUCUN chiffre, AUCUN mot, aucun texte\n- ordre des traits = ordre dans lequel on les dessine (d\'abord l\'élément principal, puis les détails et les flèches)\n- surtout du noir ("black"), une ou deux couleurs d\'accent maximum pour ce qui est important',
+            'Contraintes :\n- 4 à 18 traits, chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer une forme)\n- dessin au trait uniquement (pas de remplissage)\n- AUCUNE lettre, AUCUN chiffre, AUCUN mot, aucun texte\n- ordre des traits = ordre dans lequel on les dessine (d\'abord l\'élément principal, puis les détails et les flèches)\n- surtout du noir ("black"), une ou deux couleurs d\'accent maximum pour ce qui est important\n- "word" : le mot de la phrase (écrit exactement pareil) au moment duquel ce trait doit commencer à être dessiné, pour que le dessin apparaisse quand le personnage en parle ; "" pour les traits qui suivent simplement le précédent',
         schema: DRAWING_SCHEMA,
         maxTokens: 8000
     };
@@ -2871,7 +3060,7 @@ function saveProject() {
     if (!state.queue.length) return;
     setJSON(STORAGE.LAST_PROJECT, {
         date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle,
-        scenePlan: state.scenePlan,
+        scenePlan: state.scenePlan, photo: state.photoSmall,
         drawings: state.scenes.map((_, i) => state.drawings[i]?.raw || null),
         queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null }))
     });
@@ -2886,6 +3075,7 @@ function restoreProject() {
     if (p.style && CARTOON_STYLES.some(st => st.id === p.style)) { state.selectedStyle = p.style; renderStyles(); }
     updateScriptStats();
     state.scenePlan = p.scenePlan || null;
+    state.photoSmall = p.photo || null;
     state.drawings = (p.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
     state.queue = p.queue.map(q => ({ ...q, image: null, progress: q.status === 'done' ? 'Terminé' : 'Échec', videoId: null, prompt: null, startTime: null }));
     state.completed = state.queue.filter(q => q.status === 'done').length;
@@ -2952,7 +3142,8 @@ async function startBackgroundGeneration() {
         const res = await withTimeout(fetch(getProxyUrl() + '/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }), 60000, 'le serveur ne répond pas');
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.jobId) throw new Error(data.error || ('HTTP ' + res.status));
-        setJSON(STORAGE.BG_JOB, { id: data.jobId, date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle, n });
+        state.photoSmall = await downscaleImage(state.images[0].dataUri, 1024, 0.85);
+        setJSON(STORAGE.BG_JOB, { id: data.jobId, date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle, n, photo: state.photoSmall });
         state.queue = []; renderQueue();
         document.getElementById('gallery-grid').innerHTML = ''; document.getElementById('gallery').style.display = 'none';
         document.getElementById('video-preview').classList.remove('visible'); hideResultButtons(); updateAssembleBtn();
@@ -3006,6 +3197,7 @@ function loadBackgroundResults(saved, job) {
     if (saved.style && CARTOON_STYLES.some(st => st.id === saved.style)) { state.selectedStyle = saved.style; renderStyles(); }
     updateScriptStats();
     state.scenePlan = job.plan || fallbackScenePlan(lines);
+    if (saved.photo) state.photoSmall = saved.photo;
     state.drawings = (job.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
     state.queue = job.scenes.map(sc => ({ sceneIndex: sc.index, sceneText: lines[sc.index] || '', image: null, status: sc.status === 'done' ? 'done' : 'failed', progress: sc.status === 'done' ? 'Terminé' : 'Échec', error: sc.error, videoUrl: sc.videoUrl, videoId: null, prompt: null, startTime: null }));
     state.completed = state.queue.filter(q => q.status === 'done').length;
@@ -3076,11 +3268,51 @@ function renderQueue() {
         else if (item.status === 'processing') { icon = '◐'; txt = item.progress || 'En cours'; cls = 'processing'; }
         else if (item.status === 'done') { icon = '●'; txt = 'Terminé' + (item.chained ? ' · enchaînée' : ''); cls = 'done'; }
         else if (item.status === 'failed') { icon = '✕'; txt = item.progress === 'Arrêté' ? 'Arrêtée' : 'Échec' + (item.error ? ' : ' + item.error.slice(0, 60) : ''); cls = 'failed'; }
-        return '<div class="queue-item ' + cls + '"><div class="q-icon">' + icon + '</div><div class="q-name">Scène ' + (item.sceneIndex + 1) + '</div><div class="q-status">' + esc(txt) + '</div></div>';
+        const canRegen = (item.status === 'done' || item.status === 'failed') && !state.isRunning && !assembling && !state.regenerating;
+        return '<div class="queue-item ' + cls + '"><div class="q-icon">' + icon + '</div><div class="q-name">Scène ' + (item.sceneIndex + 1) + '</div><div class="q-status">' + esc(txt) + '</div>' +
+            (canRegen ? '<button type="button" class="q-regen" data-regen="' + item.sceneIndex + '">🔄 Refaire</button>' : '') + '</div>';
     }).join('');
     el.innerHTML = html;
     setProgress(total > 0 ? (done / total) * 100 : 0);
 }
+function rebuildGallery() {
+    const gg = document.getElementById('gallery-grid'); if (!gg) return;
+    gg.innerHTML = '';
+    const done = state.queue.filter(q => q.status === 'done' && q.videoUrl);
+    document.getElementById('gallery').style.display = done.length ? 'block' : 'none';
+    done.forEach(q => addToGallery(q.videoUrl, 'Scène ' + (q.sceneIndex + 1)));
+}
+// Refaire une seule scène (nouvelle prise), sans toucher aux autres.
+async function regenerateScene(item) {
+    const photo = state.images[0]?.dataUri || state.photoSmall;
+    if (!photo) throw new Error('photo du personnage introuvable : ajoute-la à nouveau en haut de la page');
+    if (!getAgnesKey()) throw new Error('clé Agnes manquante');
+    if (item.status === 'done') state.completed = Math.max(0, state.completed - 1);
+    else if (item.status === 'failed') state.failed = Math.max(0, state.failed - 1);
+    ['blob', 'audioBuffer', 'speech', 'sttWords', 'ttsBlob', 'ttsBuffer', 'ttsSpeech', 'error'].forEach(k => delete item[k]);
+    item.image = photo; item.chained = false; item.videoUrl = null;
+    state.exportCache = {};
+    try { await createTaskOnly(item); }
+    catch (e) { item.status = 'failed'; item.error = e.message; state.failed++; renderQueue(); rebuildGallery(); throw e; }
+    await pollTaskAndDisplay(item);
+    rebuildGallery(); saveProject();
+    if (item.status !== 'done') throw new Error(item.error || 'la nouvelle prise a échoué');
+}
+async function regenerateSceneUI(index) {
+    const item = state.queue.find(q => q.sceneIndex === index);
+    if (!item || state.regenerating || state.isRunning || assembling) return;
+    if (!confirm('Refaire la scène ' + (index + 1) + ' ? Garde l\'appli ouverte 1 à 2 minutes.')) return;
+    unlockAudio();
+    state.regenerating = true; state.stopRequested = false; renderQueue(); updateAssembleBtn();
+    await ensureWakeLockActive();
+    try { await regenerateScene(item); showToast('Scène ' + (index + 1) + ' refaite ✓ Tu peux relancer le montage.', 'success', 5000); }
+    catch (e) { showToast('Impossible de refaire la scène : ' + e.message, 'error', 6000); }
+    finally { state.regenerating = false; state.stopRequested = false; setStatus(null); renderQueue(); updateAssembleBtn(); }
+}
+document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-regen]');
+    if (b) regenerateSceneUI(parseInt(b.dataset.regen, 10));
+});
 function addToGallery(videoUrl, label) {
     const g = document.getElementById('gallery'), gg = document.getElementById('gallery-grid');
     g.style.display = 'block';
@@ -3138,6 +3370,9 @@ async function runChained() {
 
 // ══════════════════════════════════════════════════════════════════
 // MONTAGE FINAL (canvas + MediaRecorder, MP4 natif sur iPhone)
+// Son : musique continue avec ducking, blancs coupés, voix égalisées,
+// bruitages. Image : sous-titres calés au mot, dessins synchronisés,
+// zooms, transitions intelligentes, intro / titres de parties / fin, 1080p.
 // ══════════════════════════════════════════════════════════════════
 const FADE_SEC = 0.5;
 let assembling = false, assemblyInterrupted = false;
@@ -3150,10 +3385,11 @@ function pickRecorderMime() {
     return '';
 }
 function computeOutputSize(v) {
-    if (state.videoFormat === 'portrait') return { w: 720, h: 1280 };
-    if (state.videoFormat === 'landscape') return { w: 1280, h: 720 };
-    let w = v.videoWidth || 720, h = v.videoHeight || 1280;
-    const s = Math.min(1, 1280 / Math.max(w, h));
+    const L = state.exportQuality === '720' ? 1280 : 1920, S = Math.round(L * 9 / 16 / 2) * 2;
+    if (state.videoFormat === 'portrait') return { w: S, h: L };
+    if (state.videoFormat === 'landscape') return { w: L, h: S };
+    const w = v.videoWidth || 720, h = v.videoHeight || 1280;
+    const s = L / Math.max(w, h);
     return { w: Math.round(w * s / 2) * 2, h: Math.round(h * s / 2) * 2 };
 }
 function drawFrame(ctx, v, cw, ch) {
@@ -3188,31 +3424,155 @@ function wrapLines(ctx, text, maxWidth) {
     if (cur) lines.push(cur);
     return lines;
 }
-function drawSubtitle(ctx, cw, ch, text, progress) {
+const easeOut = x => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const MARKER_FONT = '"Marker Felt", "Chalkboard SE", "Comic Sans MS", -apple-system, sans-serif';
+const UI_FONT = '-apple-system, "Helvetica Neue", Arial, sans-serif';
+
+// ─────────────── Analyse du son ───────────────
+// Où la parole commence et finit (volume par tranches de 20 ms), et son niveau moyen.
+function analyzeSpeech(buf) {
+    if (!buf) return null;
+    const sr = buf.sampleRate, data = buf.getChannelData(0), win = Math.max(1, Math.round(sr * 0.02));
+    const n = Math.floor(data.length / win);
+    if (!n) return null;
+    const rms = new Float32Array(n);
+    let peak = 0;
+    for (let i = 0; i < n; i++) {
+        let s = 0;
+        for (let j = i * win; j < (i + 1) * win; j += 2) s += data[j] * data[j];
+        rms[i] = Math.sqrt(s / (win / 2));
+        if (rms[i] > peak) peak = rms[i];
+    }
+    if (peak < 0.004) return { silent: true, start: 0, end: buf.duration, level: 0, coverage: 0 };
+    const thr = Math.max(peak * 0.12, 0.004);
+    let first = -1, last = -1, sum = 0, cnt = 0;
+    for (let i = 0; i < n; i++) if (rms[i] > thr) { if (first < 0) first = i; last = i; sum += rms[i] * rms[i]; cnt++; }
+    return { silent: false, start: first * 0.02, end: (last + 1) * 0.02, level: Math.sqrt(sum / Math.max(1, cnt)), coverage: cnt / n };
+}
+// Découpe de la scène : on garde la parole, sans les blancs (comme un monteur qui coupe « sur la respiration »).
+function sceneCut(item, vDur, index) {
+    if (state.trimMode === 'none') return { tin: 0, tout: vDur };
+    const a = item.speech;
+    if (state.trimMode === 'auto' && a && !a.silent && a.coverage < 0.93) {
+        let tin = Math.max(0, a.start - 0.15), tout = Math.min(vDur, a.end + 0.35);
+        if (tout - tin >= 1.2) return { tin, tout };
+    }
+    return { tin: index > 0 ? Math.min(0.4, vDur / 3) : 0, tout: vDur };
+}
+function voiceGainFor(item) {
+    const lvl = item.speech && !item.speech.silent ? item.speech.level : 0;
+    return lvl ? Math.max(0.5, Math.min(3, 0.12 / lvl)) : 1;
+}
+
+// ─────────────── Mots et sous-titres ───────────────
+const normWord = w => String(w).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+async function transcribeWords(blob) {
+    const fd = new FormData();
+    fd.append('model_id', 'scribe_v1');
+    fd.append('file', blob, 'scene.mp4');
+    fd.append('timestamps_granularity', 'word');
+    fd.append('language_code', (state.language || 'fr-FR').split('-')[0]);
+    const res = await withTimeout(fetch(ELEVENLABS_API + '/speech-to-text', { method: 'POST', headers: { 'xi-api-key': getElevenLabsKey() }, body: fd }), 60000, 'transcription trop longue');
+    if (!res.ok) throw new Error('ElevenLabs ' + res.status);
+    const data = await res.json();
+    return (data.words || []).filter(w => w.type === 'word' || !w.type).map(w => ({ text: w.text, start: +w.start, end: +w.end }));
+}
+// Heure de chaque mot du script dans la scène (transcription ElevenLabs si disponible, sinon estimation sur la zone de parole).
+function computeWordTimes(item, cut, dur) {
+    const words = segmentsForScene(item.sceneIndex).map(s => s.text).join(' ').split(/\s+/).filter(Boolean);
+    if (!words.length) return [];
+    const spoken = (item.sttWords || []).map(w => ({ n: normWord(w.text), start: w.start - cut.tin, end: w.end - cut.tin })).filter(w => w.end > 0 && w.start < dur);
+    if (spoken.length >= Math.max(1, words.length * 0.5)) {
+        const times = new Array(words.length).fill(null);
+        let j = 0;
+        words.forEach((w, i) => {
+            const nw = normWord(w);
+            for (let k = j; k < Math.min(spoken.length, j + 4); k++) {
+                if (nw && (spoken[k].n === nw || spoken[k].n.startsWith(nw) || nw.startsWith(spoken[k].n))) { times[i] = spoken[k]; j = k + 1; break; }
+            }
+        });
+        // mots non retrouvés : interpolation entre les voisins
+        for (let i = 0; i < words.length; i++) {
+            if (times[i]) continue;
+            let a = i - 1; while (a >= 0 && !times[a]) a--;
+            let b = i + 1; while (b < words.length && !times[b]) b++;
+            const t0 = a >= 0 ? times[a].end : Math.max(0, spoken[0].start);
+            const t1 = b < words.length ? times[b].start : Math.min(dur, spoken[spoken.length - 1].end);
+            const steps = b - a, pos = i - a;
+            const s = t0 + (t1 - t0) * (pos - 1) / Math.max(1, steps - 1 || 1);
+            times[i] = { start: s, end: s + Math.max(0.12, (t1 - t0) / Math.max(1, steps)) };
+        }
+        return words.map((w, i) => ({ text: w, start: Math.max(0, times[i].start), end: Math.min(dur, Math.max(times[i].start + 0.08, times[i].end)) }));
+    }
+    let s0 = 0.1, s1 = Math.max(0.5, dur - 0.25);
+    const a = item.speech;
+    if (a && !a.silent && a.coverage < 0.93) { s0 = Math.max(0, a.start - cut.tin); s1 = Math.min(dur, a.end - cut.tin); }
+    const weights = words.map(w => w.length + 2), total = weights.reduce((x, y) => x + y, 0);
+    let t = s0;
+    return words.map((w, i) => { const d = (s1 - s0) * weights[i] / total; const r = { text: w, start: t, end: t + d }; t += d; return r; });
+}
+function captionGroups(wordTimes) {
+    const groups = [];
+    let cur = [];
+    wordTimes.forEach((w, i) => {
+        cur.push(w);
+        const endPunct = /[.,!?;:…]$/.test(w.text);
+        if (cur.length >= 3 || endPunct || i === wordTimes.length - 1) { groups.push({ words: cur, start: cur[0].start }); cur = []; }
+    });
+    groups.forEach((g, i) => { g.end = i < groups.length - 1 ? groups[i + 1].start : g.words[g.words.length - 1].end + 0.6; });
+    return groups;
+}
+// Style « TikTok mots » : 2-3 mots à la fois, le mot prononcé s'allume.
+function drawWordCaptions(ctx, cw, ch, groups, t) {
+    if (!groups.length || t < groups[0].start - 0.05) return;
+    const g = groups.find(gr => t >= gr.start - 0.05 && t < gr.end);
+    if (!g) return;
+    const base = Math.min(cw, ch);
+    let fs = Math.round(base * 0.085);
+    ctx.save();
+    const setFont = () => { ctx.font = '900 ' + fs + 'px ' + UI_FONT; };
+    setFont();
+    const text = g.words.map(w => w.text).join(' ');
+    while (ctx.measureText(text).width > cw * 0.9 && fs > 18) { fs -= 2; setFont(); }
+    const pop = easeOut((t - g.start) / 0.12);
+    const y = ch * (isWhiteboard() ? 0.84 : 0.8);
+    ctx.translate(cw / 2, y); ctx.scale(0.85 + 0.15 * pop, 0.85 + 0.15 * pop); ctx.translate(-cw / 2, -y);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.lineJoin = 'round';
+    let x = cw / 2 - ctx.measureText(text).width / 2;
+    g.words.forEach((w, i) => {
+        const piece = w.text + (i < g.words.length - 1 ? ' ' : '');
+        const active = t >= w.start - 0.03;
+        ctx.lineWidth = fs * 0.2; ctx.strokeStyle = '#111';
+        ctx.strokeText(piece, x, y);
+        ctx.fillStyle = active && t < w.end + 0.15 ? '#ffd23f' : '#fff';
+        ctx.fillText(piece, x, y);
+        x += ctx.measureText(piece).width;
+    });
+    ctx.restore();
+}
+function drawSubtitle(ctx, cw, ch, text, litRatio) {
     if (!text) return;
     const style = state.subtitlesStyle, base = Math.min(cw, ch);
     let fontSize = Math.round(base * 0.052), bgColor = 'rgba(0,0,0,0.65)';
     if (style === 'tiktok') { fontSize = Math.round(base * 0.07); bgColor = null; }
     else if (style === 'minimal') { fontSize = Math.round(base * 0.042); bgColor = 'rgba(0,0,0,0.45)'; }
     ctx.save();
-    ctx.font = '800 ' + fontSize + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
+    ctx.font = '800 ' + fontSize + 'px ' + UI_FONT;
     ctx.textBaseline = 'middle';
-    const maxWidth = cw * 0.86;
-    const lines = wrapLines(ctx, text, maxWidth);
+    const lines = wrapLines(ctx, text, cw * 0.86);
     const lineHeight = fontSize * 1.28, pad = fontSize * 0.5;
     const boxH = lines.length * lineHeight + pad * 2;
     const boxW = Math.min(cw * 0.92, Math.max(...lines.map(l => ctx.measureText(l).width)) + pad * 2.4);
     const boxY = ch - boxH - ch * 0.05, boxX = (cw - boxW) / 2;
     if (bgColor) { ctx.fillStyle = bgColor; roundRectPath(ctx, boxX, boxY, boxW, boxH, fontSize * 0.5); ctx.fill(); }
     if (style === 'tiktok') { ctx.lineWidth = fontSize * 0.16; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; }
-    // Karaoké : les mots déjà prononcés s'allument
     const totalWords = lines.reduce((a, l) => a + l.split(' ').length, 0);
-    let litWords = style === 'karaoke' ? Math.ceil(totalWords * Math.min(1, progress * 1.05)) : totalWords;
+    let litWords = style === 'karaoke' ? Math.round(totalWords * clamp01(litRatio)) : totalWords;
     lines.forEach((line, li) => {
         const y = boxY + pad + lineHeight * (li + 0.5);
         const words = line.split(' ');
-        const full = ctx.measureText(line).width;
-        let x = cw / 2 - full / 2;
+        let x = cw / 2 - ctx.measureText(line).width / 2;
         ctx.textAlign = 'left';
         words.forEach((w, wi) => {
             const piece = w + (wi < words.length - 1 ? ' ' : '');
@@ -3225,23 +3585,30 @@ function drawSubtitle(ctx, cw, ch, text, progress) {
     });
     ctx.restore();
 }
+function drawCaptions(ctx, cw, ch, sc, t) {
+    if (state.subtitlesStyle === 'off') return;
+    if (state.subtitlesStyle === 'words') { drawWordCaptions(ctx, cw, ch, sc.groups, t); return; }
+    const st = subtitleTextAt(sc.item.sceneIndex, sc.dur > 0 ? t / sc.dur : 0);
+    const segWords = st.text.split(/\s+/).filter(Boolean).length || 1;
+    const spokenSoFar = sc.words.filter(w => w.start <= t).length;
+    drawSubtitle(ctx, cw, ch, st.text, state.subtitlesStyle === 'karaoke' ? Math.min(1, spokenSoFar / Math.max(segWords, sc.words.length)) : 1);
+}
+
+// ─────────────── Bulles, dessins ───────────────
 function drawBubble(ctx, cw, ch, text, t) {
     if (!text) return;
     const appear = Math.min(1, t / 0.35);
     const scale = appear < 1 ? 0.6 + 0.4 * (1 - Math.pow(1 - appear, 3)) + Math.sin(appear * Math.PI) * 0.06 : 1;
-    const base = Math.min(cw, ch);
-    const fontSize = Math.round(base * 0.06);
+    const fontSize = Math.round(Math.min(cw, ch) * 0.06);
     ctx.save();
-    ctx.font = '800 ' + fontSize + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
+    ctx.font = '800 ' + fontSize + 'px ' + UI_FONT;
     const lines = wrapLines(ctx, text, cw * 0.5);
     const pad = fontSize * 0.6, lh = fontSize * 1.2;
     const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + pad * 2;
     const h = lines.length * lh + pad * 1.6;
     const x = cw * 0.05, y = ch * 0.07;
     ctx.globalAlpha = appear;
-    ctx.translate(x + w * 0.2, y + h);
-    ctx.scale(scale, scale);
-    ctx.translate(-(x + w * 0.2), -(y + h));
+    ctx.translate(x + w * 0.2, y + h); ctx.scale(scale, scale); ctx.translate(-(x + w * 0.2), -(y + h));
     ctx.shadowColor = 'rgba(0,0,0,0.25)'; ctx.shadowBlur = fontSize * 0.4; ctx.shadowOffsetY = fontSize * 0.1;
     ctx.fillStyle = '#27ae60';
     roundRectPath(ctx, x, y, w, h, fontSize * 0.6); ctx.fill();
@@ -3259,28 +3626,27 @@ function drawingArea(v, cw, ch) {
     if (rw >= rh) return { x: rx + rw * 0.4, y: ry + rh * 0.07, w: rw * 0.56, h: rh * 0.6 };
     return { x: rx + rw * 0.42, y: ry + rh * 0.1, w: rw * 0.54, h: rh * 0.42 };
 }
-function drawSketch(ctx, area, drawing, progress, alpha) {
-    if (!drawing) return;
+// Trace chaque trait selon sa fraction (0 à 1). Renvoie true si un trait est en cours (pour le bruit du feutre).
+function strokeSketch(ctx, area, drawing, fracs, alpha, showTip) {
+    if (!drawing) return false;
     const s = Math.min(area.w / DRAW_VB.w, area.h / DRAW_VB.h);
     const ox = area.x + (area.w - DRAW_VB.w * s) / 2, oy = area.y + (area.h - DRAW_VB.h * s) / 2;
-    let remaining = drawing.total * Math.max(0, Math.min(1, progress)), tip = null;
+    let tip = null;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(ox, oy); ctx.scale(s, s);
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 4.5;
-    for (const st of drawing.strokes) {
-        if (remaining <= 0) break;
+    drawing.strokes.forEach((st, i) => {
+        const f = fracs[i];
+        if (f <= 0) return;
         ctx.strokeStyle = st.color;
-        if (remaining >= st.len) { ctx.setLineDash([]); ctx.stroke(st.path2d); }
-        else {
-            ctx.setLineDash([remaining, st.len + 10]); ctx.lineDashOffset = 0; ctx.stroke(st.path2d);
-            try { tip = st.el.getPointAtLength(remaining); } catch (e) {}
-        }
-        remaining -= st.len;
-    }
+        if (f >= 1) { ctx.setLineDash([]); ctx.stroke(st.path2d); return; }
+        const l = st.len * f;
+        ctx.setLineDash([l, st.len + 10]); ctx.lineDashOffset = 0; ctx.stroke(st.path2d);
+        try { tip = st.el.getPointAtLength(l); } catch (e) {}
+    });
     ctx.restore();
-    if (tip && alpha > 0.5) {
-        // pointe du feutre qui avance
+    if (tip && showTip && alpha > 0.5) {
         const x = ox + tip.x * s, y = oy + tip.y * s, r = Math.max(4, s * 6);
         ctx.save();
         ctx.fillStyle = '#1f1f1f'; ctx.strokeStyle = '#1f1f1f'; ctx.lineWidth = r * 0.9; ctx.lineCap = 'round';
@@ -3288,33 +3654,238 @@ function drawSketch(ctx, area, drawing, progress, alpha) {
         ctx.beginPath(); ctx.arc(x, y, r * 0.55, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
     }
+    return !!tip;
+}
+function drawSketch(ctx, area, drawing, progress, alpha) {
+    if (!drawing) return false;
+    let remaining = drawing.total * clamp01(progress);
+    const fracs = drawing.strokes.map(st => { const f = clamp01(remaining / st.len); remaining -= st.len; return f; });
+    return strokeSketch(ctx, area, drawing, fracs, alpha, true);
+}
+// Chaque trait démarre quand son mot est prononcé (sinon juste après le précédent).
+function drawingSchedule(drawing, wordTimes, dur) {
+    if (!drawing) return null;
+    const speed = drawing.total / Math.max(1.2, dur * 0.55);
+    let t = Math.max(0.15, (wordTimes[0]?.start ?? 0.2));
+    const sched = drawing.strokes.map(st => {
+        let trig = null;
+        if (st.word) {
+            const nw = normWord(st.word);
+            const hit = nw && wordTimes.find(w => { const n = normWord(w.text); return n && (n === nw || (nw.length > 3 && n.startsWith(nw.slice(0, nw.length - 1))) || (n.length > 3 && nw.startsWith(n))); });
+            if (hit) trig = hit.start;
+        }
+        const start = Math.max(t, trig ?? t), d = Math.max(0.12, st.len / speed);
+        t = start + d;
+        return { start, end: start + d };
+    });
+    const limit = dur * 0.92, first = sched[0].start, last = sched[sched.length - 1].end;
+    if (last > limit && last > first) {
+        const k = Math.max(0.05, (limit - first) / (last - first));
+        sched.forEach(s => { s.start = first + (s.start - first) * k; s.end = first + (s.end - first) * k; });
+    }
+    return sched;
+}
+function drawSketchTimed(ctx, area, drawing, sched, t, alpha) {
+    if (!drawing || !sched) return false;
+    return strokeSketch(ctx, area, drawing, sched.map(s => clamp01((t - s.start) / Math.max(0.01, s.end - s.start))), alpha, true);
 }
 function drawSketchLabel(ctx, area, text, alpha) {
     if (!text || alpha <= 0) return;
     const fs = Math.round(Math.max(14, Math.min(area.w * 0.09, area.h * 0.13)));
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.font = '800 ' + fs + 'px "Marker Felt", "Chalkboard SE", "Comic Sans MS", -apple-system, sans-serif';
+    ctx.font = '800 ' + fs + 'px ' + MARKER_FONT;
     ctx.fillStyle = '#1f1f1f'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    const lines = wrapLines(ctx, text, area.w * 0.95);
-    lines.forEach((l, i) => ctx.fillText(l, area.x + area.w / 2, area.y + area.h + fs * 0.2 + i * fs * 1.1));
+    wrapLines(ctx, text, area.w * 0.95).forEach((l, i) => ctx.fillText(l, area.x + area.w / 2, area.y + area.h + fs * 0.2 + i * fs * 1.1));
     ctx.restore();
 }
-let prevSketch = null;
-function drawOverlays(ctx, cw, ch, item, elapsed, duration, v) {
-    const progress = duration > 0 ? elapsed / duration : 0;
-    if (isWhiteboard() && v) {
-        const area = drawingArea(v, cw, ch);
-        if (prevSketch && elapsed < FADE_SEC) drawSketch(ctx, prevSketch.area, prevSketch.drawing, 1, 1 - elapsed / FADE_SEC);
-        const drawP = Math.min(1, progress / 0.75);
-        const eased = 1 - Math.pow(1 - drawP, 1.6);
-        drawSketch(ctx, area, state.drawings[item.sceneIndex], eased, Math.min(1, elapsed / 0.15));
-        if (state.pedagoFx.includes('bubbles')) drawSketchLabel(ctx, area, scenePlanFor(item.sceneIndex).bubble, Math.max(0, Math.min(1, (progress - 0.45) / 0.2)));
-    } else if (state.pedagoFx.includes('bubbles')) drawBubble(ctx, cw, ch, scenePlanFor(item.sceneIndex).bubble, elapsed);
-    if (state.subtitlesStyle !== 'off') {
-        const st = subtitleTextAt(item.sceneIndex, progress);
-        drawSubtitle(ctx, cw, ch, st.text, st.local);
+
+// ─────────────── Habillage : intro, titres de parties, fin, logo ───────────────
+function drawTitleCard(ctx, cw, ch, title, t, kind) {
+    const wb = isWhiteboard();
+    if (wb) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch); }
+    else { const gr = ctx.createLinearGradient(0, 0, cw, ch); gr.addColorStop(0, '#6c5ce7'); gr.addColorStop(1, '#a29bfe'); ctx.fillStyle = gr; ctx.fillRect(0, 0, cw, ch); }
+    const base = Math.min(cw, ch);
+    let fs = Math.round(base * (kind === 'intro' ? 0.12 : 0.095));
+    ctx.save();
+    ctx.font = '900 ' + fs + 'px ' + MARKER_FONT;
+    let lines = wrapLines(ctx, title, cw * 0.82);
+    while (lines.length > 3 && fs > 20) { fs -= 4; ctx.font = '900 ' + fs + 'px ' + MARKER_FONT; lines = wrapLines(ctx, title, cw * 0.82); }
+    const lh = fs * 1.15, y0 = ch / 2 - (lines.length - 1) * lh / 2 - (kind === 'intro' ? fs * 0.3 : 0);
+    const reveal = easeOut(t / 0.9);
+    ctx.beginPath(); ctx.rect(0, 0, cw * 0.09 + cw * 0.82 * reveal, ch); ctx.clip();
+    ctx.fillStyle = wb ? '#1f1f1f' : '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    lines.forEach((l, i) => ctx.fillText(l, cw / 2, y0 + i * lh));
+    ctx.restore();
+    // soulignement tracé au feutre
+    const u = clamp01((t - 0.75) / 0.45);
+    if (u > 0) {
+        const wMax = Math.min(cw * 0.7, fs * 6), ux = cw / 2 - wMax / 2, uy = y0 + (lines.length - 1) * lh + fs * 0.75;
+        ctx.save(); ctx.strokeStyle = wb ? '#f08c00' : '#ffd23f'; ctx.lineWidth = Math.max(4, fs * 0.09); ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(ux, uy); ctx.quadraticCurveTo(ux + wMax / 2, uy + fs * 0.12, ux + wMax * u, uy - fs * 0.04); ctx.stroke(); ctx.restore();
     }
+    if (kind === 'card' && t > 0) {
+        ctx.save(); ctx.globalAlpha = easeOut(t / 0.4) * 0.6; ctx.fillStyle = wb ? '#8a84a3' : '#fff';
+        ctx.font = '700 ' + Math.round(fs * 0.35) + 'px ' + UI_FONT; ctx.textAlign = 'center';
+        ctx.fillText('— ' + (state.theme || 'La suite') + ' —', cw / 2, y0 - fs * 0.95); ctx.restore();
+    }
+}
+function drawOutro(ctx, cw, ch, t, dur, logoImg) {
+    const wb = isWhiteboard();
+    ctx.fillStyle = wb ? '#fff' : '#1f1b3a'; ctx.fillRect(0, 0, cw, ch);
+    const base = Math.min(cw, ch);
+    const drawings = state.drawings.filter(Boolean).slice(0, 6);
+    const portrait = ch > cw;
+    let textY = ch * 0.5;
+    if (drawings.length) {
+        // récapitulatif du tableau
+        const cols = portrait ? 2 : 3, rows = Math.ceil(drawings.length / cols);
+        const gw = cw * 0.84, gh = ch * (portrait ? 0.5 : 0.56), cellW = gw / cols, cellH = gh / rows;
+        drawings.forEach((d, i) => {
+            const a = easeOut((t - i * 0.12) / 0.4);
+            const cx = cw * 0.08 + (i % cols) * cellW, cy = ch * 0.06 + Math.floor(i / cols) * cellH;
+            drawSketch(ctx, { x: cx + cellW * 0.08, y: cy + cellH * 0.06, w: cellW * 0.84, h: cellH * 0.84 }, d, 1, a);
+        });
+        textY = ch * 0.06 + gh + ch * 0.1;
+    }
+    const fs = Math.round(base * 0.075);
+    ctx.save();
+    ctx.globalAlpha = easeOut((t - 0.3) / 0.5);
+    ctx.fillStyle = wb ? '#1f1f1f' : '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '900 ' + fs + 'px ' + MARKER_FONT;
+    ctx.fillText('Merci d\'avoir regardé !', cw / 2, textY);
+    const pulse = 1 + Math.sin(t * 5) * 0.04;
+    const bw = fs * 6.2, bh = fs * 1.5, by = textY + fs * 1.4;
+    ctx.translate(cw / 2, by + bh / 2); ctx.scale(pulse, pulse); ctx.translate(-cw / 2, -(by + bh / 2));
+    ctx.fillStyle = '#e03e3e'; roundRectPath(ctx, cw / 2 - bw / 2, by, bw, bh, bh / 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = '900 ' + Math.round(fs * 0.62) + 'px ' + UI_FONT;
+    ctx.fillText('🔔 ABONNE-TOI', cw / 2, by + bh / 2 + 1);
+    ctx.restore();
+    if (logoImg) drawLogo(ctx, cw, ch, logoImg, 1.4);
+    if (t > dur - 0.5) { ctx.fillStyle = 'rgba(0,0,0,' + clamp01((t - (dur - 0.5)) / 0.5) + ')'; ctx.fillRect(0, 0, cw, ch); }
+}
+function drawLogo(ctx, cw, ch, img, scale = 1) {
+    if (!img || !img.width) return;
+    const size = Math.min(cw, ch) * 0.1 * scale, r = img.width / img.height;
+    const w = r >= 1 ? size : size * r, h = r >= 1 ? size / r : size;
+    ctx.save(); ctx.globalAlpha = 0.85;
+    ctx.drawImage(img, cw - w - Math.min(cw, ch) * 0.04, Math.min(cw, ch) * 0.04, w, h);
+    ctx.restore();
+}
+
+// ─────────────── Bruitages (synthétisés, aucun fichier) ───────────────
+function createSfx(actx, out) {
+    const len = actx.sampleRate * 2, noise = actx.createBuffer(1, len, actx.sampleRate), d = noise.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = actx.createBufferSource(); src.buffer = noise; src.loop = true;
+    const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 1.1;
+    const amp = actx.createGain(); amp.gain.value = 0.65;
+    const lfo = actx.createOscillator(); lfo.frequency.value = 11;
+    const lfoGain = actx.createGain(); lfoGain.gain.value = 0.35;
+    lfo.connect(lfoGain).connect(amp.gain);
+    const scrib = actx.createGain(); scrib.gain.value = 0;
+    src.connect(bp).connect(amp).connect(scrib).connect(out);
+    src.start(); lfo.start();
+    let scribOn = false;
+    return {
+        scribble(on) { if (on === scribOn) return; scribOn = on; scrib.gain.setTargetAtTime(on ? 0.08 : 0, actx.currentTime, 0.03); },
+        pop() {
+            const o = actx.createOscillator(), gn = actx.createGain(), t = actx.currentTime;
+            o.type = 'sine'; o.frequency.setValueAtTime(480, t); o.frequency.exponentialRampToValueAtTime(980, t + 0.08);
+            gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(0.22, t + 0.01); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+            o.connect(gn).connect(out); o.start(t); o.stop(t + 0.16);
+        },
+        whoosh() {
+            const s = actx.createBufferSource(), f = actx.createBiquadFilter(), gn = actx.createGain(), t = actx.currentTime;
+            s.buffer = noise; f.type = 'bandpass'; f.Q.value = 0.8;
+            f.frequency.setValueAtTime(350, t); f.frequency.exponentialRampToValueAtTime(2600, t + 0.4);
+            gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(0.18, t + 0.15); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+            s.connect(f).connect(gn).connect(out); s.start(t); s.stop(t + 0.55);
+        },
+        stop() { try { src.stop(); lfo.stop(); } catch (e) {} }
+    };
+}
+
+// ─────────────── Préparation (téléchargement, analyse, transcription) ───────────────
+async function prepareAssets(items, label) {
+    const usePremium = state.voiceSource === 'premium';
+    if (usePremium && state.ttsEngine === 'browser') showToast('La voix du navigateur ne peut pas être enregistrée : voix Agnes utilisée', 'warn', 5000);
+    const premium = usePremium && state.ttsEngine !== 'browser';
+    let ttsFailed = false, sttFailed = !state.syncWords || !getElevenLabsKey();
+    for (let i = 0; i < items.length; i++) {
+        if (state.stopRequested) throw new Error('Arrêt demandé');
+        setStatus(label + ' : préparation ' + (i + 1) + '/' + items.length + '…');
+        setProgress(3 + (i / items.length) * 17);
+        const item = items[i];
+        await fetchClipBlob(item);
+        if (premium && !item.ttsBuffer && !ttsFailed) {
+            try {
+                const b = await generateAudioUnified(scenePlanFor(item.sceneIndex).spoken || item.sceneText);
+                if (b) { item.ttsBlob = b; item.ttsBuffer = await decodeAudioBlob(b); item.ttsSpeech = analyzeSpeech(item.ttsBuffer); }
+            } catch (e) { ttsFailed = true; showToast('Voix premium indisponible (' + e.message + ') : voix Agnes utilisée', 'warn', 6000); }
+        }
+        if (item.audioBuffer === undefined) { item.audioBuffer = await decodeAudioBlob(item.blob); item.speech = analyzeSpeech(item.audioBuffer); }
+        if (!sttFailed && item.sttWords === undefined && !(premium && item.ttsBuffer)) {
+            setStatus(label + ' : synchronisation des sous-titres ' + (i + 1) + '/' + items.length + '…');
+            try { item.sttWords = await transcribeWords(item.blob); }
+            catch (e) { sttFailed = true; item.sttWords = undefined; log('Transcription : ' + e.message); showToast('Synchronisation au mot indisponible (' + e.message + ') : estimation utilisée', 'warn', 5000); }
+        }
+    }
+    if (premium) {
+        const tts = items.map(i => i.ttsBlob).filter(Boolean);
+        state.finalAudioBlob = tts.length ? new Blob(tts, { type: 'audio/mpeg' }) : null;
+    }
+    return { premium };
+}
+// Contrôle qualité : scènes sans voix ou à la voix coupée.
+function sceneProblem(item) {
+    if (state.voiceSource === 'premium') return null;
+    if (!item.audioBuffer) return 'pas de son';
+    if (item.speech?.silent) return 'pas de voix';
+    if (item.speech && item.speech.end - item.speech.start < 0.6) return 'voix trop courte';
+    return null;
+}
+function buildSegments(items, maxDuration) {
+    const segs = [];
+    if (state.introOn && (state.theme || '').trim() && maxDuration > 20) segs.push({ type: 'intro', dur: 2.4, title: state.theme.trim() });
+    items.forEach((item, i) => {
+        const plan = scenePlanFor(item.sceneIndex);
+        const section = String(plan.section || '').trim();
+        if (section && i > 0 && state.sectionCards && maxDuration > 20) segs.push({ type: 'card', dur: 1.7, title: section });
+        segs.push({ type: 'scene', item, index: i, newSection: !!section && i > 0 });
+    });
+    if (state.outroOn && maxDuration > 20) segs.push({ type: 'outro', dur: 3.6 });
+    return segs;
+}
+async function loadMusicBuffer() {
+    if (effectiveMusicMode() !== 'app') return null;
+    try { const blob = await idbGet('music'); return blob ? await decodeAudioBlob(blob) : null; } catch (e) { return null; }
+}
+async function loadLogoImage() {
+    try {
+        const blob = await idbGet('logo'); if (!blob) return null;
+        const img = new Image(); const url = URL.createObjectURL(blob);
+        await new Promise(r => { img.onload = r; img.onerror = r; img.src = url; });
+        return img.width ? img : null;
+    } catch (e) { return null; }
+}
+
+// Boucle d'affichage pendant « dur » secondes (s'arrête aussi si shouldEnd() renvoie true).
+function runFrames(dur, render, shouldEnd) {
+    return new Promise(resolve => {
+        const t0 = performance.now();
+        let finished = false;
+        const finish = () => { if (!finished) { finished = true; clearTimeout(safety); resolve(Math.min(dur, (performance.now() - t0) / 1000)); } };
+        const tick = () => {
+            if (finished) return;
+            const t = (performance.now() - t0) / 1000;
+            if (state.stopRequested || t >= dur || (shouldEnd && shouldEnd(t))) { finish(); return; }
+            render(t);
+            requestAnimationFrame(tick);
+        };
+        const safety = setTimeout(finish, (dur + 6) * 1000);
+        requestAnimationFrame(tick);
+    });
 }
 
 async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {}) {
@@ -3325,109 +3896,159 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
     const actx = getAudioCtx();
     try { await actx.resume(); } catch (e) {}
     assemblyInterrupted = false;
-    const usePremium = state.voiceSource === 'premium';
-    if (usePremium && state.ttsEngine === 'browser') showToast('La voix du navigateur ne peut pas être enregistrée : voix Agnes utilisée', 'warn', 5000);
-    const premium = usePremium && state.ttsEngine !== 'browser';
+    const { premium } = await prepareAssets(items, label);
+    const segs = buildSegments(items, maxDuration);
+    const musicBuf = await loadMusicBuffer();
+    const logoImg = await loadLogoImage();
+    const wb = isWhiteboard();
 
-    // 1. Téléchargement des scènes et préparation du son
-    let audioMissing = 0, ttsFailed = false;
-    for (let i = 0; i < items.length; i++) {
-        if (state.stopRequested) throw new Error('Arrêt demandé');
-        setStatus(label + ' : préparation ' + (i + 1) + '/' + items.length + '…');
-        setProgress(5 + (i / items.length) * 20);
-        const item = items[i];
-        await fetchClipBlob(item);
-        if (premium) {
-            if (!item.ttsBuffer && !ttsFailed) {
-                try {
-                    const b = await generateAudioUnified(scenePlanFor(item.sceneIndex).spoken || item.sceneText);
-                    if (b) { item.ttsBlob = b; item.ttsBuffer = await decodeAudioBlob(b); }
-                } catch (e) { ttsFailed = true; showToast('Voix premium indisponible (' + e.message + ') : voix Agnes utilisée', 'warn', 6000); }
-            }
-        }
-        if (!premium || !item.ttsBuffer) {
-            if (item.audioBuffer === undefined) item.audioBuffer = await decodeAudioBlob(item.blob);
-            if (!item.audioBuffer) audioMissing++;
-        }
-    }
-    if (premium) {
-        const tts = items.map(i => i.ttsBlob).filter(Boolean);
-        state.finalAudioBlob = tts.length ? new Blob(tts, { type: 'audio/mpeg' }) : null;
-    }
-
-    // 2. Préparation de l'enregistrement
-    let urls = items.map(it => URL.createObjectURL(it.blob));
-    let firstV = await createStageVideo(urls[0]);
-    const { w: W, h: H } = computeOutputSize(firstV);
+    // Enregistrement
+    const urls = new Map(items.map(it => [it, URL.createObjectURL(it.blob)]));
+    let pending = await createStageVideo(urls.get(items[0]));
+    const { w: W, h: H } = computeOutputSize(pending);
     const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
     const g = canvas.getContext('2d');
     const prevCanvas = document.createElement('canvas'); prevCanvas.width = W; prevCanvas.height = H;
     const pg = prevCanvas.getContext('2d');
-    drawFrame(g, firstV, W, H);
+    drawFrame(g, pending, W, H);
     const vStream = canvas.captureStream(30);
     const dest = actx.createMediaStreamDestination();
+    // Voix : compresseur « studio » puis gain de rattrapage
+    const comp = actx.createDynamicsCompressor();
+    comp.threshold.value = -22; comp.knee.value = 12; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+    const makeup = actx.createGain(); makeup.gain.value = 1.25;
+    comp.connect(makeup).connect(dest);
+    const sfxBus = actx.createGain(); sfxBus.gain.value = state.sfxOn ? 1 : 0; sfxBus.connect(dest);
+    const sfx = createSfx(actx, sfxBus);
+    const musicGain = actx.createGain(); musicGain.gain.value = 0.0001; musicGain.connect(dest);
+    const musicHigh = state.musicVolume, musicLow = state.musicVolume * 0.32;
+    const duckTo = level => musicGain.gain.setTargetAtTime(Math.max(0.0001, level), actx.currentTime, 0.18);
     const stream = new MediaStream([...vStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
-    const rec = mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5000000 }) : new MediaRecorder(stream);
+    const rec = mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: state.exportQuality === '720' ? 5000000 : 10000000 }) : new MediaRecorder(stream);
     const chunks = [];
     rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
     const stopped = new Promise(res => { rec.onstop = res; });
     const timeline = [];
-    let timelineT = 0, hasPrev = false;
-    prevSketch = null;
+    let T = 0, hasPrev = false, prevSketch = null, prevWasScene = false, musicSrc = null;
     rec.start(1000);
+    if (musicBuf) { musicSrc = actx.createBufferSource(); musicSrc.buffer = musicBuf; musicSrc.loop = true; musicSrc.connect(musicGain); musicSrc.start(); duckTo(musicHigh); }
 
     try {
-        for (let i = 0; i < items.length; i++) {
+        for (let si = 0; si < segs.length; si++) {
+            const seg = segs[si];
             if (state.stopRequested) throw new Error('Arrêt demandé');
             if (assemblyInterrupted || document.hidden) throw new Error('l\'appli est passée en arrière-plan. Garde l\'écran allumé et l\'appli ouverte pendant le montage, puis relance « Assembler la vidéo finale »');
-            if (timelineT >= maxDuration - 0.05) break;
-            const item = items[i];
-            setStatus(label + ' : scène ' + (i + 1) + '/' + items.length + ' — garde l\'appli ouverte');
-            const v = i === 0 ? firstV : await createStageVideo(urls[i]);
+            if (T >= maxDuration - 0.05) break;
+            setProgress(22 + (si / segs.length) * 75);
+
+            if (seg.type !== 'scene') {
+                const dur = Math.min(seg.dur, maxDuration - T);
+                setStatus(label + ' : habillage — garde l\'appli ouverte');
+                if (musicBuf) duckTo(musicHigh);
+                if (seg.type === 'intro') sfx.pop(); else if (seg.type === 'card') sfx.whoosh();
+                const fadeFromPrev = hasPrev;
+                const played = await runFrames(dur, t => {
+                    if (seg.type === 'outro') drawOutro(g, W, H, t, dur, logoImg);
+                    else drawTitleCard(g, W, H, seg.title, t, seg.type);
+                    if (fadeFromPrev && t < 0.35) { g.save(); g.globalAlpha = 1 - t / 0.35; g.drawImage(prevCanvas, 0, 0); g.restore(); }
+                    if (seg.type === 'outro' && musicBuf && t > dur - 1.3) musicGain.gain.setTargetAtTime(0.0001, actx.currentTime, 0.3);
+                });
+                pg.drawImage(canvas, 0, 0); hasPrev = true; prevSketch = null; prevWasScene = false;
+                T += played;
+                continue;
+            }
+
+            // Scène
+            const item = seg.item;
+            setStatus(label + ' : scène ' + (seg.index + 1) + '/' + items.length + ' — garde l\'appli ouverte');
+            const v = pending || await createStageVideo(urls.get(item));
+            pending = null;
             const vDur = isFinite(v.duration) && v.duration > 0 ? v.duration : 6;
-            const trim = i > 0 ? Math.min(state.trimStart, vDur / 3) : 0;
-            await seekTo(v, trim);
-            const buf = (premium && item.ttsBuffer) ? item.ttsBuffer : item.audioBuffer;
             const usingTts = !!(premium && item.ttsBuffer);
-            const videoPart = Math.max(0.5, vDur - trim);
-            let sceneDur = usingTts ? Math.max(videoPart, buf.duration + 0.25) : videoPart;
-            sceneDur = Math.min(sceneDur, maxDuration - timelineT);
+            let cut = usingTts ? { tin: seg.index > 0 ? Math.min(0.4, vDur / 3) : 0, tout: vDur } : sceneCut(item, vDur, seg.index);
+            let dur = cut.tout - cut.tin;
+            if (usingTts) dur = Math.max(dur, item.ttsBuffer.duration + 0.25);
+            dur = Math.min(dur, maxDuration - T);
+            const words = usingTts
+                ? computeWordTimes({ ...item, sttWords: null, speech: item.ttsSpeech }, { tin: 0, tout: dur }, dur)
+                : computeWordTimes(item, cut, dur);
+            const sc = { item, dur, words, groups: captionGroups(words) };
+            const plan = scenePlanFor(item.sceneIndex);
+            const drawing = wb ? state.drawings[item.sceneIndex] : null;
+            const sched = drawing ? drawingSchedule(drawing, words, dur) : null;
+            const area = wb ? drawingArea(v, W, H) : null;
+            // Zoom sur le mot important
+            let zoomAt = null;
+            if (state.zoomOn && plan.zoom === 'in') {
+                const nw = normWord(plan.emphasis || '');
+                const hit = nw ? words.find(w => normWord(w.text) === nw || normWord(w.text).startsWith(nw)) : null;
+                zoomAt = hit ? hit.start : dur * 0.35;
+            }
+            const transition = state.transition === 'fade' ? 'fade' : state.transition === 'cut' ? 'cut' : (prevWasScene && !seg.newSection ? 'cut' : 'fade');
+            const fadeIn = hasPrev && transition === 'fade';
+            if (fadeIn && prevWasScene) sfx.whoosh();
 
-            let src = null;
-            if (buf) { src = actx.createBufferSource(); src.buffer = buf; src.connect(dest); }
+            await seekTo(v, cut.tin);
+            const buf = usingTts ? item.ttsBuffer : item.audioBuffer;
+            let src = null, vg = null;
+            if (buf) {
+                src = actx.createBufferSource(); src.buffer = buf;
+                vg = actx.createGain();
+                const gv = usingTts ? 1 : voiceGainFor(item), now = actx.currentTime;
+                vg.gain.setValueAtTime(0.0001, now); vg.gain.linearRampToValueAtTime(gv, now + 0.03);
+                vg.gain.setValueAtTime(gv, now + Math.max(0.05, dur - 0.05)); vg.gain.linearRampToValueAtTime(0.0001, now + dur);
+                src.connect(vg).connect(comp);
+            }
+            if (musicBuf) duckTo(musicLow);
             try { await v.play(); } catch (e) {}
-            const t0 = performance.now();
-            if (src) { try { src.start(0, usingTts ? 0 : Math.min(trim, buf.duration)); } catch (e) {} }
-
-            const played = await new Promise(resolve => {
-                let finished = false;
-                const finish = () => { if (!finished) { finished = true; clearTimeout(safety); resolve(Math.min(sceneDur, (performance.now() - t0) / 1000)); } };
-                const tick = () => {
-                    if (finished) return;
-                    const el = (performance.now() - t0) / 1000;
-                    // Fin de scène : durée prévue atteinte, ou fin réelle du clip (si sa durée était inconnue)
-                    if (state.stopRequested || el >= sceneDur || (!usingTts && v.ended && el > 0.3)) { finish(); return; }
-                    drawFrame(g, v, W, H);
-                    if (hasPrev && state.transition === 'fade' && el < FADE_SEC) {
-                        g.save(); g.globalAlpha = 1 - el / FADE_SEC; g.drawImage(prevCanvas, 0, 0); g.restore();
+            if (src) { try { src.start(actx.currentTime, usingTts ? 0 : Math.min(cut.tin, buf.duration - 0.05), dur + 0.05); } catch (e) {} }
+            let labelShown = false, bubblePopped = false;
+            const played = await runFrames(dur, t => {
+                // calque « scène » (zoomable)
+                g.save();
+                if (zoomAt !== null) {
+                    const z = 1 + 0.1 * easeOut((t - zoomAt) / 0.35);
+                    const cx = wb && area ? W * 0.42 : W / 2, cy = H * 0.45;
+                    g.translate(cx, cy); g.scale(z, z); g.translate(-cx, -cy);
+                }
+                drawFrame(g, v, W, H);
+                let drawingActive = false;
+                if (wb && area) {
+                    if (prevSketch && t < FADE_SEC && transition === 'cut') drawSketch(g, prevSketch.area, prevSketch.drawing, 1, 1 - t / FADE_SEC);
+                    drawingActive = drawSketchTimed(g, area, drawing, sched, t, Math.min(1, t / 0.15));
+                    if (state.pedagoFx.includes('bubbles') && plan.bubble) {
+                        const showAt = sched ? sched[Math.floor(sched.length / 2)].end : dur * 0.45;
+                        const a = clamp01((t - showAt) / 0.25);
+                        if (a > 0 && !labelShown) { labelShown = true; sfx.pop(); }
+                        drawSketchLabel(g, area, plan.bubble, a);
                     }
-                    drawOverlays(g, W, H, item, el, sceneDur, v);
-                    requestAnimationFrame(tick);
-                };
-                const safety = setTimeout(finish, (sceneDur + 6) * 1000);
-                requestAnimationFrame(tick);
-            });
+                } else if (state.pedagoFx.includes('bubbles') && plan.bubble) {
+                    if (!bubblePopped) { bubblePopped = true; sfx.pop(); }
+                    drawBubble(g, W, H, plan.bubble, t);
+                }
+                g.restore();
+                sfx.scribble(drawingActive);
+                if (fadeIn && t < FADE_SEC) { g.save(); g.globalAlpha = 1 - t / FADE_SEC; g.drawImage(prevCanvas, 0, 0); g.restore(); }
+                drawCaptions(g, W, H, sc, t);
+                if (logoImg) drawLogo(g, W, H, logoImg);
+            }, t => !usingTts && v.ended && t > 0.3);
+            sfx.scribble(false);
             if (src) { try { src.stop(); } catch (e) {} }
-            timeline.push({ sceneIndex: item.sceneIndex, start: timelineT, duration: played });
-            prevSketch = state.drawings[item.sceneIndex] ? { drawing: state.drawings[item.sceneIndex], area: drawingArea(v, W, H) } : null;
-            drawFrame(pg, v, W, H); hasPrev = true;
+            timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played });
+            prevSketch = drawing && area ? { drawing, area } : null;
+            drawFrame(pg, v, W, H);
+            if (prevSketch) drawSketch(pg, area, drawing, 1, 1);
+            hasPrev = true; prevWasScene = true;
             disposeStageVideo(v);
-            if (i === 0) firstV = null;
-            timelineT += played;
-            setProgress(25 + ((i + 1) / items.length) * 70);
+            T += played;
+            // précharge la scène suivante pendant qu'on est encore là
+            const nextScene = segs.slice(si + 1).find(s => s.type === 'scene');
+            if (nextScene && T < maxDuration - 0.05) { try { pending = await createStageVideo(urls.get(nextScene.item)); } catch (e) { pending = null; } }
         }
     } finally {
-        if (firstV) disposeStageVideo(firstV);
+        if (pending) disposeStageVideo(pending);
+        sfx.stop();
+        if (musicSrc) { try { musicSrc.stop(); } catch (e) {} }
         try { if (rec.state !== 'inactive') rec.stop(); } catch (e) {}
         await withTimeout(stopped, 15000, 'fin d\'enregistrement').catch(() => {});
         stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
@@ -3436,14 +4057,14 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
     const type = (mime || rec.mimeType || 'video/webm').split(';')[0];
     const blob = new Blob(chunks, { type });
     if (!blob.size) throw new Error('la vidéo enregistrée est vide');
-    if (audioMissing === items.length) showToast('Le son des scènes n\'a pas pu être récupéré : vidéo sans son', 'warn', 6000);
+    if (items.every(i => !i.audioBuffer) && !premium) showToast('Le son des scènes n\'a pas pu être récupéré : vidéo sans son', 'warn', 6000);
     return { blob, url: URL.createObjectURL(blob), timeline, ext: type.includes('mp4') ? 'mp4' : 'webm' };
 }
 
 function updateAssembleBtn() {
     const btn = document.getElementById('assemble-btn'); if (!btn) return;
     const hasDone = state.queue.some(q => q.status === 'done');
-    btn.classList.toggle('hidden', !hasDone || state.isRunning || assembling);
+    btn.classList.toggle('hidden', !hasDone || state.isRunning || assembling || state.regenerating);
 }
 function hideResultButtons() {
     ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-audio-btn', 'download-zip-btn', 'download-shorts-btn', 'download-thumbnail-btn', 'download-seo-btn', 'download-chapters-btn', 'download-quiz-btn', 'youtube-upload-btn'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
@@ -3473,6 +4094,21 @@ async function runAssembly() {
     await ensureWakeLockActive();
     if (state.drawingsPromise) { setStatus('Finalisation des dessins…'); await state.drawingsPromise; }
     try {
+        // Contrôle qualité : on repère les prises ratées et on propose de les refaire
+        let items = state.queue.filter(q => q.status === 'done' && q.videoUrl);
+        await prepareAssets(items, 'Vérification');
+        const bad = items.filter(sceneProblem);
+        if (bad.length && getAgnesKey() && (state.images[0] || state.photoSmall) &&
+            confirm(bad.length + ' scène' + (bad.length > 1 ? 's semblent ratées' : ' semble ratée') + ' (' + bad.map(b => 'scène ' + (b.sceneIndex + 1) + ' : ' + sceneProblem(b)).join(', ') + ').\n\nLes refaire automatiquement avant le montage ? (environ ' + Math.ceil(bad.length * 1.5) + ' min, appli ouverte)')) {
+            state.regenerating = true; renderQueue();
+            for (let i = 0; i < bad.length; i++) {
+                if (state.stopRequested) throw new Error('Arrêt demandé');
+                if (i > 0) await countdown(createIntervalMs, 'Nouvelle prise ' + (i + 1) + '/' + bad.length + ' dans ');
+                setStatus('Nouvelle prise de la scène ' + (bad[i].sceneIndex + 1) + '…');
+                try { await regenerateScene(bad[i]); } catch (e) { log('Nouvelle prise : ' + e.message); }
+            }
+            state.regenerating = false; renderQueue();
+        }
         const result = await assembleVideo({ label: 'Montage' });
         if (state.finalVideoUrl) URL.revokeObjectURL(state.finalVideoUrl);
         state.finalBlob = result.blob; state.finalVideoUrl = result.url; state.finalExt = result.ext; state.timeline = result.timeline;
@@ -3493,8 +4129,8 @@ async function runAssembly() {
         log('Montage : ' + e.message);
         return false;
     } finally {
-        assembling = false;
-        setStatus(null); setProgress(0);
+        assembling = false; state.regenerating = false;
+        setStatus(null); setProgress(0); renderQueue();
         if (standalone) { document.getElementById('stop-btn').classList.remove('visible'); state.stopRequested = false; }
         updateAssembleBtn();
     }
@@ -3761,6 +4397,7 @@ async function startGeneration() {
     if (!getAgnesKey()) { showToast('Ajoute la clé Agnes', 'error'); return; }
     if (!state.scenes.length) { showToast('Écris un script', 'error'); return; }
     unlockAudio();
+    downscaleImage(state.images[0].dataUri, 1024, 0.85).then(d => { state.photoSmall = d; });
     if (state.genMode === 'background' && !state.isSeriesMode) {
         if (getProxyUrl() && state.proxyJobs) { await startBackgroundGeneration(); return; }
         showToast('Arrière-plan indisponible (serveur Cloudflare pas à jour) : génération sur le téléphone', 'warn', 6000);
@@ -3809,7 +4446,7 @@ async function startGeneration() {
     state.isRunning = false; state.stopRequested = false;
     setStatus(null); setProgress(0);
     document.getElementById('stop-btn').classList.remove('visible');
-    updateGenerateBtn(); updateAssembleBtn(); renderQuota();
+    updateGenerateBtn(); updateAssembleBtn(); renderQuota(); renderQueue();
     if (stopped) showToast('Génération arrêtée. Les scènes terminées peuvent être assemblées.', 'warn', 5000);
     else if (!assembled) showToast(state.completed + '/' + state.queue.length + ' scènes générées en ' + formatEta(elapsed), state.completed ? 'warn' : 'error', 5000);
 }
@@ -4333,7 +4970,22 @@ function showCloudConfigRow(provider) {
     document.getElementById('chain-select')?.addEventListener('change', e => state.chainScenes = e.target.value === 'on');
     document.getElementById('camera-select')?.addEventListener('change', e => state.camera = e.target.value);
     document.getElementById('transition-select')?.addEventListener('change', e => state.transition = e.target.value);
-    document.getElementById('trim-select')?.addEventListener('change', e => state.trimStart = parseFloat(e.target.value) || 0);
+    document.getElementById('trim-select')?.addEventListener('change', e => state.trimMode = e.target.value);
+    document.getElementById('zoom-select')?.addEventListener('change', e => state.zoomOn = e.target.value === 'on');
+    document.getElementById('intro-select')?.addEventListener('change', e => state.introOn = e.target.value === 'on');
+    document.getElementById('sections-select')?.addEventListener('change', e => state.sectionCards = e.target.value === 'on');
+    document.getElementById('outro-select')?.addEventListener('change', e => state.outroOn = e.target.value === 'on');
+    document.getElementById('quality-select')?.addEventListener('change', e => state.exportQuality = e.target.value);
+    document.getElementById('sync-select')?.addEventListener('change', e => state.syncWords = e.target.value === 'on');
+    document.getElementById('music-source-select')?.addEventListener('change', e => { state.musicSource = e.target.value; updateMusicStatus(); });
+    document.getElementById('music-volume-select')?.addEventListener('change', e => state.musicVolume = parseFloat(e.target.value) || 0.35);
+    document.getElementById('sfx-select')?.addEventListener('change', e => state.sfxOn = e.target.value === 'on');
+    document.getElementById('music-upload-btn')?.addEventListener('click', () => document.getElementById('music-input').click());
+    document.getElementById('music-input')?.addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await setMusicFile(f, f.name); });
+    document.getElementById('music-gen-btn')?.addEventListener('click', generateMusicWithEleven);
+    document.getElementById('logo-btn')?.addEventListener('click', () => document.getElementById('logo-input').click());
+    document.getElementById('logo-input')?.addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { await idbPut('logo', f); setLS(STORAGE.LOGO_SET, '1'); updateLogoStatus(); showToast('Logo ajouté ✓', 'success'); } catch (err) { showToast('Logo impossible à enregistrer', 'error'); } });
+    document.getElementById('logo-remove-btn')?.addEventListener('click', async () => { try { await idbDel('logo'); } catch (e) {} localStorage.removeItem(STORAGE.LOGO_SET); updateLogoStatus(); });
     document.getElementById('video-format-select')?.addEventListener('change', e => state.videoFormat = e.target.value);
     document.getElementById('extra-exports-select')?.addEventListener('change', e => state.extraExports = Array.from(e.target.selectedOptions).map(o => o.value));
     document.getElementById('subtitles-style-select')?.addEventListener('change', e => { state.subtitlesStyle = e.target.value; state.subtitlesMode = e.target.value === 'off' ? 'off' : 'on'; });
@@ -4450,6 +5102,7 @@ function showCloudConfigRow(provider) {
     showCloudConfigRow(state.cloudProvider); updateCloudStatus();
     refreshKeyFields();
     testProxy();
+    updateMusicStatus(); updateLogoStatus();
     updateElevenLabsStatus(); updateGCloudStatus(); updateAzureStatus(); updatePollyStatus();
     renderAnalytics();
     initSubtitleSegmentsFromScript();

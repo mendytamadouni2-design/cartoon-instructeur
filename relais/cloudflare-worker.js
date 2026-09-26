@@ -287,7 +287,7 @@ function mergePlan(out, fallback) {
         setting: String(out.setting || ''),
         scenes: fb.map((f, i) => {
             const s = out.scenes[i] || {};
-            return { spoken: s.spoken || f.spoken, action: s.action || f.action, camera: s.camera || f.camera, bubble: String(s.bubble || '').slice(0, 60) };
+            return { ...f, ...s, spoken: s.spoken || f.spoken, action: s.action || f.action, camera: s.camera || f.camera, bubble: String(s.bubble || '').slice(0, 60), section: i > 0 ? String(s.section || '').slice(0, 40) : '' };
         })
     };
 }
