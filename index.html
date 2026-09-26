@@ -508,6 +508,24 @@ select:focus { outline: none; border-color: var(--ink); }
 
 .queue-item .q-regen { margin-left: 0.5rem; padding: 0.25rem 0.55rem; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); font-size: 0.7rem; cursor: pointer; white-space: nowrap; }
 
+/* Storyboard, poses, estimation */
+.storyboard { background: var(--panel); border: 2px solid var(--accent); border-radius: var(--radius); padding: 1rem; margin: 1rem 0; }
+.sb-title { font-weight: 800; font-size: 1rem; margin-bottom: 0.3rem; }
+.sb-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem; margin-bottom: 0.8rem; background: #fff; }
+.sb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.85rem; }
+.sb-part { font-size: 0.72rem; background: #e8e4ff; color: var(--accent); padding: 0.1rem 0.5rem; border-radius: 10px; font-weight: 700; }
+.sb-draw { width: 100%; height: auto; border: 1px dashed var(--border); border-radius: 8px; display: block; background: #fff; }
+.sb-mini { margin: 0.4rem 0 0.6rem; padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); font-size: 0.75rem; cursor: pointer; }
+.sb-text { min-height: 60px; margin-bottom: 0.5rem; }
+.sb-grid { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.sb-grid select { flex: 1 1 45%; }
+.sb-card .text-input { margin-bottom: 0.4rem; font-size: 0.85rem; }
+.pose-item { display: flex; align-items: center; gap: 0.6rem; border: 1px solid var(--border); border-radius: 8px; padding: 0.35rem 0.5rem; margin-bottom: 0.35rem; font-size: 0.8rem; }
+.pose-item img { width: 40px; height: 56px; object-fit: cover; border-radius: 6px; background: #fff; }
+.pose-item span { flex: 1; }
+.pose-item button { border: none; background: none; font-size: 1rem; cursor: pointer; color: var(--ink-dim); }
+.estimate-line { font-size: 0.75rem; color: var(--ink-dim); text-align: center; margin: 0.5rem 0 0.2rem; line-height: 1.4; }
+
 /* Génération en arrière-plan */
 .bg-panel { background: var(--panel); border: 2px solid var(--accent); border-radius: var(--radius); padding: 1rem 1.1rem; margin: 1rem 0; }
 .bg-panel.ready { border-color: var(--success); background: #f1fbf4; }
@@ -630,9 +648,25 @@ select:focus { outline: none; border-color: var(--ink); }
             <input type="file" id="file-input" accept="image/*" multiple>
             <div class="upload-icon">＋</div>
             <div class="upload-text">Ajoutez la photo du personnage</div>
-            <div class="upload-hint">La première image sera utilisée pour toutes les scènes</div>
+            <div class="upload-hint">La première image est la photo principale du personnage</div>
         </div>
         <div class="images-grid" id="images-grid"></div>
+        <div class="control-row" style="margin-top:0.9rem;">
+            <label class="control-label">Poses supplémentaires <span class="tag opt">optionnel</span></label>
+            <div class="prompt-main-hint" style="margin:0 0 0.5rem;">Ajoute les poses de ta planche (sur fond blanc) : Claude choisira la meilleure pose de départ pour chaque scène.</div>
+            <select id="pose-type-select">
+                <option value="explique">Explique (mains ouvertes)</option>
+                <option value="montre">Montre / pointe</option>
+                <option value="dessine">Dessine au feutre</option>
+                <option value="reflechit">Réfléchit</option>
+                <option value="salue">Salue / accueille</option>
+                <option value="surpris">Surpris</option>
+                <option value="rigole">Rigole</option>
+            </select>
+            <input type="file" id="pose-input" accept="image/*" style="display:none;">
+            <button type="button" class="btn-secondary" id="pose-add-btn" style="margin-top:0.4rem;">＋ Ajouter cette pose</button>
+            <div id="poses-list" style="margin-top:0.6rem;"></div>
+        </div>
     </div></div>
 </div>
 
@@ -971,6 +1005,7 @@ Phrase 2..."></textarea>
             <label class="control-label">Voix utilisée dans la vidéo</label>
             <select id="voice-source-select">
                 <option value="agnes" selected>Voix Agnes (générée avec la vidéo, lèvres synchronisées)</option>
+                <option value="fit">Voix ElevenLabs calée sur les lèvres (prononciation parfaite)</option>
                 <option value="premium">Voix premium ci-dessous (remplace la voix et la musique Agnes)</option>
             </select>
             <div class="prompt-main-hint">Par défaut, la voix et la musique viennent directement des scènes Agnes. Les réglages ci-dessous ne servent que si tu choisis « Voix premium ».</div>
@@ -1231,7 +1266,16 @@ Phrase 2..."></textarea>
             <span id="youtube-status-text">📺 Non connecté</span>
             <button type="button" id="youtube-connect-btn">Se connecter</button>
         </div>
-        <button type="button" class="btn-secondary hidden" id="youtube-upload-btn" style="margin-top:0.5rem;">⬆️ Uploader sur YouTube</button>
+        <div class="control-row" style="margin-top:0.6rem;">
+            <label class="control-label">Visibilité de la vidéo</label>
+            <select id="youtube-privacy-select">
+                <option value="unlisted" selected>Non répertoriée (seulement avec le lien)</option>
+                <option value="private">Privée</option>
+                <option value="public">Publique</option>
+            </select>
+            <div class="prompt-main-hint">Envoie la vidéo avec le titre, la description, les tags et les chapitres de Claude, les sous-titres et la miniature.</div>
+        </div>
+        <button type="button" class="btn-secondary hidden" id="youtube-upload-btn" style="margin-top:0.5rem;">⬆️ Publier sur YouTube</button>
     </div></div>
 </div>
 
@@ -1292,6 +1336,43 @@ Phrase 2..."></textarea>
 </div>
 
 <!-- ═══════════════ Analytics ═══════════════ -->
+<div class="section" id="section-kit">
+    <div class="section-header" data-toggle="section-kit">
+        <span class="section-title">🎨 Kit de ma chaîne <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="prompt-main-hint" style="margin-bottom:0.7rem;">Tous tes réglages sont retenus automatiquement. Le kit rassemble ton style, ta couleur, ta police, ta musique, ton logo et tes poses dans un fichier, pour les retrouver partout.</div>
+        <div class="control-row">
+            <label class="control-label">Couleur de ta chaîne (mots allumés, titres, chiffres)</label>
+            <input type="color" id="brand-color-input" value="#ffd23f" style="width:100%;height:44px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+        </div>
+        <div class="control-row">
+            <label class="control-label">Police des sous-titres</label>
+            <select id="caption-font-select">
+                <option value="rounded" selected>Moderne (grasse)</option>
+                <option value="marker">Feutre (écrit à la main)</option>
+                <option value="impact">Impact (très épaisse)</option>
+            </select>
+        </div>
+        <input type="file" id="kit-input" accept=".json,application/json" style="display:none;">
+        <button type="button" class="btn-secondary" id="kit-export-btn">💾 Exporter mon kit de chaîne</button>
+        <button type="button" class="btn-secondary" id="kit-import-btn" style="margin-top:0.4rem;">📂 Importer un kit</button>
+    </div></div>
+</div>
+
+<div class="section" id="section-help">
+    <div class="section-header" data-toggle="section-help">
+        <span class="section-title">🧰 Aide & journal <span class="tag opt">en cas de souci</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="prompt-main-hint" style="margin-bottom:0.7rem;">Si quelque chose ne marche pas, copie le journal et colle-le dans notre conversation. Tes clés API y sont toujours masquées.</div>
+        <button type="button" class="btn-secondary" id="journal-copy-btn">📋 Copier le journal</button>
+        <button type="button" class="btn-secondary" id="journal-share-btn" style="margin-top:0.4rem;">📤 Envoyer le journal (fichier)</button>
+    </div></div>
+</div>
+
 <div class="section" id="section-analytics">
     <div class="section-header" data-toggle="section-analytics">
         <span class="section-title">📊 Statistiques <span class="tag opt">optionnel</span></span>
@@ -1324,7 +1405,15 @@ Phrase 2..."></textarea>
         <option value="phone">📱 Sur le téléphone (écran allumé, scènes enchaînées)</option>
     </select>
     <div class="prompt-main-hint" id="gen-mode-hint"></div>
+    <select id="storyboard-select" style="margin-top:0.5rem;">
+        <option value="on" selected>📋 Me montrer le storyboard avant de générer (recommandé)</option>
+        <option value="off">Générer directement</option>
+    </select>
+    <div class="prompt-main-hint" id="push-status" style="margin-top:0.5rem;"></div>
+    <button type="button" class="btn-secondary" id="push-btn" style="margin-top:0.3rem;">🔔 Me prévenir quand c'est prêt</button>
 </div>
+
+<div class="storyboard hidden" id="storyboard"></div>
 
 <div class="bg-panel hidden" id="bg-panel">
     <div class="bg-title" id="bg-title">☁️ Génération en arrière-plan</div>
@@ -1336,6 +1425,7 @@ Phrase 2..."></textarea>
 </div>
 
 <button type="button" class="btn-primary" id="generate-btn" disabled>🎬 Générer la vidéo pédagogique</button>
+<div class="estimate-line" id="estimate-line"></div>
 <button type="button" class="btn-stop" id="stop-btn">⏹ Arrêter</button>
 <button type="button" class="btn-secondary hidden" id="assemble-btn" style="margin-top:0.6rem;">🎞️ Assembler la vidéo finale</button>
 
@@ -1362,6 +1452,9 @@ Phrase 2..."></textarea>
 <button type="button" class="btn-secondary hidden" id="download-audio-btn" style="margin-top:0.4rem;">⬇️ Télécharger l'audio de la voix premium</button>
 <button type="button" class="btn-secondary hidden" id="download-zip-btn" style="margin-top:0.4rem;">⬇️ Télécharger ZIP complet</button>
 <button type="button" class="btn-secondary hidden" id="download-shorts-btn" style="margin-top:0.4rem;">⬇️ Télécharger Shorts 30s</button>
+<button type="button" class="btn-secondary hidden" id="download-youtube-fmt-btn" style="margin-top:0.4rem;">⬇️ Créer la version YouTube 16:9</button>
+<button type="button" class="btn-secondary hidden" id="download-vertical-btn" style="margin-top:0.4rem;">⬇️ Créer la version Shorts/TikTok 9:16 (entière)</button>
+<button type="button" class="btn-secondary hidden" id="download-square-btn" style="margin-top:0.4rem;">⬇️ Créer la version carrée 1:1</button>
 <button type="button" class="btn-secondary hidden" id="download-thumbnail-btn" style="margin-top:0.4rem;">⬇️ Télécharger miniature</button>
 <button type="button" class="btn-secondary hidden" id="download-seo-btn" style="margin-top:0.4rem;">⬇️ Télécharger SEO</button>
 <button type="button" class="btn-secondary hidden" id="download-chapters-btn" style="margin-top:0.4rem;">⬇️ Télécharger chapitres</button>
@@ -1438,6 +1531,8 @@ const STORAGE = {
     BG_JOB: 'cartoon_background_job',
     GEN_MODE: 'cartoon_generation_mode',
     MUSIC_NAME: 'cartoon_music_name',
+    SETTINGS: 'cartoon_settings',
+    PUSH_SUB: 'cartoon_push_subscription',
     LOGO_SET: 'cartoon_logo_set'
 };
 
@@ -1464,6 +1559,8 @@ const state = {
     chainScenes: true, camera: 'varied', transition: 'smart', trimMode: 'auto', videoFormat: 'auto',
     zoomOn: true, introOn: true, outroOn: true, sectionCards: true, exportQuality: '1080',
     musicSource: 'app', musicVolume: 0.35, sfxOn: true, photoSmall: null, regenerating: false,
+    poses: [], storyboardOn: true, storyboardApproved: false, storyboardSig: '', storyboarding: false,
+    brandColor: '#ffd23f', captionFont: 'rounded', youtubePrivacy: 'unlisted',
     durationFrames: 153,
     extraExports: ['zip', 'shorts', 'chapters'],
     avatarProvider: 'off',
@@ -1493,6 +1590,7 @@ function showToast(message, type = 'success', duration = 2500) {
     icon.textContent = { success: '✓', error: '✕', warn: '⚠' }[type] || '✓';
     text.textContent = message;
     toast.classList.add(type);
+    if (type === 'error' || type === 'warn') journal(type === 'error' ? 'ERREUR' : 'alerte', message);
     requestAnimationFrame(() => toast.classList.add('visible'));
     if (toastTimeout) clearTimeout(toastTimeout);
     toastTimeout = setTimeout(() => toast.classList.remove('visible'), duration);
@@ -1502,7 +1600,28 @@ function showToast(message, type = 'success', duration = 2500) {
 // UTILS
 // ══════════════════════════════════════════════════════════════════
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const log = msg => console.log('[Cartoon] ' + msg);
+// Journal local (à m'envoyer en cas de souci) : les clés API sont toujours masquées.
+const JOURNAL_KEY = 'cartoon_journal';
+let journalBuf = null;
+function sanitizeForJournal(s) {
+    return String(s)
+        .replace(/sk-ant-[\w-]{6,}/g, '[clé masquée]').replace(/sk[-_][\w-]{10,}/g, '[clé masquée]')
+        .replace(/AKIA[0-9A-Z]{8,}/g, '[clé masquée]').replace(/AIza[\w-]{10,}/g, '[clé masquée]').replace(/gh[pousr]_\w{10,}/g, '[clé masquée]')
+        .replace(/("(?:key|token|secret|apiKey|agnesKey|claudeKey)"\s*:\s*")[^"]+"/gi, '$1[masqué]"');
+}
+function getJournal() {
+    if (!journalBuf) { try { journalBuf = JSON.parse(localStorage.getItem(JOURNAL_KEY) || '[]'); } catch (e) { journalBuf = []; } }
+    return journalBuf;
+}
+function journal(level, msg) {
+    const b = getJournal();
+    b.push(new Date().toISOString().slice(5, 19).replace('T', ' ') + ' ' + level + ' ' + sanitizeForJournal(msg).slice(0, 500));
+    if (b.length > 300) b.splice(0, b.length - 300);
+    try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(b.slice(-200))); } catch (e) {}
+}
+window.addEventListener('error', e => journal('ERREUR', (e.message || '') + ' @' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || '')));
+window.addEventListener('unhandledrejection', e => journal('ERREUR', 'promesse : ' + ((e.reason && e.reason.message) || e.reason)));
+const log = msg => { console.log('[Cartoon] ' + msg); journal('info', msg); };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const randomItem = arr => arr[Math.floor(Math.random() * arr.length)];
 function formatEta(seconds) { if (seconds < 60) return Math.round(seconds) + 's'; const m = Math.floor(seconds / 60); const s = Math.round(seconds % 60); return m + 'm' + (s > 0 ? ' ' + s + 's' : ''); }
@@ -1900,9 +2019,10 @@ function updateGenerateBtn() {
     const btn = document.getElementById('generate-btn');
     if (!btn) return;
     const hasImages = state.images.length > 0, hasKey = !!getAgnesKey(), hasScript = state.scenes.length > 0;
-    const busy = state.isRunning || (typeof assembling !== 'undefined' && assembling);
+    const busy = state.isRunning || state.storyboarding || (typeof assembling !== 'undefined' && assembling);
     btn.disabled = !hasImages || !hasKey || !hasScript || busy || state.isLoadingImages;
     if (state.isLoadingImages) btn.textContent = 'Chargement…';
+    else if (state.storyboarding) btn.textContent = 'Préparation du storyboard…';
     else if (state.isRunning) btn.textContent = 'Génération… (' + (state.completed + state.failed) + '/' + state.queue.length + ')';
     else if (busy) btn.textContent = 'Montage en cours…';
     else if (!hasKey) btn.textContent = 'Ajoutez votre clé Agnes';
@@ -1972,9 +2092,10 @@ function renderElevenLabsVoices() {
         });
     });
 }
-async function generateElevenLabsAudio(text, voiceId, modelId, stability, similarity) {
+async function generateElevenLabsAudio(text, voiceId, modelId, stability, similarity, speed) {
     const key = getElevenLabsKey(); if (!key || !voiceId) throw new Error('Clé/voix manquante');
     const body = { text, model_id: modelId || 'eleven_multilingual_v2', voice_settings: { stability: parseFloat(stability) || 0.5, similarity_boost: parseFloat(similarity) || 0.75, style: 0, use_speaker_boost: true } };
+    if (speed && Math.abs(speed - 1) > 0.01) body.voice_settings.speed = Math.round(speed * 100) / 100;
     const res = await fetch(ELEVENLABS_API + '/text-to-speech/' + voiceId, {
         method: 'POST', headers: { 'xi-api-key': key, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
         body: JSON.stringify(body)
@@ -2272,6 +2393,7 @@ function updateScriptStats() {
     durEl.textContent = 'Durée : ' + formatEta(estimatedDuration) + (estimatedDuration < 60 ? ' ⚠️' : ' ✓');
     state.scenes = lines; state.script = script;
     updateGenerateBtn();
+    if (typeof updateEstimate === 'function') updateEstimate();
 }
 function renderScenesEditor() {
     const editor = document.getElementById('scenes-editor'); if (!editor) return;
@@ -2393,7 +2515,7 @@ function fallbackScenePlan(scenes) {
             action: state.motion === 'auto' || isWhiteboard() ? actions[i % actions.length] : (MOTION_PROMPTS[state.motion] || AUTO_ACTIONS[0]),
             camera: CAMERA_SHOTS[i % CAMERA_SHOTS.length],
             bubble: i === 0 ? (state.theme || '').slice(0, 40) : '',
-            zoom: i % 3 === 1 ? 'in' : 'none', emphasis: '', section: ''
+            zoom: i % 3 === 1 ? 'in' : 'none', emphasis: '', section: '', shot: 'character', highlight: '', pose: 'main'
         }))
     };
 }
@@ -2725,14 +2847,24 @@ const PLAN_SCHEMA = {
                     bubble: { type: 'string' },
                     zoom: { type: 'string', enum: ['in', 'none'] },
                     emphasis: { type: 'string' },
-                    section: { type: 'string' }
+                    section: { type: 'string' },
+                    shot: { type: 'string', enum: ['character', 'board'] },
+                    highlight: { type: 'string' }
                 },
-                required: ['spoken', 'action', 'camera', 'bubble', 'zoom', 'emphasis', 'section'], additionalProperties: false
+                required: ['spoken', 'action', 'camera', 'bubble', 'zoom', 'emphasis', 'section', 'shot', 'highlight'], additionalProperties: false
             }
         }
     },
     required: ['setting', 'scenes'], additionalProperties: false
 };
+function planSchema() {
+    const sc = JSON.parse(JSON.stringify(PLAN_SCHEMA));
+    if (state.poses.length) {
+        sc.properties.scenes.items.properties.pose = { type: 'string', enum: ['main'].concat(state.poses.map(p => p.id)) };
+        sc.properties.scenes.items.required.push('pose');
+    }
+    return sc;
+}
 function planRequestFor(scenes) {
     const style = CARTOON_STYLES.find(s => s.id === state.selectedStyle);
     const wbRules = isWhiteboard()
@@ -2750,8 +2882,11 @@ function planRequestFor(scenes) {
             '- "zoom" : "in" pour les moments forts (environ une scène sur trois, jamais deux de suite), sinon "none"\n' +
             '- "emphasis" : si zoom vaut "in", LE mot de "spoken" (écrit exactement pareil) sur lequel le zoom démarre, sinon ""\n' +
             '- "section" : si cette réplique ouvre une nouvelle partie de la vidéo, un titre très court (2 à 4 mots) ; sinon "". 2 à 4 parties au total, jamais sur la première réplique, aucune partie si la vidéo a moins de 6 répliques\n\n' +
+            '- "shot" : ' + (isWhiteboard() ? '"board" quand le dessin explique mieux que le personnage (environ une réplique sur quatre, jamais la première ni la dernière, jamais deux de suite) : on ne verra alors que le tableau en plein écran ; sinon "character"' : 'toujours "character"') + '\n' +
+            '- "highlight" : si la réplique contient un chiffre clé, une date ou une définition courte à retenir, ce texte très court (1 à 5 mots, ex. "70 %", "1789", "H₂O") ; sinon "" (au plus une réplique sur trois)\n' +
+            (state.poses.length ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
             wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
-        schema: PLAN_SCHEMA
+        schema: planSchema()
     };
 }
 async function planScenesWithClaude(scenes) {
@@ -2763,9 +2898,305 @@ async function planScenesWithClaude(scenes) {
         scenes: scenes.map((text, i) => {
             const p = out.scenes[i] || {};
             return { spoken: p.spoken || text, action: p.action || fb[i].action, camera: p.camera || fb[i].camera, bubble: String(p.bubble || '').slice(0, 60),
-                zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '' };
+                zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '',
+                shot: isWhiteboard() && p.shot === 'board' && i > 0 && i < scenes.length - 1 ? 'board' : 'character', highlight: String(p.highlight || '').slice(0, 40),
+                pose: state.poses.some(x => x.id === p.pose) ? p.pose : 'main' };
         })
     };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// POSES DU PERSONNAGE (planche) — Claude choisit la pose de départ de chaque scène
+// ══════════════════════════════════════════════════════════════════
+const POSE_TYPES = [
+    { id: 'explique', label: 'Explique (mains ouvertes)' },
+    { id: 'montre', label: 'Montre / pointe' },
+    { id: 'dessine', label: 'Dessine au feutre' },
+    { id: 'reflechit', label: 'Réfléchit' },
+    { id: 'salue', label: 'Salue / accueille' },
+    { id: 'surpris', label: 'Surpris' },
+    { id: 'rigole', label: 'Rigole' }
+];
+async function loadPoses() {
+    try { state.poses = (await idbGet('poses')) || []; } catch (e) { state.poses = []; }
+    renderPoses();
+}
+async function savePoses() {
+    try { await idbPut('poses', state.poses); } catch (e) { showToast('Poses impossibles à enregistrer', 'error'); }
+    renderPoses(); updateEstimate();
+}
+function renderPoses() {
+    const box = document.getElementById('poses-list'); if (!box) return;
+    if (!state.poses.length) { box.innerHTML = '<div class="prompt-main-hint">Aucune pose : toutes les scènes partent de la photo principale.</div>'; return; }
+    box.innerHTML = state.poses.map(p => '<div class="pose-item"><img src="' + p.image + '" alt=""><span>' + esc(POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + '</span><button type="button" data-pose-del="' + esc(p.id) + '">✕</button></div>').join('');
+}
+async function addPoseFromFile(file, id) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const small = await downscaleImage(await fileToDataUri(file), 1024, 0.88);
+    state.poses = state.poses.filter(p => p.id !== id).concat([{ id, image: small }]);
+    await savePoses();
+    showToast('Pose « ' + (POSE_TYPES.find(t => t.id === id)?.label || id) + ' » ajoutée ✓', 'success');
+}
+function imageForScene(i) {
+    const pid = scenePlanFor(i).pose;
+    const p = pid && pid !== 'main' ? state.poses.find(x => x.id === pid) : null;
+    return p ? p.image : null;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// STORYBOARD — mise en scène et dessins validés AVANT de payer les scènes Agnes
+// ══════════════════════════════════════════════════════════════════
+function storyboardValid() { return state.storyboardApproved && state.storyboardSig === currentScriptSignature() && !!state.scenePlan; }
+async function prepareStoryboardFlow() {
+    if (state.storyboarding) return;
+    state.storyboarding = true; state.storyboardApproved = false; updateGenerateBtn();
+    try {
+        await prepareScenePlan();
+        if (isWhiteboard() && getClaudeKey()) { setStatus('Claude dessine les illustrations…'); await prepareDrawings(); }
+        state.storyboardSig = currentScriptSignature();
+        renderStoryboard();
+        document.getElementById('storyboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        showToast('Storyboard prêt : vérifie, modifie si besoin, puis valide', 'success', 5000);
+    } catch (e) { showToast('Storyboard impossible : ' + e.message, 'error', 6000); }
+    finally { state.storyboarding = false; setStatus(null); updateGenerateBtn(); }
+}
+function renderStoryboard() {
+    const box = document.getElementById('storyboard'); if (!box || !state.scenePlan) return;
+    const wb = isWhiteboard();
+    const poseOpts = [['main', 'Photo principale']].concat(state.poses.map(p => [p.id, POSE_TYPES.find(t => t.id === p.id)?.label || p.id]));
+    const opt = (list, cur) => list.map(([v, l]) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>').join('');
+    box.innerHTML = '<div class="sb-title">📋 Storyboard — vérifie avant de générer</div>' +
+        '<div class="prompt-main-hint" style="margin-bottom:0.7rem;">Rien n\'est encore payé chez Agnes. Modifie ce que tu veux, puis appuie sur « Valider et générer ».</div>' +
+        state.scenes.map((line, i) => {
+            const p = scenePlanFor(i);
+            return '<div class="sb-card">' +
+                '<div class="sb-head"><b>Scène ' + (i + 1) + '</b>' + (p.section ? '<span class="sb-part">📌 ' + esc(p.section) + '</span>' : '') + '</div>' +
+                (wb ? '<canvas class="sb-draw" data-sb-canvas="' + i + '" width="400" height="300"></canvas><button type="button" class="sb-mini" data-sb-redraw="' + i + '">🔄 Redessiner</button>' : '') +
+                '<label class="control-label">Texte dit par le personnage</label><textarea class="sb-text" data-sb-field="spoken" data-i="' + i + '">' + esc(p.spoken || line) + '</textarea>' +
+                '<div class="sb-grid">' +
+                (wb ? '<select data-sb-field="shot" data-i="' + i + '">' + opt([['character', '🧑 Personnage'], ['board', '🖊️ Tableau seul']], p.shot || 'character') + '</select>' : '') +
+                '<select data-sb-field="zoom" data-i="' + i + '">' + opt([['none', 'Pas de zoom'], ['in', '🔍 Zoom' + (p.emphasis ? ' sur « ' + p.emphasis + ' »' : '')]], p.zoom || 'none') + '</select>' +
+                (state.poses.length ? '<select data-sb-field="pose" data-i="' + i + '">' + opt(poseOpts, p.pose || 'main') + '</select>' : '') +
+                '</div>' +
+                '<input class="text-input" data-sb-field="bubble" data-i="' + i + '" placeholder="Mot-clé écrit (optionnel)" value="' + esc(p.bubble || '') + '">' +
+                '<input class="text-input" data-sb-field="highlight" data-i="' + i + '" placeholder="Chiffre ou définition en grand (optionnel)" value="' + esc(p.highlight || '') + '">' +
+                (i > 0 ? '<input class="text-input" data-sb-field="section" data-i="' + i + '" placeholder="Titre de nouvelle partie (optionnel)" value="' + esc(p.section || '') + '">' : '') +
+                '</div>';
+        }).join('') +
+        '<button type="button" class="btn-primary" id="sb-approve">✅ Valider et générer</button>' +
+        '<button type="button" class="btn-secondary" id="sb-redo" style="margin-top:0.4rem;">↺ Refaire tout le storyboard</button>' +
+        '<button type="button" class="btn-secondary" id="sb-close" style="margin-top:0.4rem;">Fermer</button>';
+    box.classList.remove('hidden');
+    if (wb) state.scenes.forEach((_, i) => drawStoryboardCanvas(i));
+}
+function drawStoryboardCanvas(i) {
+    const c = document.querySelector('[data-sb-canvas="' + i + '"]'); if (!c) return;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    const d = state.drawings[i];
+    if (d) drawSketch(g, { x: 0, y: 0, w: c.width, h: c.height }, d, 1, 1);
+    else { g.fillStyle = '#aaa'; g.font = '600 16px ' + UI_FONT; g.textAlign = 'center'; g.fillText(getClaudeKey() ? 'Pas de dessin' : 'Dessins : clé Claude requise', c.width / 2, c.height / 2); }
+}
+function ensurePlanScene(i) {
+    if (!state.scenePlan) state.scenePlan = fallbackScenePlan(state.scenes);
+    if (!state.scenePlan.scenes[i]) state.scenePlan.scenes[i] = fallbackScenePlan(state.scenes).scenes[i];
+    return state.scenePlan.scenes[i];
+}
+document.addEventListener('input', e => {
+    const f = e.target.dataset?.sbField; if (!f) return;
+    ensurePlanScene(parseInt(e.target.dataset.i, 10))[f] = e.target.value;
+});
+document.addEventListener('change', e => {
+    const f = e.target.dataset?.sbField; if (!f) return;
+    ensurePlanScene(parseInt(e.target.dataset.i, 10))[f] = e.target.value;
+    if (f === 'section') renderStoryboard();
+});
+document.addEventListener('click', async e => {
+    const t = e.target.closest ? e.target : null; if (!t) return;
+    if (t.id === 'sb-approve') {
+        unlockAudio();
+        state.storyboardApproved = true; state.storyboardSig = currentScriptSignature();
+        document.getElementById('storyboard')?.classList.add('hidden');
+        startGeneration();
+    } else if (t.id === 'sb-redo') { prepareStoryboardFlow(); }
+    else if (t.id === 'sb-close') { document.getElementById('storyboard')?.classList.add('hidden'); }
+    else if (t.dataset?.sbRedraw !== undefined) {
+        const i = parseInt(t.dataset.sbRedraw, 10);
+        t.disabled = true; t.textContent = '⏳ Dessin…';
+        try { state.drawings[i] = await generateDrawing(scenePlanFor(i).spoken || state.scenes[i], i, state.scenes.length); drawStoryboardCanvas(i); }
+        catch (err) { showToast('Dessin impossible : ' + err.message, 'error'); }
+        finally { t.disabled = false; t.textContent = '🔄 Redessiner'; }
+    } else if (t.dataset?.poseDel) {
+        state.poses = state.poses.filter(p => p.id !== t.dataset.poseDel); savePoses();
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// VOIX ELEVENLABS CALÉE SUR LES LÈVRES (prononciation parfaite, synchronisation gardée)
+// ══════════════════════════════════════════════════════════════════
+async function prepareFitVoice(item) {
+    const voiceId = elevenlabsSelectedVoiceId || getLS(STORAGE.ELEVENLABS_VOICE);
+    if (!getElevenLabsKey() || !voiceId) throw new Error('choisis une voix ElevenLabs dans la section Voix');
+    const text = scenePlanFor(item.sceneIndex).spoken || item.sceneText;
+    const model = document.getElementById('elevenlabs-model-select')?.value || 'eleven_multilingual_v2';
+    const target = item.speech && !item.speech.silent ? item.speech.end - item.speech.start : null;
+    let blob = await generateElevenLabsAudio(text, voiceId, model, '0.5', '0.75', 1);
+    let buf = await decodeAudioBlob(blob), sp = analyzeSpeech(buf);
+    if (target && sp && !sp.silent) {
+        const ratio = (sp.end - sp.start) / target;
+        if (Math.abs(ratio - 1) > 0.08) {
+            blob = await generateElevenLabsAudio(text, voiceId, model, '0.5', '0.75', Math.max(0.7, Math.min(1.2, ratio)));
+            buf = await decodeAudioBlob(blob); sp = analyzeSpeech(buf);
+        }
+    }
+    if (!buf) throw new Error('voix illisible');
+    item.fitBuffer = buf; item.fitSpeech = sp;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// RÉGLAGES MÉMORISÉS + KIT DE CHAÎNE
+// ══════════════════════════════════════════════════════════════════
+const SET_BOOL = [v => v === "on", v => (v ? "on" : "off")];
+const SETTINGS = [
+    ['gen-mode-select', 'genMode'], ['storyboard-select', 'storyboardOn', ...SET_BOOL], ['chain-select', 'chainScenes', ...SET_BOOL],
+    ['camera-select', 'camera'], ['transition-select', 'transition'], ['trim-select', 'trimMode'], ['zoom-select', 'zoomOn', ...SET_BOOL],
+    ['intro-select', 'introOn', ...SET_BOOL], ['sections-select', 'sectionCards', ...SET_BOOL], ['outro-select', 'outroOn', ...SET_BOOL],
+    ['quality-select', 'exportQuality'], ['video-format-select', 'videoFormat'], ['sync-select', 'syncWords', ...SET_BOOL],
+    ['music-source-select', 'musicSource'], ['music-volume-select', 'musicVolume', v => parseFloat(v) || 0.35, v => String(v)],
+    ['sfx-select', 'sfxOn', ...SET_BOOL], ['subtitles-style-select', 'subtitlesStyle'], ['voice-source-select', 'voiceSource'],
+    ['tts-engine-select', 'ttsEngine'], ['audience-select', 'audience'], ['tone-select', 'tone'], ['language-select', 'language'],
+    ['lipsync-select', 'lipsync'], ['brand-color-input', 'brandColor'], ['caption-font-select', 'captionFont'], ['youtube-privacy-select', 'youtubePrivacy']
+];
+function collectSettings() {
+    const o = { selectedStyle: state.selectedStyle, pedagoFx: state.pedagoFx };
+    SETTINGS.forEach(([, k]) => { o[k] = state[k]; });
+    return o;
+}
+function saveSettings() { setJSON(STORAGE.SETTINGS, collectSettings()); updateEstimate(); }
+function applySettings(o) {
+    if (!o || typeof o !== 'object') return;
+    SETTINGS.forEach(([id, k, parse, fmt]) => {
+        if (o[k] === undefined) return;
+        state[k] = o[k];
+        const el = document.getElementById(id);
+        if (el) el.value = fmt ? fmt(o[k]) : o[k];
+    });
+    if (o.selectedStyle && CARTOON_STYLES.some(s => s.id === o.selectedStyle)) state.selectedStyle = o.selectedStyle;
+    if (Array.isArray(o.pedagoFx)) {
+        state.pedagoFx = o.pedagoFx;
+        const sel = document.getElementById('pedago-fx-select');
+        if (sel) Array.from(sel.options).forEach(op => { op.selected = o.pedagoFx.includes(op.value); });
+    }
+    state.subtitlesMode = state.subtitlesStyle === 'off' ? 'off' : 'on';
+    renderStyles(); showTTSPanel(state.ttsEngine); updateMusicStatus(); updateGenModeHint();
+}
+document.addEventListener('change', e => { if (SETTINGS.some(([id]) => id === e.target.id)) { const d = SETTINGS.find(([id]) => id === e.target.id); if (d[2]) state[d[1]] = d[2](e.target.value); else state[d[1]] = e.target.value; saveSettings(); } });
+document.addEventListener('input', e => { if (e.target.id === 'brand-color-input') { state.brandColor = e.target.value; saveSettings(); } });
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-style]')) setTimeout(saveSettings, 0); });
+
+const blobToDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+async function exportKit() {
+    const kit = { app: 'cartoon-instructeur-kit', version: 1, date: new Date().toISOString(), settings: collectSettings(), poses: state.poses };
+    try { const m = await idbGet('music'); if (m) kit.music = { name: getLS(STORAGE.MUSIC_NAME), data: await blobToDataUrl(m) }; } catch (e) {}
+    try { const l = await idbGet('logo'); if (l) kit.logo = await blobToDataUrl(l); } catch (e) {}
+    saveBlob(new Blob([JSON.stringify(kit)], { type: 'application/json' }), 'kit-ma-chaine.json');
+}
+async function importKit(file) {
+    try {
+        const kit = JSON.parse(await file.text());
+        if (kit.app !== 'cartoon-instructeur-kit') throw new Error('fichier non reconnu');
+        applySettings(kit.settings); saveSettings();
+        if (Array.isArray(kit.poses)) { state.poses = kit.poses; await savePoses(); }
+        if (kit.music?.data) { const b = await (await fetch(kit.music.data)).blob(); await setMusicFile(b, kit.music.name || 'Musique du kit'); }
+        if (kit.logo) { await idbPut('logo', await (await fetch(kit.logo)).blob()); setLS(STORAGE.LOGO_SET, '1'); updateLogoStatus(); }
+        showToast('Kit de chaîne appliqué ✓', 'success');
+    } catch (e) { showToast('Kit illisible : ' + e.message, 'error', 5000); }
+}
+const accentColor = () => state.brandColor || '#ffd23f';
+function captionFontFamily() {
+    if (state.captionFont === 'marker') return MARKER_FONT;
+    if (state.captionFont === 'impact') return '"Arial Black", Impact, "Helvetica Neue", sans-serif';
+    return UI_FONT;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// NOTIFICATIONS (génération en arrière-plan terminée)
+// ══════════════════════════════════════════════════════════════════
+function b64urlToBytes(s) {
+    const pad = '='.repeat((4 - s.length % 4) % 4), b = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+function updatePushStatus() {
+    const el = document.getElementById('push-status'), btn = document.getElementById('push-btn'); if (!el || !btn) return;
+    const on = !!getJSON(STORAGE.PUSH_SUB) && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+    el.textContent = on ? '🔔 Notifications activées : ton téléphone te prévient quand les scènes sont prêtes.' : 'Reçois une notification quand la génération en arrière-plan est finie.';
+    btn.classList.toggle('hidden', on);
+}
+async function enablePush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
+        showToast('Sur iPhone : ouvre l\'appli depuis son icône sur l\'écran d\'accueil (iOS 16.4 ou plus récent)', 'warn', 7000); return;
+    }
+    try {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') { showToast('Notifications refusées : tu peux les autoriser dans Réglages > Notifications', 'warn', 6000); return; }
+        const reg = await navigator.serviceWorker.register('sw.js');
+        await navigator.serviceWorker.ready;
+        const res = await fetch(getProxyUrl() + '/push/key');
+        const data = await res.json();
+        if (!res.ok || !data.publicKey) throw new Error(data.error || 'serveur pas à jour');
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(data.publicKey) });
+        setJSON(STORAGE.PUSH_SUB, sub.toJSON());
+        updatePushStatus();
+        showToast('Notifications activées ✓', 'success');
+    } catch (e) { showToast('Notifications impossibles : ' + e.message, 'error', 6000); }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ESTIMATION DU COÛT ET DE LA DURÉE
+// ══════════════════════════════════════════════════════════════════
+const CLAUDE_PRICES = { 'claude-opus-5': [5, 25], 'claude-sonnet-5': [2, 10], 'claude-haiku-4-5': [1, 5] };
+function updateEstimate() {
+    const el = document.getElementById('estimate-line'); if (!el) return;
+    const n = state.scenes.length;
+    if (!n) { el.textContent = ''; return; }
+    const bg = state.genMode === 'background' && state.proxyJobs;
+    const genMin = Math.ceil(bg ? n * 1.1 + 1 : n * (state.chainScenes ? 1.6 : 1.2) + 1);
+    const montageMin = Math.max(1, Math.ceil((n * 6 + 12) / 60 + n * 0.1));
+    let claude = 0;
+    if (getClaudeKey()) {
+        const [pi, po] = CLAUDE_PRICES[getClaudeModel()] || CLAUDE_PRICES['claude-opus-5'];
+        claude += ((2500 + 80 * n) * pi + (2000 + 180 * n) * po) / 1e6;
+        if (isWhiteboard()) claude += n * (900 * pi + 2200 * po) / 1e6;
+        claude *= 0.92;
+    }
+    const agnes = n * 0.02;
+    const fmt = x => x.toFixed(2).replace('.', ',') + ' €';
+    el.textContent = '⏱️ ≈ ' + genMin + ' min de génération' + (bg ? ' (téléphone éteint possible)' : '') + ' + ' + montageMin + ' min de montage · 💶 ≈ ' + fmt(agnes) + ' Agnes' + (claude ? ' + ' + fmt(claude) + ' Claude' : '') +
+        (state.syncWords && getElevenLabsKey() ? ' + transcription ElevenLabs' : '') + (state.voiceSource === 'fit' ? ' + voix ElevenLabs' : '') + ' (estimation)';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// JOURNAL (à m'envoyer en cas de souci — les clés sont masquées)
+// ══════════════════════════════════════════════════════════════════
+function journalText() {
+    const lines = getJournal();
+    const s = collectSettings();
+    const head = [
+        'Cartoon Instructeur — journal du ' + new Date().toLocaleString('fr-FR'),
+        'Appareil : ' + navigator.userAgent,
+        'Serveur : ' + (document.getElementById('proxy-status-text')?.textContent || '?'),
+        'Clés présentes : ' + ['AGNES_KEY', 'CLAUDE_KEY', 'ELEVENLABS_KEY', 'OPENAI_KEY'].filter(k => getLS(STORAGE[k])).map(k => k.replace('_KEY', '')).join(', '),
+        'Réglages : ' + JSON.stringify(s),
+        'Scènes : ' + state.queue.map(q => (q.sceneIndex + 1) + ':' + q.status + (q.error ? '(' + q.error + ')' : '')).join(' '),
+        'Arrière-plan : ' + JSON.stringify(getJSON(STORAGE.BG_JOB) ? { id: getJSON(STORAGE.BG_JOB).id, finished: !!getJSON(STORAGE.BG_JOB).finished } : null),
+        '──────────'
+    ];
+    return sanitizeForJournal(head.join('\n') + '\n' + lines.join('\n'));
+}
+function exportJournal() { saveBlob(new Blob([journalText()], { type: 'text/plain' }), 'journal-cartoon-instructeur.txt'); }
+async function copyJournal() {
+    try { await navigator.clipboard.writeText(journalText()); showToast('Journal copié : colle-le dans notre conversation', 'success', 4000); }
+    catch (e) { exportJournal(); }
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3136,8 +3567,12 @@ async function startBackgroundGeneration() {
             image: await downscaleImage(state.images[0].dataUri),
             frames: state.durationFrames, frameRate: FRAME_RATE,
             templates, fallbackPlan: fallbackScenePlan(scenes),
-            planRequest: withClaude ? planRequestFor(scenes) : null,
-            drawingRequests: withClaude && isWhiteboard() ? scenes.map((t, i) => ({ ...drawingRequestFor('{{SPOKEN}}', i, n), fallbackText: t })) : []
+            planRequest: withClaude && !storyboardValid() ? planRequestFor(scenes) : null,
+            plan: storyboardValid() ? state.scenePlan : undefined,
+            drawings: storyboardValid() ? scenes.map((_, i) => state.drawings[i]?.raw || null) : undefined,
+            drawingRequests: withClaude && isWhiteboard() ? scenes.map((t, i) => ({ ...drawingRequestFor('{{SPOKEN}}', i, n), fallbackText: t })) : [],
+            poses: await Promise.all(state.poses.map(async p => ({ id: p.id, image: await downscaleImage(p.image, 1024, 0.85) }))),
+            push: getJSON(STORAGE.PUSH_SUB) || null
         };
         const res = await withTimeout(fetch(getProxyUrl() + '/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }), 60000, 'le serveur ne répond pas');
         const data = await res.json().catch(() => ({}));
@@ -3233,6 +3668,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) sche
 // ══════════════════════════════════════════════════════════════════
 async function createTaskOnly(item) {
     item.status = 'creating'; item.progress = 'Préparation…'; renderQueue();
+    if (!item.chained) { const poseImg = imageForScene(item.sceneIndex); if (poseImg) item.image = poseImg; }
     item.prompt = buildScenePrompt(item);
     const videoId = await createVideoTask(item.image, item.prompt);
     item.videoId = videoId; item.startTime = Date.now();
@@ -3345,7 +3781,8 @@ async function runChained() {
         const item = state.queue[i];
         if (i > 0) {
             const prev = state.queue[i - 1];
-            if (prev.status === 'done') {
+            const pose = scenePlanFor(i).pose;
+            if (prev.status === 'done' && (!pose || pose === 'main' || !imageForScene(i))) {
                 setStatus('Scène ' + (i + 1) + ' : récupération de la dernière image…');
                 try { item.image = await extractLastFrame(prev); item.chained = true; }
                 catch (e) {
@@ -3384,10 +3821,12 @@ function pickRecorderMime() {
     for (const m of candidates) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {} }
     return '';
 }
-function computeOutputSize(v) {
+function computeOutputSize(v, format) {
     const L = state.exportQuality === '720' ? 1280 : 1920, S = Math.round(L * 9 / 16 / 2) * 2;
-    if (state.videoFormat === 'portrait') return { w: S, h: L };
-    if (state.videoFormat === 'landscape') return { w: L, h: S };
+    const f = format || state.videoFormat;
+    if (f === 'portrait') return { w: S, h: L };
+    if (f === 'landscape') return { w: L, h: S };
+    if (f === 'square') return { w: S, h: S };
     const w = v.videoWidth || 720, h = v.videoHeight || 1280;
     const s = L / Math.max(w, h);
     return { w: Math.round(w * s / 2) * 2, h: Math.round(h * s / 2) * 2 };
@@ -3460,8 +3899,9 @@ function sceneCut(item, vDur, index) {
     }
     return { tin: index > 0 ? Math.min(0.4, vDur / 3) : 0, tout: vDur };
 }
-function voiceGainFor(item) {
-    const lvl = item.speech && !item.speech.silent ? item.speech.level : 0;
+function voiceGainFor(item, speech) {
+    const sp = speech || item.speech;
+    const lvl = sp && !sp.silent ? sp.level : 0;
     return lvl ? Math.max(0.5, Math.min(3, 0.12 / lvl)) : 1;
 }
 
@@ -3531,7 +3971,7 @@ function drawWordCaptions(ctx, cw, ch, groups, t) {
     const base = Math.min(cw, ch);
     let fs = Math.round(base * 0.085);
     ctx.save();
-    const setFont = () => { ctx.font = '900 ' + fs + 'px ' + UI_FONT; };
+    const setFont = () => { ctx.font = '900 ' + fs + 'px ' + captionFontFamily(); };
     setFont();
     const text = g.words.map(w => w.text).join(' ');
     while (ctx.measureText(text).width > cw * 0.9 && fs > 18) { fs -= 2; setFont(); }
@@ -3545,7 +3985,7 @@ function drawWordCaptions(ctx, cw, ch, groups, t) {
         const active = t >= w.start - 0.03;
         ctx.lineWidth = fs * 0.2; ctx.strokeStyle = '#111';
         ctx.strokeText(piece, x, y);
-        ctx.fillStyle = active && t < w.end + 0.15 ? '#ffd23f' : '#fff';
+        ctx.fillStyle = active && t < w.end + 0.15 ? accentColor() : '#fff';
         ctx.fillText(piece, x, y);
         x += ctx.measureText(piece).width;
     });
@@ -3578,7 +4018,7 @@ function drawSubtitle(ctx, cw, ch, text, litRatio) {
             const piece = w + (wi < words.length - 1 ? ' ' : '');
             const lit = litWords > 0; litWords--;
             if (style === 'tiktok') ctx.strokeText(piece, x, y);
-            ctx.fillStyle = style === 'karaoke' ? (lit ? '#ffd23f' : 'rgba(255,255,255,0.85)') : '#fff';
+            ctx.fillStyle = style === 'karaoke' ? (lit ? accentColor() : 'rgba(255,255,255,0.85)') : '#fff';
             ctx.fillText(piece, x, y);
             x += ctx.measureText(piece).width;
         });
@@ -3721,7 +4161,7 @@ function drawTitleCard(ctx, cw, ch, title, t, kind) {
     const u = clamp01((t - 0.75) / 0.45);
     if (u > 0) {
         const wMax = Math.min(cw * 0.7, fs * 6), ux = cw / 2 - wMax / 2, uy = y0 + (lines.length - 1) * lh + fs * 0.75;
-        ctx.save(); ctx.strokeStyle = wb ? '#f08c00' : '#ffd23f'; ctx.lineWidth = Math.max(4, fs * 0.09); ctx.lineCap = 'round';
+        ctx.save(); ctx.strokeStyle = wb ? '#f08c00' : accentColor(); ctx.lineWidth = Math.max(4, fs * 0.09); ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(ux, uy); ctx.quadraticCurveTo(ux + wMax / 2, uy + fs * 0.12, ux + wMax * u, uy - fs * 0.04); ctx.stroke(); ctx.restore();
     }
     if (kind === 'card' && t > 0) {
@@ -3763,6 +4203,29 @@ function drawOutro(ctx, cw, ch, t, dur, logoImg) {
     ctx.restore();
     if (logoImg) drawLogo(ctx, cw, ch, logoImg, 1.4);
     if (t > dur - 0.5) { ctx.fillStyle = 'rgba(0,0,0,' + clamp01((t - (dur - 0.5)) / 0.5) + ')'; ctx.fillRect(0, 0, cw, ch); }
+}
+// Chiffre clé ou définition affiché en grand (« callout »), avec un petit rebond.
+function drawHighlight(ctx, cw, ch, text, t, remaining) {
+    if (!text) return;
+    const hold = Math.min(1.8, remaining + 1.8);
+    if (t > hold) return;
+    const appear = clamp01(t / 0.25), out = clamp01((hold - t) / 0.25);
+    const bounce = appear < 1 ? 0.5 + 0.5 * easeOut(appear) + Math.sin(appear * Math.PI) * 0.12 : 1;
+    const base = Math.min(cw, ch);
+    let fs = Math.round(base * 0.16);
+    ctx.save();
+    ctx.globalAlpha = Math.min(appear, out);
+    ctx.font = '900 ' + fs + 'px ' + captionFontFamily();
+    while (ctx.measureText(text).width > cw * 0.8 && fs > 24) { fs -= 4; ctx.font = '900 ' + fs + 'px ' + captionFontFamily(); }
+    const cy = ch * 0.45, tw = ctx.measureText(text).width;
+    ctx.translate(cw / 2, cy); ctx.rotate(-0.04); ctx.scale(bounce, bounce);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.shadowColor = 'rgba(0,0,0,0.18)'; ctx.shadowBlur = fs * 0.3;
+    roundRectPath(ctx, -tw / 2 - fs * 0.45, -fs * 0.75, tw + fs * 0.9, fs * 1.5, fs * 0.35); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    ctx.lineWidth = fs * 0.14; ctx.strokeStyle = '#1f1f1f'; ctx.strokeText(text, 0, 0);
+    ctx.fillStyle = accentColor(); ctx.fillText(text, 0, 0);
+    ctx.restore();
 }
 function drawLogo(ctx, cw, ch, img, scale = 1) {
     if (!img || !img.width) return;
@@ -3825,6 +4288,11 @@ async function prepareAssets(items, label) {
             } catch (e) { ttsFailed = true; showToast('Voix premium indisponible (' + e.message + ') : voix Agnes utilisée', 'warn', 6000); }
         }
         if (item.audioBuffer === undefined) { item.audioBuffer = await decodeAudioBlob(item.blob); item.speech = analyzeSpeech(item.audioBuffer); }
+        if (state.voiceSource === 'fit' && !item.fitBuffer && !ttsFailed) {
+            setStatus(label + ' : voix ElevenLabs ' + (i + 1) + '/' + items.length + '…');
+            try { await prepareFitVoice(item); }
+            catch (e) { ttsFailed = true; showToast('Voix ElevenLabs indisponible (' + e.message + ') : voix Agnes utilisée', 'warn', 6000); }
+        }
         if (!sttFailed && item.sttWords === undefined && !(premium && item.ttsBuffer)) {
             setStatus(label + ' : synchronisation des sous-titres ' + (i + 1) + '/' + items.length + '…');
             try { item.sttWords = await transcribeWords(item.blob); }
@@ -3840,6 +4308,7 @@ async function prepareAssets(items, label) {
 // Contrôle qualité : scènes sans voix ou à la voix coupée.
 function sceneProblem(item) {
     if (state.voiceSource === 'premium') return null;
+    if (state.voiceSource === 'fit' && item.fitBuffer) return item.speech?.silent ? 'personnage muet (lèvres immobiles)' : null;
     if (!item.audioBuffer) return 'pas de son';
     if (item.speech?.silent) return 'pas de voix';
     if (item.speech && item.speech.end - item.speech.start < 0.6) return 'voix trop courte';
@@ -3888,7 +4357,7 @@ function runFrames(dur, render, shouldEnd) {
     });
 }
 
-async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {}) {
+async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format = null } = {}) {
     const items = state.queue.filter(q => q.status === 'done' && q.videoUrl);
     if (!items.length) throw new Error('aucune scène terminée à assembler');
     const mime = pickRecorderMime();
@@ -3905,7 +4374,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
     // Enregistrement
     const urls = new Map(items.map(it => [it, URL.createObjectURL(it.blob)]));
     let pending = await createStageVideo(urls.get(items[0]));
-    const { w: W, h: H } = computeOutputSize(pending);
+    const { w: W, h: H } = computeOutputSize(pending, format);
     const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
     const g = canvas.getContext('2d');
     const prevCanvas = document.createElement('canvas'); prevCanvas.width = W; prevCanvas.height = H;
@@ -3965,6 +4434,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
             pending = null;
             const vDur = isFinite(v.duration) && v.duration > 0 ? v.duration : 6;
             const usingTts = !!(premium && item.ttsBuffer);
+            const usingFit = !usingTts && state.voiceSource === 'fit' && !!item.fitBuffer;
             let cut = usingTts ? { tin: seg.index > 0 ? Math.min(0.4, vDur / 3) : 0, tout: vDur } : sceneCut(item, vDur, seg.index);
             let dur = cut.tout - cut.tin;
             if (usingTts) dur = Math.max(dur, item.ttsBuffer.duration + 0.25);
@@ -3976,10 +4446,17 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
             const plan = scenePlanFor(item.sceneIndex);
             const drawing = wb ? state.drawings[item.sceneIndex] : null;
             const sched = drawing ? drawingSchedule(drawing, words, dur) : null;
-            const area = wb ? drawingArea(v, W, H) : null;
+            const boardShot = !!(wb && drawing && plan.shot === 'board');
+            const area = wb ? (boardShot ? { x: W * 0.08, y: H * 0.06, w: W * 0.84, h: H * 0.62 } : drawingArea(v, W, H)) : null;
+            let highlightAt = null;
+            if (plan.highlight) {
+                const hw = normWord(String(plan.highlight).split(/\s+/)[0] || '');
+                const hit = hw ? words.find(w => normWord(w.text).startsWith(hw) || (normWord(w.text).length > 2 && hw.startsWith(normWord(w.text)))) : null;
+                highlightAt = hit ? hit.start : dur * 0.3;
+            }
             // Zoom sur le mot important
             let zoomAt = null;
-            if (state.zoomOn && plan.zoom === 'in') {
+            if (state.zoomOn && plan.zoom === 'in' && !boardShot) {
                 const nw = normWord(plan.emphasis || '');
                 const hit = nw ? words.find(w => normWord(w.text) === nw || normWord(w.text).startsWith(nw)) : null;
                 zoomAt = hit ? hit.start : dur * 0.35;
@@ -3989,20 +4466,27 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
             if (fadeIn && prevWasScene) sfx.whoosh();
 
             await seekTo(v, cut.tin);
-            const buf = usingTts ? item.ttsBuffer : item.audioBuffer;
+            const buf = usingTts ? item.ttsBuffer : usingFit ? item.fitBuffer : item.audioBuffer;
+            // voix calée : son début est aligné sur le début de la parole d'Agnes (les lèvres)
+            const fitDelay = usingFit ? Math.max(0, (item.speech && !item.speech.silent ? item.speech.start : 0) - cut.tin) - (item.fitSpeech && !item.fitSpeech.silent ? item.fitSpeech.start : 0) : 0;
             let src = null, vg = null;
             if (buf) {
                 src = actx.createBufferSource(); src.buffer = buf;
                 vg = actx.createGain();
-                const gv = usingTts ? 1 : voiceGainFor(item), now = actx.currentTime;
+                const gv = usingTts ? 1 : usingFit ? voiceGainFor(item, item.fitSpeech) : voiceGainFor(item), now = actx.currentTime;
                 vg.gain.setValueAtTime(0.0001, now); vg.gain.linearRampToValueAtTime(gv, now + 0.03);
                 vg.gain.setValueAtTime(gv, now + Math.max(0.05, dur - 0.05)); vg.gain.linearRampToValueAtTime(0.0001, now + dur);
                 src.connect(vg).connect(comp);
             }
             if (musicBuf) duckTo(musicLow);
             try { await v.play(); } catch (e) {}
-            if (src) { try { src.start(actx.currentTime, usingTts ? 0 : Math.min(cut.tin, buf.duration - 0.05), dur + 0.05); } catch (e) {} }
-            let labelShown = false, bubblePopped = false;
+            if (src) {
+                try {
+                    if (usingFit) src.start(actx.currentTime + Math.max(0, fitDelay), Math.max(0, -fitDelay), Math.max(0.1, dur - Math.max(0, fitDelay)));
+                    else src.start(actx.currentTime, usingTts ? 0 : Math.min(cut.tin, buf.duration - 0.05), dur + 0.05);
+                } catch (e) {}
+            }
+            let labelShown = false, bubblePopped = false, highlightPopped = false;
             const played = await runFrames(dur, t => {
                 // calque « scène » (zoomable)
                 g.save();
@@ -4011,7 +4495,11 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
                     const cx = wb && area ? W * 0.42 : W / 2, cy = H * 0.45;
                     g.translate(cx, cy); g.scale(z, z); g.translate(-cx, -cy);
                 }
-                drawFrame(g, v, W, H);
+                if (boardShot) {
+                    // plan « tableau seul » : le dessin en plein écran, léger mouvement de caméra
+                    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+                    const z = 1 + 0.04 * clamp01(t / dur); g.translate(W / 2, H * 0.4); g.scale(z, z); g.translate(-W / 2, -H * 0.4);
+                } else drawFrame(g, v, W, H);
                 let drawingActive = false;
                 if (wb && area) {
                     if (prevSketch && t < FADE_SEC && transition === 'cut') drawSketch(g, prevSketch.area, prevSketch.drawing, 1, 1 - t / FADE_SEC);
@@ -4028,6 +4516,10 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage' } = {})
                 }
                 g.restore();
                 sfx.scribble(drawingActive);
+                if (highlightAt !== null && t >= highlightAt) {
+                    if (!highlightPopped) { highlightPopped = true; sfx.pop(); }
+                    drawHighlight(g, W, H, plan.highlight, t - highlightAt, dur - t);
+                }
                 if (fadeIn && t < FADE_SEC) { g.save(); g.globalAlpha = 1 - t / FADE_SEC; g.drawImage(prevCanvas, 0, 0); g.restore(); }
                 drawCaptions(g, W, H, sc, t);
                 if (logoImg) drawLogo(g, W, H, logoImg);
@@ -4071,7 +4563,7 @@ function hideResultButtons() {
 }
 function resetExportButtons() {
     state.exportCache = {};
-    const labels = { 'download-shorts-btn': '⬇️ Créer la version Shorts 30 s', 'download-thumbnail-btn': '⬇️ Créer la miniature', 'download-seo-btn': '⬇️ Créer le titre + description SEO', 'download-quiz-btn': '⬇️ Créer le quiz', 'download-zip-btn': '⬇️ Créer le ZIP complet', 'download-scenes-btn': '⬇️ Enregistrer les scènes séparées' };
+    const labels = { 'download-youtube-fmt-btn': '⬇️ Créer la version YouTube 16:9', 'download-vertical-btn': '⬇️ Créer la version Shorts/TikTok 9:16 (entière)', 'download-square-btn': '⬇️ Créer la version carrée 1:1', 'download-shorts-btn': '⬇️ Créer la version Shorts 30 s', 'download-thumbnail-btn': '⬇️ Créer la miniature', 'download-seo-btn': '⬇️ Créer le titre + description SEO', 'download-quiz-btn': '⬇️ Créer le quiz', 'download-zip-btn': '⬇️ Créer le ZIP complet', 'download-scenes-btn': '⬇️ Enregistrer les scènes séparées' };
     Object.entries(labels).forEach(([id, t]) => { const b = document.getElementById(id); if (b) b.textContent = t; });
 }
 function showResultButtons() {
@@ -4080,6 +4572,7 @@ function showResultButtons() {
     if (state.finalAudioBlob) document.getElementById('download-audio-btn')?.classList.remove('hidden');
     if (state.extraExports.includes('zip')) document.getElementById('download-zip-btn')?.classList.remove('hidden');
     if (state.extraExports.includes('shorts')) document.getElementById('download-shorts-btn')?.classList.remove('hidden');
+    ['download-youtube-fmt-btn', 'download-vertical-btn', 'download-square-btn'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
     if (state.extraExports.includes('thumbnail')) document.getElementById('download-thumbnail-btn')?.classList.remove('hidden');
     if (state.extraExports.includes('seo')) document.getElementById('download-seo-btn')?.classList.remove('hidden');
     if (state.quizCount > 0) document.getElementById('download-quiz-btn')?.classList.remove('hidden');
@@ -4140,34 +4633,64 @@ async function runAssembly() {
 // EXPORTS SUPPLÉMENTAIRES
 // ══════════════════════════════════════════════════════════════════
 async function generateShortsVersion() {
-    const r = await assembleVideo({ maxDuration: 30, label: 'Shorts' });
+    const r = await assembleVideo({ maxDuration: 30, label: 'Shorts', format: 'portrait' });
     return r;
 }
+// Miniature YouTube 1280×720 : ton personnage (pose expressive), un titre court et percutant, la couleur de ta chaîne.
+async function thumbnailText() {
+    if (state.seo?.thumbnail) return state.seo.thumbnail;
+    if (getClaudeKey()) {
+        try {
+            const out = await callClaude({
+                system: 'Tu écris les textes de miniatures YouTube pour des vidéos pédagogiques : très courts, intrigants, lisibles en un coup d\'œil.',
+                prompt: claudeContext() + '\nThème : ' + (state.theme || '') + '\nScript :\n' + state.script + '\n\nDonne le texte de la miniature : 2 à 4 mots maximum, percutants (question, chiffre ou promesse).',
+                schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },
+                maxTokens: 2000
+            });
+            if (out.text) { state.seo = { ...(state.seo || {}), thumbnail: out.text }; return out.text; }
+        } catch (e) { log('Texte de miniature : ' + e.message); }
+    }
+    return state.theme || 'Vidéo pédagogique';
+}
 async function generateThumbnailImage() {
-    const item = state.queue.find(q => q.status === 'done' && q.videoUrl);
-    if (!item) return null;
-    const blob = await fetchClipBlob(item);
-    const url = URL.createObjectURL(blob);
-    let v = null;
-    try {
-        v = await createStageVideo(url);
-        await seekTo(v, Math.min(1.5, (isFinite(v.duration) ? v.duration : 3) / 2));
-        const { w, h } = computeOutputSize(v);
-        const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        drawFrame(ctx, v, w, h);
-        const grad = ctx.createLinearGradient(0, h * 0.45, 0, h);
-        grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.75)');
-        ctx.fillStyle = grad; ctx.fillRect(0, h * 0.45, w, h * 0.55);
-        const fs = Math.round(Math.min(w, h) * 0.09);
-        ctx.font = '900 ' + fs + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.lineWidth = fs * 0.14; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.fillStyle = '#ffd23f';
-        const lines = wrapLines(ctx, (state.theme || 'Vidéo pédagogique').toUpperCase(), w * 0.86);
-        const y0 = h * 0.8 - (lines.length - 1) * fs * 0.6;
-        lines.forEach((l, i) => { ctx.strokeText(l, w / 2, y0 + i * fs * 1.15); ctx.fillText(l, w / 2, y0 + i * fs * 1.15); });
-        return await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.9));
-    } finally { disposeStageVideo(v); URL.revokeObjectURL(url); }
+    const W = 1280, H = 720;
+    const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const accent = accentColor();
+    // fond : couleur de la chaîne, dégradé et rayons
+    const gr = ctx.createLinearGradient(0, 0, W, H); gr.addColorStop(0, accent); gr.addColorStop(1, '#ff7a45');
+    ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalAlpha = 0.18; ctx.fillStyle = '#fff';
+    for (let i = 0; i < 12; i++) { ctx.beginPath(); ctx.moveTo(W * 0.78, H * 0.5); const a1 = i * Math.PI / 6, a2 = a1 + Math.PI / 14; ctx.lineTo(W * 0.78 + Math.cos(a1) * 1600, H * 0.5 + Math.sin(a1) * 1600); ctx.lineTo(W * 0.78 + Math.cos(a2) * 1600, H * 0.5 + Math.sin(a2) * 1600); ctx.fill(); }
+    ctx.restore();
+    // personnage : pose expressive si disponible (le fond blanc disparaît grâce au mode « multiplier »)
+    const src = (state.poses.find(p => p.id === 'surpris') || state.poses.find(p => p.id === 'rigole') || state.poses.find(p => p.id === 'salue') || {}).image || state.images[0]?.dataUri || state.photoSmall;
+    if (src) {
+        const img = new Image();
+        await new Promise(r => { img.onload = r; img.onerror = r; img.src = src; });
+        if (img.width) {
+            const h = H * 1.02, w = h * img.width / img.height;
+            ctx.save(); ctx.globalCompositeOperation = 'multiply';
+            ctx.drawImage(img, W - w * 0.92, H - h + 10, w, h);
+            ctx.restore();
+        }
+    }
+    // texte
+    const text = (await thumbnailText()).toUpperCase();
+    let fs = 150;
+    ctx.font = '900 ' + fs + 'px ' + captionFontFamily();
+    let lines = wrapLines(ctx, text, W * 0.56);
+    while ((lines.length > 3 || lines.some(l => ctx.measureText(l).width > W * 0.58)) && fs > 50) { fs -= 8; ctx.font = '900 ' + fs + 'px ' + captionFontFamily(); lines = wrapLines(ctx, text, W * 0.56); }
+    const lh = fs * 1.05, y0 = H / 2 - (lines.length - 1) * lh / 2;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    lines.forEach((l, i) => {
+        const y = y0 + i * lh, x = W * 0.05;
+        ctx.lineWidth = fs * 0.2; ctx.strokeStyle = '#1b1530'; ctx.strokeText(l, x, y);
+        ctx.fillStyle = i === lines.length - 1 ? '#fff200' : '#fff'; ctx.fillText(l, x, y);
+    });
+    const logo = await loadLogoImage();
+    if (logo) { ctx.save(); ctx.globalAlpha = 1; const s = 110, r = logo.width / logo.height; ctx.drawImage(logo, 30, H - 30 - s / Math.max(1, r), s * Math.min(1, r), s / Math.max(1, r)); ctx.restore(); }
+    return await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
 }
 function formatChapterTime(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return m + ':' + String(s).padStart(2, '0'); }
 function generateChapters() {
@@ -4195,8 +4718,8 @@ async function generateSEO() {
     try {
         const out = await callClaude({
             system: 'Tu es expert en référencement YouTube pour des vidéos pédagogiques.',
-            prompt: claudeContext() + '\nThème : ' + (state.theme || 'non précisé') + '\nScript :\n' + state.script + '\n\nPropose un titre accrocheur (moins de 70 caractères), une description (3 à 5 phrases, avec un appel à s\'abonner) et 10 à 15 tags.',
-            schema: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } }, required: ['title', 'description', 'tags'], additionalProperties: false }
+            prompt: claudeContext() + '\nThème : ' + (state.theme || 'non précisé') + '\nScript :\n' + state.script + '\n\nPropose un titre accrocheur (moins de 70 caractères), une description (3 à 5 phrases, avec un appel à s\'abonner), 10 à 15 tags, et le texte de la miniature (2 à 4 mots percutants).',
+            schema: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } }, thumbnail: { type: 'string' } }, required: ['title', 'description', 'tags', 'thumbnail'], additionalProperties: false }
         });
         state.seo = out;
         return 'TITRE\n' + out.title + '\n\nDESCRIPTION\n' + out.description + '\n\nCHAPITRES\n' + generateChapters() + '\nTAGS\n' + (out.tags || []).join(', ') + '\n';
@@ -4398,6 +4921,7 @@ async function startGeneration() {
     if (!state.scenes.length) { showToast('Écris un script', 'error'); return; }
     unlockAudio();
     downscaleImage(state.images[0].dataUri, 1024, 0.85).then(d => { state.photoSmall = d; });
+    if (state.storyboardOn && getClaudeKey() && !state.isSeriesMode && !storyboardValid()) { await prepareStoryboardFlow(); return; }
     if (state.genMode === 'background' && !state.isSeriesMode) {
         if (getProxyUrl() && state.proxyJobs) { await startBackgroundGeneration(); return; }
         showToast('Arrière-plan indisponible (serveur Cloudflare pas à jour) : génération sur le téléphone', 'warn', 6000);
@@ -4427,8 +4951,11 @@ async function startGeneration() {
     let assembled = false;
 
     try {
-        await prepareScenePlan();
-        state.drawingsPromise = prepareDrawings().catch(e => log('Dessins : ' + e.message));
+        if (storyboardValid()) state.drawingsPromise = null;   // mise en scène et dessins déjà validés
+        else {
+            await prepareScenePlan();
+            state.drawingsPromise = prepareDrawings().catch(e => log('Dessins : ' + e.message));
+        }
         if (!state.stopRequested) {
             if (state.chainScenes) await runChained(); else await runParallel();
         }
@@ -4479,6 +5006,18 @@ function downloadScenes() {
     });
 }
 function downloadAsZip() { return prepareThenSave('download-zip-btn', 'zip', buildZip); }
+// Autre format à partir des mêmes scènes (aucune nouvelle génération)
+function downloadVariant(btnId, key, opts, prefix) {
+    return prepareThenSave(btnId, key, async () => {
+        if (assembling || state.isRunning) throw new Error('attends la fin du montage en cours');
+        unlockAudio();
+        assembling = true; state.stopRequested = false;
+        document.getElementById('stop-btn').classList.add('visible');
+        await ensureWakeLockActive();
+        try { const r = await assembleVideo(opts); return { blob: r.blob, name: prefix + '-' + Date.now() + '.' + r.ext }; }
+        finally { assembling = false; state.stopRequested = false; setStatus(null); setProgress(0); document.getElementById('stop-btn').classList.remove('visible'); }
+    });
+}
 function downloadShorts() {
     return prepareThenSave('download-shorts-btn', 'shorts', async () => {
         if (assembling || state.isRunning) throw new Error('attends la fin du montage en cours');
@@ -4714,7 +5253,7 @@ function connectYouTube() {
     const cid = getYouTubeClientId();
     if (!cid) { showToast('Renseignez le Client ID Google', 'error'); return; }
     const redirect = window.location.href.split('#')[0];
-    const scope = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube';
+    const scope = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl';
     const url = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + encodeURIComponent(cid) +
         '&redirect_uri=' + encodeURIComponent(redirect) +
         '&response_type=token&scope=' + encodeURIComponent(scope) +
@@ -4741,16 +5280,20 @@ async function uploadToYouTube() {
     if (!state.finalBlob) { showToast('Aucune vidéo à uploader', 'error'); return; }
     const token = getYouTubeToken();
     if (!token) { updateYouTubeStatus(); showToast('Connexion YouTube expirée : reconnecte-toi (section Publication YouTube)', 'warn', 5000); return; }
-    setStatus('Upload YouTube…');
     try {
+        if (!state.seo?.title && getClaudeKey()) { setStatus('Claude prépare le titre et la description…'); await generateSEO(); }
+        setStatus('Envoi de la vidéo sur YouTube…');
+        const tags = (state.seo?.tags || []).slice(0, 15);
+        const description = [(state.seo?.description || state.script), 'CHAPITRES', generateChapters().trim(), tags.slice(0, 5).map(t => '#' + t.replace(/\s+/g, '')).join(' ')].filter(Boolean).join('\n\n');
         const metadata = {
             snippet: {
                 title: (state.seo?.title || state.theme || 'Vidéo pédagogique').slice(0, 100),
-                description: (state.seo?.description || state.script).slice(0, 5000),
-                tags: (state.seo?.tags || []).slice(0, 15),
-                categoryId: '27'
+                description: description.slice(0, 5000),
+                tags,
+                categoryId: '27',
+                defaultLanguage: (state.language || 'fr-FR').split('-')[0]
             },
-            status: { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false }
+            status: { privacyStatus: state.youtubePrivacy || 'unlisted', selfDeclaredMadeForKids: false }
         };
         const boundary = '-------cartoon' + Date.now();
         const metaPart = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) + '\r\n';
@@ -4765,7 +5308,25 @@ async function uploadToYouTube() {
         if (res.status === 401) { setLS(STORAGE.YOUTUBE_TOKEN_EXP, '1'); updateYouTubeStatus(); throw new Error('connexion expirée, reconnecte-toi'); }
         if (!res.ok) { const err = await res.text(); throw new Error('YouTube ' + res.status + ' ' + err.slice(0, 200)); }
         const data = await res.json();
-        showToast('Vidéo uploadée : https://youtu.be/' + data.id, 'success', 8000);
+        const extras = [];
+        // sous-titres (référencement + accessibilité)
+        try {
+            setStatus('Envoi des sous-titres…');
+            const cb = '-------cartoonsrt' + Date.now();
+            const meta = { snippet: { videoId: data.id, language: (state.language || 'fr-FR').split('-')[0], name: 'Sous-titres', isDraft: false } };
+            const capBody = new Blob(['--' + cb + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + cb + '\r\nContent-Type: application/octet-stream\r\n\r\n', generateSRT(), '\r\n--' + cb + '--'], { type: 'multipart/related; boundary=' + cb });
+            const cr = await fetch('https://www.googleapis.com/upload/youtube/v3/captions?uploadType=multipart&part=snippet', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + cb }, body: capBody });
+            extras.push(cr.ok ? 'sous-titres ✓' : 'sous-titres ✕');
+        } catch (e) { extras.push('sous-titres ✕'); }
+        // miniature (la chaîne doit être validée par téléphone chez YouTube)
+        try {
+            setStatus('Envoi de la miniature…');
+            const thumb = state.exportCache.thumbnail?.blob || await generateThumbnailImage();
+            const tr = await fetch('https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=' + encodeURIComponent(data.id), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'image/jpeg' }, body: thumb });
+            extras.push(tr.ok ? 'miniature ✓' : 'miniature ✕ (chaîne à valider sur YouTube)');
+        } catch (e) { extras.push('miniature ✕'); }
+        showToast('Vidéo publiée : https://youtu.be/' + data.id + ' · ' + extras.join(' · '), 'success', 10000);
+        log('YouTube : ' + data.id + ' ' + extras.join(', '));
     } catch (e) { showToast('Upload échoué : ' + e.message, 'error'); }
     finally { setStatus(null); }
 }
@@ -4930,6 +5491,19 @@ function showCloudConfigRow(provider) {
     });
     document.getElementById('translate-script-btn')?.addEventListener('click', translateScript);
     document.getElementById('improve-script-btn')?.addEventListener('click', improveScriptForSpeech);
+
+    // Nouveaux modules : poses, storyboard, kit, notifications, journal, formats
+    document.getElementById('pose-add-btn')?.addEventListener('click', () => document.getElementById('pose-input').click());
+    document.getElementById('pose-input')?.addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await addPoseFromFile(f, document.getElementById('pose-type-select').value); });
+    document.getElementById('kit-export-btn')?.addEventListener('click', exportKit);
+    document.getElementById('kit-import-btn')?.addEventListener('click', () => document.getElementById('kit-input').click());
+    document.getElementById('kit-input')?.addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await importKit(f); });
+    document.getElementById('push-btn')?.addEventListener('click', enablePush);
+    document.getElementById('journal-copy-btn')?.addEventListener('click', copyJournal);
+    document.getElementById('journal-share-btn')?.addEventListener('click', exportJournal);
+    document.getElementById('download-youtube-fmt-btn')?.addEventListener('click', () => downloadVariant('download-youtube-fmt-btn', 'fmt-youtube', { label: 'Version YouTube', format: 'landscape' }, 'youtube'));
+    document.getElementById('download-vertical-btn')?.addEventListener('click', () => downloadVariant('download-vertical-btn', 'fmt-vertical', { label: 'Version 9:16', format: 'portrait' }, 'vertical'));
+    document.getElementById('download-square-btn')?.addEventListener('click', () => downloadVariant('download-square-btn', 'fmt-square', { label: 'Version carrée', format: 'square' }, 'carre'));
 
     // Génération en arrière-plan
     state.genMode = getLS(STORAGE.GEN_MODE) || 'background';
@@ -5103,6 +5677,9 @@ function showCloudConfigRow(provider) {
     refreshKeyFields();
     testProxy();
     updateMusicStatus(); updateLogoStatus();
+    applySettings(getJSON(STORAGE.SETTINGS));
+    loadPoses(); updatePushStatus(); updateEstimate();
+    if (navigator.serviceWorker && getJSON(STORAGE.PUSH_SUB)) navigator.serviceWorker.register('sw.js').catch(() => {});
     updateElevenLabsStatus(); updateGCloudStatus(); updateAzureStatus(); updatePollyStatus();
     renderAnalytics();
     initSubtitleSegmentsFromScript();

@@ -14,6 +14,10 @@
 //      POST /jobs/:id/cancel   → arrêt
 //    Les clés API ne sont gardées que pendant la génération, puis effacées.
 //
+// 3. Notifications : quand une génération est finie, le téléphone reçoit
+//    « Tes scènes sont prêtes » (Web Push, clés VAPID créées et gardées ici).
+//      GET /push/key           → clé publique à donner au téléphone
+//
 // Sécurité : seul le site de l'appli peut l'utiliser (ALLOWED_ORIGINS).
 
 const ALLOWED_ORIGINS = [
@@ -47,9 +51,14 @@ export default {
 
         const url = new URL(request.url);
         if (url.pathname.startsWith('/jobs')) return handleJobs(request, env, url, cors);
+        if (url.pathname === '/push/key') {
+            if (!env.JOBS) return json({ error: 'Notifications non activées' }, 501, cors);
+            const res = await env.JOBS.get(env.JOBS.idFromName('vapid')).fetch('https://job/vapid', { method: 'POST' });
+            return json(await res.json(), res.status, cors);
+        }
 
         const target = url.searchParams.get('url');
-        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs' : 'Relais OK', { status: 200, headers: cors });
+        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push' : 'Relais OK', { status: 200, headers: cors });
         return relay(request, target, cors);
     }
 };
@@ -100,11 +109,16 @@ async function handleJobs(request, env, url, cors) {
 // Un projet de vidéo = un Durable Object (stockage + réveil périodique)
 // ══════════════════════════════════════════════════════════════════
 export class VideoJob {
-    constructor(ctx, env) { this.ctx = ctx; this.storage = ctx.storage; }
+    constructor(ctx, env) { this.ctx = ctx; this.storage = ctx.storage; this.env = env; }
 
     async fetch(request) {
         const action = new URL(request.url).pathname.slice(1);
         if (action === 'start') return this.start(request);
+        if (action === 'vapid') return Response.json({ publicKey: (await getVapid(this.storage)).publicKey });
+        if (action === 'push') {
+            try { await sendPush(await request.json(), await getVapid(this.storage)); return Response.json({ ok: true }); }
+            catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
+        }
         const job = await this.storage.get('job');
         if (!job) return Response.json({ error: 'Projet introuvable ou expiré' }, { status: 404 });
         if (action === 'cancel') {
@@ -125,19 +139,30 @@ export class VideoJob {
         }
         if (p.image.length > 1900000) return Response.json({ error: 'Photo trop lourde' }, { status: 413 });
         const n = p.templates.length;
+        const given = Array.isArray(p.drawings) ? p.drawings : [];
         const job = {
             status: 'planning', message: 'Mise en scène…', createdAt: Date.now(), updatedAt: Date.now(),
             frames: p.frames || 153, frameRate: p.frameRate || 24,
-            plan: p.fallbackPlan || null, planRequest: p.planRequest || null,
+            plan: p.plan || p.fallbackPlan || null, planRequest: p.plan ? null : (p.planRequest || null),
             drawingRequests: Array.isArray(p.drawingRequests) ? p.drawingRequests : [],
             drawingsDone: 0, nextCreateAt: 0,
+            push: p.push && p.push.endpoint ? p.push : null,
+            poseIds: [],
             scenes: Array.from({ length: n }, (_, i) => ({ index: i, status: 'pending', videoId: null, videoUrl: null, error: null, startedAt: null, attempts: 0 }))
         };
         await this.storage.put('job', job);
         await this.storage.put('templates', p.templates);
         await this.storage.put('image', p.image);
         await this.storage.put('secrets', { agnesKey: p.agnesKey, claudeKey: p.claudeKey || '', claudeModel: p.claudeModel || 'claude-opus-5' });
-        await this.storage.put('drawings', []);
+        await this.storage.put('drawings', given);
+        // les dessins déjà fournis (storyboard validé) ne sont pas refaits
+        job.drawingRequests = job.drawingRequests.map((r, i) => given[i] ? null : r);
+        for (const pose of (Array.isArray(p.poses) ? p.poses : []).slice(0, 8)) {
+            if (!pose || !pose.id || !pose.image || pose.image.length > 1500000) continue;
+            await this.storage.put('pose:' + pose.id, pose.image);
+            job.poseIds.push(pose.id);
+        }
+        await this.storage.put('job', job);
         await this.storage.setAlarm(Date.now() + 500);
         return Response.json({ ok: true });
     }
@@ -179,6 +204,7 @@ export class VideoJob {
     async work(job, secrets) {
         const now = Date.now();
         // 1. Un dessin par réveil (Claude), en parallèle des scènes
+        while (job.drawingsDone < job.drawingRequests.length && !job.drawingRequests[job.drawingsDone]) job.drawingsDone++;
         if (job.drawingsDone < job.drawingRequests.length && secrets.claudeKey) {
             const i = job.drawingsDone;
             const drawings = (await this.storage.get('drawings')) || [];
@@ -214,7 +240,8 @@ export class VideoJob {
         const next = job.scenes.find(s => s.status === 'pending');
         if (next && now >= job.nextCreateAt) {
             const templates = await this.storage.get('templates');
-            const image = await this.storage.get('image');
+            const poseId = job.plan?.scenes?.[next.index]?.pose;
+            const image = (poseId && poseId !== 'main' && job.poseIds.includes(poseId) ? await this.storage.get('pose:' + poseId) : null) || await this.storage.get('image');
             const prompt = fillTemplate(templates[next.index], job.plan?.scenes?.[next.index], job.plan?.setting);
             try {
                 const res = await fetch(AGNES_API + '/videos', {
@@ -253,7 +280,11 @@ export class VideoJob {
 
     // Fin (terminé, échoué ou arrêté) : on efface les clés et les données lourdes.
     async finish(job) {
-        await this.storage.delete(['secrets', 'image', 'templates']);
+        await this.storage.delete(['secrets', 'image', 'templates', ...(job.poseIds || []).map(id => 'pose:' + id)]);
+        if (job.push && !job.pushed && this.env?.JOBS) {
+            job.pushed = true;
+            try { await this.env.JOBS.get(this.env.JOBS.idFromName('vapid')).fetch('https://job/push', { method: 'POST', body: JSON.stringify(job.push) }); } catch (e) {}
+        }
         job.drawingRequests = []; job.planRequest = null;
         await this.storage.put('job', job);
         await this.storage.setAlarm(job.createdAt + JOB_MAX_AGE_MS + 1000);
@@ -305,4 +336,32 @@ async function callClaude(secrets, req) {
     if (data.stop_reason === 'max_tokens') throw new Error('réponse coupée');
     const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
     return req.schema ? JSON.parse(text) : text;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Notifications Web Push (sans contenu chiffré : le téléphone affiche un message fixe)
+// ══════════════════════════════════════════════════════════════════
+function b64url(bytes) {
+    if (typeof bytes === 'string') bytes = new TextEncoder().encode(bytes);
+    let s = ''; for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function getVapid(storage) {
+    let v = await storage.get('vapid');
+    if (!v) {
+        const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+        v = { publicKey: b64url(new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey))), privateJwk: await crypto.subtle.exportKey('jwk', kp.privateKey) };
+        await storage.put('vapid', v);
+    }
+    return v;
+}
+async function sendPush(sub, v) {
+    if (!sub || !sub.endpoint) throw new Error('abonnement invalide');
+    const aud = new URL(sub.endpoint).origin;
+    const head = b64url(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
+    const claims = b64url(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: 'https://mendytamadouni2-design.github.io' }));
+    const key = await crypto.subtle.importKey('jwk', v.privateJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+    const sig = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, new TextEncoder().encode(head + '.' + claims)));
+    const res = await fetch(sub.endpoint, { method: 'POST', headers: { TTL: '86400', Urgency: 'high', Authorization: 'vapid t=' + head + '.' + claims + '.' + b64url(sig) + ', k=' + v.publicKey } });
+    if (!res.ok && res.status !== 201) throw new Error('push ' + res.status);
 }

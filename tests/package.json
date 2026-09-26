@@ -1,0 +1,7 @@
+{
+  "name": "cartoon-instructeur-tests",
+  "private": true,
+  "description": "Tests de bout en bout de Cartoon Instructeur (services simulés, aucune clé réelle)",
+  "scripts": { "test": "node run-e2e.js" },
+  "devDependencies": { "playwright": "^1.55.0" }
+}
