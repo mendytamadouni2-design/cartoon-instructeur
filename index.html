@@ -597,8 +597,8 @@ select:focus { outline: none; border-color: var(--ink); }
 
 <!-- ═══════════════ Relais de téléchargement ═══════════════ -->
 <div class="api-panel" id="proxy-panel">
-    <div class="api-title">🔁 Relais de téléchargement <span class="tag req">obligatoire pour le montage</span></div>
-    <div class="api-hint">Le serveur d'Agnes empêche le navigateur de télécharger les scènes. Sans ce relais gratuit (Cloudflare), les scènes se génèrent mais le montage final, les dessins et l'enchaînement échouent (« Load failed »). <a href="https://github.com/mendytamadouni2-design/cartoon-instructeur/blob/main/relais/INSTALLATION.md" target="_blank" rel="noopener">👉 Guide d'installation (10 min)</a></div>
+    <div class="api-title">🔁 Serveur Cloudflare <span class="tag rec">déjà configuré</span></div>
+    <div class="api-hint">Ton serveur Cloudflare télécharge les scènes pour le montage et fait la génération en arrière-plan. Il est déjà branché : rien à faire, sauf si tu changes de serveur. <a href="https://github.com/mendytamadouni2-design/cartoon-instructeur/blob/main/relais/INSTALLATION.md" target="_blank" rel="noopener">👉 Guide d'installation (10 min)</a></div>
     <input type="url" class="api-key-input" id="proxy-url-input" placeholder="https://cartoon-relais.ton-nom.workers.dev" autocomplete="off" autocapitalize="off" spellcheck="false">
     <button type="button" class="api-save-btn" id="proxy-save-btn">Enregistrer et tester le relais</button>
     <div class="api-status-line" id="proxy-status-line">
@@ -1714,7 +1714,10 @@ function updateClaudePanel() {
     if (key) { panel.classList.add('ok'); line.classList.add('ok'); txt.textContent = 'Clé active · ' + key.slice(0, 10) + '…' + key.slice(-4) + ' · ' + modelName; input.value = key; }
     else { panel.classList.remove('ok'); line.classList.remove('ok'); txt.textContent = 'Aucune clé Claude (mise en scène automatique)'; input.value = ''; }
 }
-function getProxyUrl() { return getLS(STORAGE.PROXY_URL).trim(); }
+// Serveur Cloudflare de l'appli (relais + génération en arrière-plan). Pas un secret :
+// il n'accepte que les requêtes venant du site de l'appli.
+const DEFAULT_PROXY_URL = 'https://cartoon-instructeur.mendy-tamadouni2.workers.dev';
+function getProxyUrl() { return (getLS(STORAGE.PROXY_URL) || DEFAULT_PROXY_URL).trim(); }
 function updateGenModeHint() {
     const el = document.getElementById('gen-mode-hint'); if (!el) return;
     if (state.genMode !== 'background') { el.textContent = 'Garde l\'appli ouverte et l\'écran allumé jusqu\'à la fin.'; return; }
@@ -1756,7 +1759,7 @@ async function testProxy() {
 async function saveProxy() {
     const input = document.getElementById('proxy-url-input');
     const u = normalizeProxyUrl(input.value);
-    if (!u) { localStorage.removeItem(STORAGE.PROXY_URL); input.value = ''; testProxy(); showToast('Relais supprimé', 'warn'); return; }
+    if (!u) { localStorage.removeItem(STORAGE.PROXY_URL); input.value = DEFAULT_PROXY_URL; testProxy(); showToast('Adresse par défaut rétablie', 'success'); return; }
     input.value = u; setLS(STORAGE.PROXY_URL, u);
     const ok = await testProxy();
     showToast(ok ? 'Relais enregistré et opérationnel ✓' : 'Relais enregistré, mais le test a échoué', ok ? 'success' : 'error', 4000);
@@ -1786,7 +1789,7 @@ function refreshKeyFields() {
     fill('polly-key', 'POLLY_KEY'); fill('polly-secret', 'POLLY_SECRET'); fill('polly-region', 'POLLY_REGION');
     fill('whisper-api-key', 'OPENAI_KEY'); fill('avatar-key-input', 'AVATAR_KEY');
     fill('youtube-client-id', 'YOUTUBE_CLIENT'); fill('youtube-api-key', 'YOUTUBE_APIKEY');
-    fill('proxy-url-input', 'PROXY_URL');
+    { const el = document.getElementById('proxy-url-input'); if (el) el.value = getProxyUrl(); }
     updateApiPanel(); updateClaudePanel();
     updateElevenLabsStatus(); updateGCloudStatus(); updateAzureStatus(); updatePollyStatus();
     const names = { AGNES_KEY: 'Agnes', CLAUDE_KEY: 'Claude', PROXY_URL: 'Relais', ELEVENLABS_KEY: 'ElevenLabs', GCLOUD_KEY: 'Google Cloud', AZURE_KEY: 'Azure', POLLY_KEY: 'Amazon Polly', OPENAI_KEY: 'OpenAI', DEEPL_KEY: 'DeepL', GTRANSLATE_KEY: 'Google Translate', AVATAR_KEY: 'Avatar' };
