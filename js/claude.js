@@ -90,7 +90,7 @@ async function improveScriptForSpeech() {
         });
         const lines = (out.lines || []).map(l => String(l).replace(/^\d+[.)]\s*/, '').trim()).filter(Boolean);
         if (!lines.length) throw new Error('réponse vide');
-        document.getElementById('script-input').value = lines.join('\n');
+        writeSceneLines(lines);
         updateScriptStats(); renderScenesEditor();
         showToast('Script adapté à la voix ✓', 'success');
     } catch (e) { showToast('Impossible : ' + e.message, 'error', 5000); }

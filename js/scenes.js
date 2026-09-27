@@ -12,16 +12,30 @@ function updateScriptStats() {
     if (!scriptInput || !statsEl || !durEl) return;
     const script = scriptInput.value.trim();
     const lines = splitScriptIntoScenes(script);
-    const sceneCount = lines.length;
-    const estimatedDuration = sceneCount * TARGET_SCENE_DURATION;
-    statsEl.textContent = lines.length + ' phrase' + (lines.length > 1 ? 's' : '') + ' · ' + script.length + ' car.';
-    durEl.textContent = 'Durée : ' + formatEta(estimatedDuration) + (estimatedDuration < 60 ? ' ⚠️' : ' ✓');
-    state.scenes = lines; state.script = script;
+    // Mode test : seulement 3 scènes (début, milieu, fin) pour essayer vite, tout le reste identique
+    const idx = state.testMode ? testPick(lines.length) : null;
+    const scenes = idx ? idx.map(k => lines[k]) : lines;
+    const estimatedDuration = scenes.length * TARGET_SCENE_DURATION;
+    statsEl.textContent = lines.length + ' phrase' + (lines.length > 1 ? 's' : '') + ' · ' + script.length + ' car.' + (idx ? ' · 🧪 test : 3 scènes' : '');
+    durEl.textContent = 'Durée : ' + formatEta(estimatedDuration) + (idx ? ' 🧪' : estimatedDuration < 60 ? ' ⚠️' : ' ✓');
+    state.testIdx = idx;
+    state.scenes = scenes; state.script = script;
     updateGenerateBtn();
     if (typeof updateEstimate === 'function') updateEstimate();
 }
+function testPick(n) { return n > 3 ? [0, Math.floor(n / 2), n - 1] : null; }
+// Écrit les lignes modifiées dans le script (en mode test, seules les 3 lignes testées sont remplacées)
+function writeSceneLines(lines) {
+    const el = document.getElementById('script-input'); if (!el) return;
+    if (state.testMode && state.testIdx && lines.length === state.testIdx.length) {
+        const all = splitScriptIntoScenes(el.value.trim());
+        state.testIdx.forEach((k, j) => { all[k] = lines[j]; });
+        el.value = all.join('\n');
+    } else el.value = lines.join('\n');
+}
 function renderScenesEditor() {
     const editor = document.getElementById('scenes-editor'); if (!editor) return;
+    if (state.testMode && state.testIdx) { editor.innerHTML = '<div style="font-size:0.78rem;color:var(--ink-dim);padding:0.5rem;">🧪 Mode test : désactive-le pour éditer scène par scène.</div>'; return; }
     if (!state.scenes.length) { editor.innerHTML = '<div style="font-size:0.78rem;color:var(--ink-dim);padding:0.5rem;">Écrivez un script d\'abord.</div>'; return; }
     editor.innerHTML = state.scenes.map((scene, i) => `
         <div class="scene-editor">
@@ -49,7 +63,7 @@ function renderScenesEditor() {
         });
     });
 }
-function syncScenesToScript() { const el = document.getElementById('script-input'); if (el) el.value = state.scenes.join('\n'); }
+function syncScenesToScript() { writeSceneLines(state.scenes); }
 
 // ══════════════════════════════════════════════════════════════════
 // IMAGES

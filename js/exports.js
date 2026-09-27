@@ -276,7 +276,7 @@ async function translateScript() {
         }
         lines = lines.map(l => l.trim()).filter(Boolean);
         if (!lines.length) throw new Error('traduction vide');
-        document.getElementById('script-input').value = lines.join('\n');
+        writeSceneLines(lines);
         state.language = target;
         updateScriptStats(); renderScenesEditor();
         showToast('Script traduit ✓', 'success');

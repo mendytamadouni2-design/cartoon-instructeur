@@ -406,6 +406,17 @@ async function testStyles(browser) {
             return { id: st.id, wb, problems: [...new Set(problems)] };
         });
     });
+    const tm = await page.evaluate(() => {
+        const input = document.getElementById('script-input');
+        input.value = Array.from({ length: 10 }, (_, i) => 'Phrase ' + (i + 1) + '.').join('\n');
+        document.getElementById('test-mode-toggle').click();
+        const scenes = state.scenes.slice();
+        writeSceneLines(['Nouveau début.', scenes[1], scenes[2]]); updateScriptStats();
+        const kept = splitScriptIntoScenes(input.value).length;
+        document.getElementById('test-mode-toggle').click();
+        return { scenes, kept, first: input.value.split('\n')[0], after: state.scenes.length };
+    });
+    check(tm.scenes.join('|') === 'Phrase 1.|Phrase 6.|Phrase 10.' && tm.kept === 10 && tm.first === 'Nouveau début.' && tm.after === 10, 'mode test : 3 scènes (début, milieu, fin), script complet conservé');
     res.forEach(r => check(!r.problems.length, 'style ' + r.id + (r.wb ? ' (tableau blanc : dessins de l\'appli)' : '') + (r.problems.length ? ' : ' + r.problems.join(', ') : '')));
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();

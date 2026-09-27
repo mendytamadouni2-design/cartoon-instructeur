@@ -21,7 +21,7 @@ function updateProject(id, patch) {
 function newProjectId() { return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
 // Crée (ou met à jour) la fiche du projet ouvert
 function ensureProject(extra) {
-    const info = { title: (state.theme || document.getElementById('theme-input')?.value || '').trim() || (state.scenes[0] || 'Sans titre').slice(0, 60), script: state.script || document.getElementById('script-input')?.value || '', style: state.selectedStyle };
+    const info = { title: (state.theme || document.getElementById('theme-input')?.value || '').trim() || (state.scenes[0] || 'Sans titre').slice(0, 60), script: state.script || document.getElementById('script-input')?.value || '', style: state.selectedStyle, test: !!(state.testMode && state.testIdx) };
     if (state.projectId && findProject(state.projectId)) { updateProject(state.projectId, { ...info, ...(extra || {}) }); return state.projectId; }
     const id = state.projectId || newProjectId();
     state.projectId = id;
@@ -158,7 +158,7 @@ async function refreshProjects(force) {
 }
 function projectRow(p) {
     const { l, cls } = projectLabel(p);
-    return '<div class="list-item"><button type="button" class="proj-open" data-project="' + p.id + '"><span class="grow"><b>' + esc(p.title || 'Sans titre') + '</b><small>' + esc(l) + (p.note && p.status === 'generating' ? ' · ' + esc(p.note) : '') + (p.auto ? ' · 🤖' : '') + '</small></span></button>' +
+    return '<div class="list-item"><button type="button" class="proj-open" data-project="' + p.id + '"><span class="grow"><b>' + esc(p.title || 'Sans titre') + '</b><small>' + esc(l) + (p.note && p.status === 'generating' ? ' · ' + esc(p.note) : '') + (p.auto ? ' · 🤖' : '') + (p.test ? ' · 🧪 test' : '') + '</small></span></button>' +
         '<span class="pill ' + cls + '">' + esc((PROJECT_STATUS[p.status] || [p.status])[0]) + '</span>' +
         '<button type="button" class="proj-del" data-project-del="' + p.id + '" aria-label="Supprimer">🗑</button></div>';
 }

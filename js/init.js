@@ -218,6 +218,9 @@ function showCloudConfigRow(provider) {
     document.getElementById('end-question-btn')?.addEventListener('click', addEndQuestion);
     const eqt = document.getElementById('end-question-toggle');
     if (eqt) { eqt.checked = getLS(STORAGE.END_QUESTION) !== '0'; eqt.addEventListener('change', () => setLS(STORAGE.END_QUESTION, eqt.checked ? '1' : '0')); }
+    const tmt = document.getElementById('test-mode-toggle');
+    state.testMode = getLS(STORAGE.TEST_MODE) === '1';
+    if (tmt) { tmt.checked = state.testMode; tmt.addEventListener('change', () => { state.testMode = tmt.checked; setLS(STORAGE.TEST_MODE, tmt.checked ? '1' : '0'); updateScriptStats(); renderScenesEditor(); showToast(tmt.checked ? '🧪 Mode test : 3 scènes seulement' : 'Mode test désactivé : toutes les scènes', 'success'); }); }
     const szt = document.getElementById('safe-zones-toggle');
     state.safeZones = getLS(STORAGE.SAFE_ZONES) !== '0';
     if (szt) { szt.checked = state.safeZones; szt.addEventListener('change', () => { state.safeZones = szt.checked; setLS(STORAGE.SAFE_ZONES, szt.checked ? '1' : '0'); state.exportCache = {}; resetExportButtons(); renderParts(); }); }

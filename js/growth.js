@@ -33,7 +33,7 @@ document.addEventListener('click', e => {
     if (e.target.id !== 'fc-apply' || !state.factIssues) return;
     const lines = state.scenes.slice();
     state.factIssues.forEach(x => { lines[x.line - 1] = x.fix; });
-    document.getElementById('script-input').value = lines.join('\n');
+    writeSceneLines(lines);
     updateScriptStats(); renderScenesEditor();
     document.getElementById('factcheck-box').classList.add('hidden');
     showToast('Corrections appliquées ✓', 'success');
@@ -306,7 +306,7 @@ async function proposeHooks() {
 document.addEventListener('click', e => {
     const h = e.target.closest && e.target.closest('[data-hook]'); if (!h || !state.hooks) return;
     const lines = state.scenes.slice(); lines[0] = state.hooks[+h.dataset.hook].text;
-    document.getElementById('script-input').value = lines.join('\n');
+    writeSceneLines(lines);
     updateScriptStats(); renderScenesEditor();
     document.getElementById('hooks-box').classList.add('hidden');
     showToast('Accroche appliquée ✓', 'success');
