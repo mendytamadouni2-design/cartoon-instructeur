@@ -116,9 +116,18 @@ const PLAN_SCHEMA = {
                     shot: { type: 'string', enum: ['character', 'board'] },
                     highlight: { type: 'string' },
                     narration: { type: 'string' },
-                    visual: { type: 'string' }
+                    visual: { type: 'string' },
+                    graphic: {
+                        type: 'object',
+                        properties: {
+                            type: { type: 'string', enum: ['none', 'counter', 'bars', 'list', 'compare'] },
+                            title: { type: 'string' }, unit: { type: 'string' },
+                            items: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, value: { type: 'number' } }, required: ['label', 'value'], additionalProperties: false } }
+                        },
+                        required: ['type', 'title', 'unit', 'items'], additionalProperties: false
+                    }
                 },
-                required: ['spoken', 'action', 'camera', 'bubble', 'zoom', 'emphasis', 'section', 'shot', 'highlight', 'narration', 'visual'], additionalProperties: false
+                required: ['spoken', 'action', 'camera', 'bubble', 'zoom', 'emphasis', 'section', 'shot', 'highlight', 'narration', 'visual', 'graphic'], additionalProperties: false
             }
         }
     },
@@ -155,6 +164,7 @@ function planRequestFor(scenes) {
             (richActive()
                 ? '- "narration" : SCÈNES RICHES. Si la réplique contient plusieurs phrases, "spoken" = la première phrase (courte, dite face caméra) et "narration" = la suite, sans la changer. Si elle n\'a qu\'une phrase, "narration" = 1 à 2 phrases (dans la langue de la vidéo) qui approfondissent l\'idée (exemple concret, chiffre juste, comparaison), exactes et faciles à prononcer, dites par la voix off pendant qu\'on montre l\'illustration en plein écran. "narration" vaut "" pour la toute première et la toute dernière réplique.\n'
                 : '- "narration" : toujours ""\n') +
+            '- "graphic" : ' + (richActive() ? 'pour les scènes qui ont une narration, un petit graphique animé affiché sur le plan illustré QUAND c\'est utile : "counter" (un chiffre clé : 1 élément), "bars" (2 à 5 valeurs comparables), "list" (2 à 4 étapes ou idées courtes, "value" = 0), "compare" (2 éléments face à face) ; "title" très court, "unit" (ex. "%", "km", "°C" ou ""), labels de 1 à 4 mots. Les chiffres doivent être EXACTS (ne rien inventer). Au plus une scène sur trois ; sinon type "none" avec des champs vides' : 'toujours type "none", title "", unit "", items []') + '\n' +
             (state.poses.length && !referenceImage() ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
             wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
         schema: planSchema()
@@ -171,7 +181,7 @@ async function planScenesWithClaude(scenes) {
             return { spoken: p.spoken || text, action: p.action || fb[i].action, camera: p.camera || fb[i].camera, bubble: String(p.bubble || '').slice(0, 60),
                 zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '',
                 shot: isWhiteboard() && p.shot === 'board' && i > 0 && i < scenes.length - 1 ? 'board' : 'character', highlight: String(p.highlight || '').slice(0, 40),
-                narration: richActive() && i > 0 && i < scenes.length - 1 ? String(p.narration || '').trim() : (richActive() && splitSentences(text).length > 1 ? splitSentences(text).slice(1).join(' ') : ''), visual: String(p.visual || '').slice(0, 300),
+                narration: richActive() && i > 0 && i < scenes.length - 1 ? String(p.narration || '').trim() : (richActive() && splitSentences(text).length > 1 ? splitSentences(text).slice(1).join(' ') : ''), visual: String(p.visual || '').slice(0, 300), graphic: normalizeGraphic(p.graphic),
                 pose: state.poses.some(x => x.id === p.pose) ? p.pose : 'main' };
         })
     };

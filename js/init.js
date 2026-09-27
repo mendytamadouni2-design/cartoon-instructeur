@@ -298,6 +298,10 @@ function showCloudConfigRow(provider) {
     const richHint = () => { const h = document.getElementById('rich-hint'); if (h) h.textContent = richActive() ? '✅ Voix ElevenLabs prête : les scènes auront un plan illustré commenté.' : 'Demande une voix ElevenLabs (Réglages → Voix et sous-titres).'; updateVoiceIndicator(); };
     bindToggle('rich-toggle', 'RICH', 'richMode', true, richHint);
     bindToggle('qa-toggle', 'QA_ON', 'qaOn', true);
+    bindToggle('green-toggle', 'GREEN', 'greenScreen', false, () => { loadReference(); loadDecorImage(); showToast(state.greenScreen ? '🟩 Mode fond vert : refais l\'image de référence' : 'Mode fond vert désactivé', 'success', 4000); });
+    bindToggle('colormatch-toggle', 'COLOR_MATCH', 'colorMatch', true, () => { state.exportCache = {}; });
+    bindToggle('altframing-toggle', 'ALT_FRAMING', 'altFraming', true, () => { state.exportCache = {}; });
+    loadDecorImage();
     bindToggle('oneshot-toggle', 'ONE_SHOT', 'oneShot', false, () => { if (state.oneShot) showToast('Plan-séquence : génération sur le téléphone, garde l\'appli ouverte', 'warn', 5000); });
     richHint();
     document.getElementById('voice-source-select')?.addEventListener('change', () => setTimeout(updateVoiceIndicator));

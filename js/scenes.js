@@ -132,7 +132,7 @@ function renderStyles() {
         '<div class="style-emoji">' + s.emoji + '</div><div><div class="style-name">' + esc(s.name) + '</div><div class="style-desc">' + esc(s.desc) + '</div></div></div>'
     ).join('');
     container.innerHTML = html;
-    container.querySelectorAll('[data-style]').forEach(el => el.addEventListener('click', () => { state.selectedStyle = el.dataset.style; renderStyles(); if (typeof loadReference === 'function') loadReference(); }));
+    container.querySelectorAll('[data-style]').forEach(el => el.addEventListener('click', () => { state.selectedStyle = el.dataset.style; renderStyles(); if (typeof loadReference === 'function') { loadReference(); loadDecorImage(); } }));
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -155,7 +155,7 @@ function fallbackScenePlan(scenes) {
             // scènes riches : 1re phrase dite face caméra, la suite par la voix off sur un plan illustré
             const parts = rich ? splitSentences(text) : [];
             return {
-            spoken: parts.length > 1 ? parts[0] : text, narration: parts.length > 1 ? parts.slice(1).join(' ') : '', visual: '',
+            spoken: parts.length > 1 ? parts[0] : text, narration: parts.length > 1 ? parts.slice(1).join(' ') : '', visual: '', graphic: { type: 'none', title: '', unit: '', items: [] },
             action: state.motion === 'auto' || isWhiteboard() ? actions[i % actions.length] : (MOTION_PROMPTS[state.motion] || AUTO_ACTIONS[0]),
             camera: CAMERA_SHOTS[i % CAMERA_SHOTS.length],
             bubble: i === 0 ? (state.theme || '').slice(0, 40) : '',
@@ -187,9 +187,13 @@ function buildScenePrompt(item, override) {
     const chained = !!item.chained;
     if (ref) {
         parts.push('The input image is the exact reference frame of this video: keep its art style, colors, character design, background, lighting and framing EXACTLY. Do not restyle, redraw or change anything in it.');
+        if (state.greenScreen) parts.push('The background stays flat, evenly lit chroma-key green in every frame.');
     } else {
-    if (style) parts.push('Visual style: ' + style.prompt);
-    if (wb) {
+    if (style) parts.push('Visual style: ' + stylePromptFor(style));
+    if (state.greenScreen) {
+        parts.push('Background: flat, evenly lit pure chroma-key green (#00B140) backdrop filling the whole frame: no shadows on it, no gradient, no floor, no objects. The character has no green on its body or clothes.');
+        if (wb) parts.push('Composition: the character stays on the LEFT side of the frame (left third).');
+    } else if (wb) {
         parts.push('Background: pure plain white (#FFFFFF), completely empty in every shot: no floor, no furniture, no objects, no decoration, no scenery. Replace the background of the input image with pure white.');
         parts.push('Composition: the character stays on the LEFT side of the frame (left third). The rest of the frame stays EMPTY white space, where drawings will be added later.');
     } else {

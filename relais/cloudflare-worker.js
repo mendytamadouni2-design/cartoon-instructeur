@@ -710,7 +710,8 @@ function mergePlan(out, fallback) {
         setting: String(out.setting || ''),
         scenes: fb.map((f, i) => {
             const s = out.scenes[i] || {};
-            return { ...f, ...s, spoken: s.spoken || f.spoken, action: s.action || f.action, camera: s.camera || f.camera, bubble: String(s.bubble || '').slice(0, 60), section: i > 0 ? String(s.section || '').slice(0, 40) : '' };
+            const gr = s.graphic && ['counter', 'bars', 'list', 'compare'].includes(s.graphic.type) && Array.isArray(s.graphic.items) && s.graphic.items.length ? s.graphic : { type: 'none', title: '', unit: '', items: [] };
+            return { ...f, ...s, graphic: gr, spoken: s.spoken || f.spoken, action: s.action || f.action, camera: s.camera || f.camera, bubble: String(s.bubble || '').slice(0, 60), section: i > 0 ? String(s.section || '').slice(0, 40) : '' };
         })
     };
 }

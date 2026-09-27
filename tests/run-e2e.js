@@ -436,6 +436,17 @@ async function testStyles(browser) {
             if (!rp.includes('exact reference frame') || rp.includes(st.prompt) || !rp.includes('same framing as the input image') && !rp.includes('locked-off static')) problems.push('image de référence');
             if (imageForScene(1) !== state.reference.image) problems.push('départ depuis la référence');
             state.reference = null;
+            // mode écran vert : fond vert uni demandé, décor de l'appli dessiné, plans illustrés sans erreur
+            state.greenScreen = true;
+            const gp = buildScenePrompt({ sceneIndex: 1, sceneText: lines[1] });
+            if (!gp.includes('chroma-key green') || gp.includes('pure plain white') || gp.includes('classroom corner')) problems.push('fond vert');
+            if (!referencePrompt().includes('chroma-key green')) problems.push('référence fond vert');
+            const c = document.createElement('canvas'); c.width = 320; c.height = 180; const g = c.getContext('2d');
+            try {
+                drawDecor(g, 320, 180);
+                ['counter', 'bars', 'list', 'compare'].forEach(type => drawBoardShot(g, 320, 180, 1.5, 4, { backdrop: c, drawing: null, sched: null, title: '', presenter: c, graphic: normalizeGraphic({ type, title: 'T', unit: 'kg', items: [{ label: 'A', value: 12 }, { label: 'B', value: 3.5 }] }), words: [] }));
+            } catch (e) { problems.push('plan illustré : ' + e.message); }
+            state.greenScreen = false;
             return { id: st.id, wb, problems: [...new Set(problems)] };
         });
     });
@@ -451,6 +462,58 @@ async function testStyles(browser) {
     });
     check(tm.scenes.join('|') === 'Phrase 1.|Phrase 6.|Phrase 10.' && tm.kept === 10 && tm.first === 'Nouveau début.' && tm.after === 10, 'mode test : 3 scènes (début, milieu, fin), script complet conservé');
     res.forEach(r => check(!r.problems.length, 'style ' + r.id + (r.wb ? ' (tableau blanc : dessins de l\'appli)' : '') + (r.problems.length ? ' : ' + r.problems.join(', ') : '')));
+    check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
+    await ctx.close();
+}
+
+async function testCompositor(browser) {
+    console.log('\n▶ Image : fond vert, couleurs, graphiques, pause du montage');
+    const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    await ctx.route(ORIGIN + '/**', serveApp);
+    const page = await ctx.newPage(); const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.goto(ORIGIN + '/index.html');
+    const r = await page.evaluate(async () => {
+        // image de test : fond vert + personnage orange à gauche
+        const src = document.createElement('canvas'); src.width = 320; src.height = 180; const sg = src.getContext('2d');
+        sg.fillStyle = '#00B140'; sg.fillRect(0, 0, 320, 180); sg.fillStyle = '#f07a3a'; sg.fillRect(60, 40, 60, 140);
+        const proc = createVideoProcessor();
+        const out = proc.process(src, { key: true, grade: { gain: [1, 1, 1], off: [0, 0, 0] } });
+        const rd = document.createElement('canvas'); rd.width = 320; rd.height = 180; const rg = rd.getContext('2d'); rg.drawImage(out, 0, 0, 320, 180);
+        const alpha = (x, y) => rg.getImageData(x, y, 1, 1).data[3];
+        const keyed = { bg: alpha(250, 30), fg: alpha(90, 120) };
+        const st = sampleStats(src, true);
+        const warm = sampleStats((() => { const c = document.createElement('canvas'); c.width = 320; c.height = 180; const g = c.getContext('2d'); g.drawImage(src, 0, 0); g.fillStyle = 'rgba(255,120,0,0.35)'; g.fillRect(0, 0, 320, 180); return c; })(), false);
+        const gr = gradeTowards(warm, sampleStats(src, false));
+        const al = alignTransform({ bbox: { x: 0.3, y: 0.3, w: 0.2, h: 0.5 } }, { bbox: { x: 0.2, y: 0.2, w: 0.2, h: 0.6 } });
+        proc.dispose();
+        // graphiques animés dans les deux formats
+        const bad = [];
+        for (const [W, H] of [[640, 360], [360, 640]]) for (const type of ['counter', 'bars', 'list', 'compare']) {
+            const c = document.createElement('canvas'); c.width = W; c.height = H;
+            try { drawBoardShot(c.getContext('2d'), W, H, 2, 4, { backdrop: c, drawing: null, sched: null, title: 'Titre', presenter: null, graphic: normalizeGraphic({ type, title: 'Évaporation', unit: 'km³', items: [{ label: 'Océans', value: 500000 }, { label: 'Continents', value: 70000 }, { label: 'Lacs et rivières', value: 1200 }] }), words: [] }); }
+            catch (e) { bad.push(type + ' ' + W + 'x' + H + ' : ' + e.message); }
+        }
+        const ng = normalizeGraphic({ type: 'bars', items: [{ label: 'x', value: 'abc' }, { label: 'y', value: 2 }] });
+        const none = normalizeGraphic({ type: 'n\'importe', items: [] });
+        // pause du montage : le temps passé en arrière-plan n'est pas compté
+        let hid = false; Object.defineProperty(document, 'hidden', { configurable: true, get: () => hid });
+        Object.assign(montagePause, { on: false, since: 0, total: 0, rec: null, actx: getAudioCtx(), resuming: null });
+        const w0 = performance.now();
+        setTimeout(() => { hid = true; document.dispatchEvent(new Event('visibilitychange')); }, 400);
+        setTimeout(() => { hid = false; document.dispatchEvent(new Event('visibilitychange')); }, 1400);
+        const played = await runFrames(1.2, () => {});
+        const wall = (performance.now() - w0) / 1000;
+        Object.assign(montagePause, { on: false, actx: null });
+        return { keyed, bbox: st.bbox, gr, al, bad, ng, none: none.type, played, wall };
+    });
+    check(r.keyed.bg < 20 && r.keyed.fg > 235, 'fond vert retiré, personnage conservé (' + JSON.stringify(r.keyed) + ')');
+    check(r.bbox && Math.abs(r.bbox.x - 60 / 320) < 0.03 && Math.abs(r.bbox.w - 60 / 320) < 0.03, 'silhouette du personnage repérée');
+    check(r.gr && r.gr.off[0] < 0 && r.gr.off[2] > 0, 'couleurs d\'une scène trop chaude ramenées vers la référence');
+    check(r.al && r.al.s > 1 && r.al.dx < 0, 'personnage recalé (taille et position) d\'une scène à l\'autre');
+    check(!r.bad.length, 'graphiques animés (compteur, barres, liste, comparaison) en paysage et vertical' + (r.bad.length ? ' : ' + r.bad.join(' | ') : ''));
+    check(r.ng.items[0].value === 0 && r.none === 'none', 'graphiques invalides neutralisés');
+    check(r.played > 1.1 && r.wall > 2, 'montage en pause quand l\'appli passe en arrière-plan, puis reprise (' + r.played.toFixed(2) + ' s joués en ' + r.wall.toFixed(2) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }
@@ -541,6 +604,7 @@ async function testBackground(browser) {
     const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--autoplay-policy=no-user-gesture-required'] });
     try {
         if (!process.env.ONLY || process.env.ONLY === 'styles') await testStyles(browser);
+        if (!process.env.ONLY || process.env.ONLY === 'compositor') await testCompositor(browser);
         if (!process.env.ONLY || process.env.ONLY === 'phone') await testPhoneMontage(browser);
         if (!process.env.ONLY || process.env.ONLY === 'background') await testBackground(browser);
     }

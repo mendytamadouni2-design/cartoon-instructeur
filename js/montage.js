@@ -9,8 +9,40 @@
 // ══════════════════════════════════════════════════════════════════
 const FADE_SEC = 0.5;
 const JOIN_SEC = 0.2;   // raccord très court entre deux plans du personnage (même pose, même cadrage)
-let assembling = false, assemblyInterrupted = false;
-document.addEventListener('visibilitychange', () => { if (document.hidden && assembling) assemblyInterrupted = true; });
+let assembling = false;
+// Pause automatique : si l'appli passe en arrière-plan pendant le montage, tout se fige
+// (image, son, enregistrement) puis reprend exactement au même endroit au retour.
+const montagePause = { on: false, since: 0, total: 0, rec: null, actx: null, resuming: null };
+function montageNow() { return (montagePause.on ? montagePause.since : performance.now()) - montagePause.total; }
+function pauseMontage() {
+    const m = montagePause;
+    if (m.on || !m.actx) return;
+    m.on = true; m.since = performance.now();
+    try { if (m.rec && m.rec.state === 'recording') m.rec.pause(); } catch (e) {}
+    try { m.actx.suspend(); } catch (e) {}
+    stageEl().querySelectorAll('video').forEach(v => { if (!v.paused) { v.dataset.wasPlaying = '1'; try { v.pause(); } catch (e) {} } });
+    setStatus('⏸️ Montage en pause — reviens dans l\'appli pour qu\'il continue');
+    log('Montage mis en pause (appli en arrière-plan)', 'info');
+}
+async function resumeMontage() {
+    const m = montagePause;
+    if (!m.on || m.resuming) return m.resuming;
+    m.resuming = (async () => {
+        try { await withTimeout(m.actx.resume(), 1500, 'son'); } catch (e) {}
+        if (m.actx.state !== 'running') {
+            // iPhone : le son ne repart qu'après un geste de l'utilisateur
+            showToast('👆 Touche l\'écran pour reprendre le montage', 'info', 8000);
+            await new Promise(res => { const go = () => { document.removeEventListener('pointerdown', go, true); m.actx.resume().catch(() => {}).then(res); }; document.addEventListener('pointerdown', go, true); });
+        }
+        if (document.hidden) { m.resuming = null; return; }
+        stageEl().querySelectorAll('video').forEach(v => { if (v.dataset.wasPlaying) { delete v.dataset.wasPlaying; v.play().catch(() => {}); } });
+        try { if (m.rec && m.rec.state === 'paused') m.rec.resume(); } catch (e) {}
+        m.total += performance.now() - m.since; m.on = false; m.resuming = null;
+        log('Montage repris', 'info');
+    })();
+    return m.resuming;
+}
+document.addEventListener('visibilitychange', () => { if (!assembling && !montagePause.actx) return; if (document.hidden) pauseMontage(); else resumeMontage(); });
 
 function pickRecorderMime() {
     if (typeof MediaRecorder === 'undefined') return null;
@@ -29,7 +61,7 @@ function computeOutputSize(v, format) {
     return { w: Math.round(w * s / 2) * 2, h: Math.round(h * s / 2) * 2 };
 }
 function drawFrame(ctx, v, cw, ch) {
-    const vw = v.videoWidth, vh = v.videoHeight;
+    const vw = v.videoWidth || v.width, vh = v.videoHeight || v.height;
     const wb = isWhiteboard();
     ctx.fillStyle = wb ? '#fff' : '#000'; ctx.fillRect(0, 0, cw, ch);
     if (!vw || !vh) return;
@@ -554,17 +586,20 @@ async function loadLogoImage() {
 // Boucle d'affichage pendant « dur » secondes (s'arrête aussi si shouldEnd() renvoie true).
 function runFrames(dur, render, shouldEnd) {
     return new Promise(resolve => {
-        const t0 = performance.now();
+        // horloge du montage : le temps passé en pause (appli en arrière-plan) n'est pas compté
+        const t0 = montageNow();
         let finished = false;
-        const finish = () => { if (!finished) { finished = true; clearTimeout(safety); resolve(Math.min(dur, (performance.now() - t0) / 1000)); } };
+        const finish = () => { if (!finished) { finished = true; clearInterval(safety); resolve(Math.min(dur, (montageNow() - t0) / 1000)); } };
         const tick = () => {
             if (finished) return;
-            const t = (performance.now() - t0) / 1000;
+            if (montagePause.on) { requestAnimationFrame(tick); return; }
+            const t = (montageNow() - t0) / 1000;
             if (state.stopRequested || t >= dur || (shouldEnd && shouldEnd(t))) { finish(); return; }
             render(t);
             requestAnimationFrame(tick);
         };
-        const safety = setTimeout(finish, (dur + 6) * 1000);
+        // filet de sécurité si l'affichage se bloque (hors pause)
+        const safety = setInterval(() => { if (state.stopRequested || (!montagePause.on && (montageNow() - t0) / 1000 > dur + 6)) finish(); }, 1000);
         requestAnimationFrame(tick);
     });
 }
@@ -576,12 +611,22 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     if (mime === null) throw new Error('ce navigateur ne sait pas enregistrer de vidéo');
     const actx = getAudioCtx();
     try { await actx.resume(); } catch (e) {}
-    assemblyInterrupted = false;
+    Object.assign(montagePause, { on: false, since: 0, total: 0, rec: null, actx, resuming: null });
     const { premium } = await prepareAssets(items, label);
     const segs = buildSegments(items, maxDuration);
     const musicBuf = await loadMusicBuffer();
     const logoImg = await loadLogoImage();
     const wb = isWhiteboard();
+    // Image : couleurs harmonisées entre les scènes, fond vert remplacé par le décor, personnage recalé
+    const keyed = !!state.greenScreen;
+    const proc = (state.colorMatch || keyed) ? createVideoProcessor() : null;
+    if (proc) {
+        setStatus(label + ' : harmonisation des couleurs…');
+        for (const it of items) if (it.blob) await measureClip(it);
+        const target = await lookTarget(items);
+        items.forEach(it => { it.grade = state.colorMatch ? gradeTowards(it.look, target) : null; it.align = keyed ? alignTransform(it.look, target) : null; });
+    }
+    let presenter = null;   // dernière image du personnage détouré (médaillon sur les plans illustrés)
 
     // Enregistrement
     const urls = new Map(items.map(it => [it, URL.createObjectURL(it.blob)]));
@@ -614,15 +659,17 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     const sceneTotal = items.length;
     const qa = !preview && label === 'Montage' && state.qaOn && typeof createQa === 'function' ? createQa(segs.length) : null;
     const timeline = [];
-    let T = 0, hasPrev = false, prevSketch = null, prevWasScene = false, musicSrc = null;
-    if (rec) rec.start(1000);
+    let T = 0, hasPrev = false, prevSketch = null, prevWasScene = false, prevWasBoard = false, musicSrc = null;
+    if (rec) { rec.start(1000); montagePause.rec = rec; }
     if (musicBuf) { musicSrc = actx.createBufferSource(); musicSrc.buffer = musicBuf; musicSrc.loop = true; musicSrc.connect(musicGain); musicSrc.start(); duckTo(musicHigh); }
 
     try {
         for (let si = 0; si < segs.length; si++) {
             const seg = segs[si];
             if (state.stopRequested) throw new Error('Arrêt demandé');
-            if (assemblyInterrupted || document.hidden) throw new Error('l\'appli est passée en arrière-plan. Garde l\'écran allumé et l\'appli ouverte pendant le montage, puis relance « Assembler la vidéo finale »');
+            if (montagePause.on) await resumeMontage();
+            while (montagePause.on && !state.stopRequested) await new Promise(r => setTimeout(r, 300));
+            if (rec && rec.state === 'inactive') throw new Error('le téléphone a coupé l\'enregistrement pendant que l\'appli était en arrière-plan. Relance « Assembler la vidéo finale » en gardant l\'appli ouverte');
             if (T >= maxDuration - 0.05) break;
             setProgress(22 + (si / segs.length) * 75);
 
@@ -648,10 +695,13 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 try { src.start(actx.currentTime + 0.05, 0, dur); } catch (e) {}
                 const info = { name: 'scène ' + (item.sceneIndex + 1) + ' · plan illustré' };
                 const played = await runFrames(dur, t => {
-                    const active = drawBoardShot(g, W, H, t, dur, { backdrop, drawing, sched, title: plan.bubble || '' });
+                    const active = drawBoardShot(g, W, H, t, dur, { backdrop, drawing, sched, title: plan.bubble || '', presenter, graphic: normalizeGraphic(plan.graphic), words });
                     sfx.scribble(active);
                     if (plan.highlight && t > dur * 0.55) drawHighlight(g, W, H, plan.highlight, t - dur * 0.55, dur - t);
-                    if (t < FADE_SEC) { g.save(); g.globalAlpha = 1 - t / FADE_SEC; g.drawImage(prevCanvas, 0, 0); g.restore(); }
+                    if (t < 0.45) {   // transition « zoom » : l'image précédente s'agrandit et s'efface
+                        const e = easeOut(t / 0.45), zz = 1 + 0.18 * e;
+                        g.save(); g.globalAlpha = 1 - e; g.translate(W / 2, H / 2); g.scale(zz, zz); g.translate(-W / 2, -H / 2); g.drawImage(prevCanvas, 0, 0); g.restore();
+                    }
                     drawNarrationCaptions(g, W, H, words, groups, t);
                     if (logoImg) drawLogo(g, W, H, logoImg);
                     if (qa) qa.tick(canvas, T + t, t, dur, info);
@@ -659,7 +709,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 sfx.scribble(false);
                 try { src.stop(); } catch (e) {}
                 timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played, narration: true });
-                pg.drawImage(canvas, 0, 0); hasPrev = true; prevSketch = null; prevWasScene = false;
+                pg.drawImage(canvas, 0, 0); hasPrev = true; prevSketch = null; prevWasScene = false; prevWasBoard = true;
                 T += played;
                 continue;
             }
@@ -675,7 +725,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                     if (fadeFromPrev && t < 0.35) { g.save(); g.globalAlpha = 1 - t / 0.35; g.drawImage(prevCanvas, 0, 0); g.restore(); }
                     if (seg.type === 'outro' && musicBuf && t > dur - 1.3) musicGain.gain.setTargetAtTime(0.0001, actx.currentTime, 0.3);
                 });
-                pg.drawImage(canvas, 0, 0); hasPrev = true; prevSketch = null; prevWasScene = false;
+                pg.drawImage(canvas, 0, 0); hasPrev = true; prevSketch = null; prevWasScene = false; prevWasBoard = false;
                 T += played;
                 continue;
             }
@@ -717,11 +767,13 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 const hit = nw ? words.find(w => normWord(w.text) === nw || normWord(w.text).startsWith(nw)) : null;
                 zoomAt = hit ? hit.start : dur * 0.35;
             }
-            const transition = state.transition === 'fade' ? 'fade' : state.transition === 'cut' ? 'cut' : (prevWasScene && !seg.newSection ? 'join' : 'fade');
+            const transition = state.transition === 'fade' ? 'fade' : state.transition === 'cut' ? 'cut' : prevWasBoard ? 'push' : (prevWasScene && !seg.newSection ? 'join' : 'fade');
             const fadeIn = hasPrev && (transition === 'fade' || transition === 'join');
+            const pushOut = hasPrev && transition === 'push';
             const fadeSec = transition === 'join' ? JOIN_SEC : FADE_SEC;
             if (transition === 'fade' && prevWasScene) sfx.whoosh();
             const qaInfo = { name: 'scène ' + (item.sceneIndex + 1) };
+            const layerOpts = { proc, grade: item.grade, keyed, align: item.align, framing: framingFor(seg, item.look, wb, !!drawing) };
 
             await seekTo(v, cut.tin);
             const buf = usingTts ? item.ttsBuffer : usingFit ? item.fitBuffer : item.audioBuffer;
@@ -757,7 +809,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                     // plan « tableau seul » : le dessin en plein écran, léger mouvement de caméra
                     g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
                     const z = 1 + 0.04 * clamp01(t / dur); g.translate(W / 2, H * 0.4); g.scale(z, z); g.translate(-W / 2, -H * 0.4);
-                } else drawFrame(g, v, W, H);
+                } else drawSceneLayer(g, v, W, H, layerOpts);
                 let drawingActive = false;
                 if (wb && area) {
                     if (prevSketch && t < FADE_SEC && transition === 'cut') drawSketch(g, prevSketch.area, prevSketch.drawing, 1, 1 - t / FADE_SEC);
@@ -779,6 +831,10 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                     drawHighlight(g, W, H, plan.highlight, t - highlightAt, dur - t);
                 }
                 if (fadeIn && t < fadeSec) { g.save(); g.globalAlpha = 1 - t / fadeSec; g.drawImage(prevCanvas, 0, 0); g.restore(); }
+                if (pushOut && t < 0.4) {   // transition « glissé » : le tableau part vers la gauche
+                    const e = easeOut(t / 0.4);
+                    g.save(); g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = W * 0.02; g.drawImage(prevCanvas, -W * e, 0); g.restore();
+                }
                 drawCaptions(g, W, H, sc, t);
                 if (logoImg) drawLogo(g, W, H, logoImg);
                 if (qa) qa.tick(canvas, T + t, t, dur, qaInfo);
@@ -787,9 +843,10 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
             if (src) { try { src.stop(); } catch (e) {} }
             timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played });
             prevSketch = drawing && area ? { drawing, area } : null;
-            drawFrame(pg, v, W, H);
+            drawSceneLayer(pg, v, W, H, layerOpts);
+            if (keyed && proc) presenter = presenterFrom(proc.process(v, { grade: item.grade, key: true }), item.look);
             if (prevSketch) drawSketch(pg, area, drawing, 1, 1);
-            hasPrev = true; prevWasScene = true;
+            hasPrev = true; prevWasScene = true; prevWasBoard = false;
             disposeStageVideo(v);
             T += played;
             // précharge la scène suivante pendant qu'on est encore là
@@ -797,6 +854,9 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
             if (nextScene && T < maxDuration - 0.05) { try { pending = await createStageVideo(urls.get(nextScene.item)); } catch (e) { pending = null; } }
         }
     } finally {
+        if (montagePause.on) { try { await actx.resume(); } catch (e) {} }
+        Object.assign(montagePause, { on: false, rec: null, actx: null, resuming: null });
+        if (proc) proc.dispose();
         if (pending) disposeStageVideo(pending);
         sfx.stop();
         if (musicSrc) { try { musicSrc.stop(); } catch (e) {} }
