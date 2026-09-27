@@ -77,3 +77,24 @@ Tant que TikTok n'a pas validé ton appli (« audit »), les vidéos publiées d
 choisis « Envoyer en brouillon », puis termine la publication dans l'appli TikTok, ou demande l'audit
 dans le portail développeur.
 Le Client secret ne va **jamais** dans l'appli ni sur GitHub : il reste uniquement dans Cloudflare.
+
+## Option — Brancher Instagram (publication de Reels)
+
+Il faut un compte Instagram **professionnel** (Créateur ou Entreprise, gratuit : Paramètres → Type de compte).
+
+1. Va sur **developers.facebook.com** → **Mes applications → Créer une application** (type « Entreprise »).
+2. Ajoute le produit **Instagram → API avec connexion Instagram** (« Instagram API with Instagram Login »).
+3. Dans **Configuration de l'API avec connexion Instagram** :
+   - ajoute ton compte Instagram comme **testeur** (Rôles de l'application), puis accepte l'invitation
+     dans Instagram (Paramètres → Applications et sites web → Invitations de testeur) ;
+   - **URL de redirection OAuth** : `https://mendytamadouni2-design.github.io/cartoon-instructeur/`
+   - permissions : `instagram_business_basic`, `instagram_business_content_publish`.
+4. Copie l'**ID de l'application Instagram** et la **clé secrète de l'application Instagram**.
+5. Dans Cloudflare : **Workers & Pages → cartoon-instructeur → Settings → Variables and Secrets → Add** :
+   - `INSTAGRAM_APP_ID` (type *Text*)
+   - `INSTAGRAM_APP_SECRET` (type *Secret*)
+   puis **Deploy**.
+6. Dans l'appli : **Réglages → Comptes → 📸 Connecter Instagram**.
+
+Tant que l'application Meta n'est pas validée, seuls les comptes testeurs peuvent l'utiliser : c'est suffisant pour ta chaîne.
+La clé secrète ne va **jamais** dans l'appli ni sur GitHub.

@@ -37,6 +37,11 @@
 //      POST /schedule/:id/cancel
 //    Le jeton TikTok n'est gardé que jusqu'à la publication, puis effacé.
 //
+// 7. Instagram (optionnel : INSTAGRAM_APP_ID et INSTAGRAM_APP_SECRET dans Cloudflare) :
+//      GET  /instagram/config, POST /instagram/token, POST /instagram/refresh
+//    Les Reels sont publiés par /schedule (platform: "instagram") : Instagram vient chercher
+//    la vidéo à une adresse publique signée et temporaire : GET /pub/:clé?exp=…&sig=…
+//
 // Sécurité : seul le site de l'appli peut l'utiliser (ALLOWED_ORIGINS).
 
 const ALLOWED_ORIGINS = [
@@ -56,9 +61,18 @@ const JOB_MAX_AGE_MS = 3 * 24 * 3600000; // les projets sont effacés au bout de
 const TIKTOK_API = 'https://open.tiktokapis.com/v2';
 const TIKTOK_CHUNK = 10 * 1024 * 1024;   // morceaux envoyés à TikTok (5 à 64 Mo)
 const POST_MAX_AHEAD_MS = 60 * 24 * 3600000;
+const IG_GRAPH = 'https://graph.instagram.com/v22.0';
+const IG_PUB_TTL_MS = 6 * 3600000;       // durée de validité de l'adresse publique donnée à Instagram
 
 export default {
     async fetch(request, env) {
+        // Adresse publique signée (Instagram télécharge la vidéo à publier ; pas d'en-tête Origin)
+        const pubUrl = new URL(request.url);
+        if (pubUrl.pathname.startsWith('/pub/') && env.JOBS && ['GET', 'HEAD'].includes(request.method)) {
+            const key = decodeURIComponent(pubUrl.pathname.slice(5));
+            const r = await env.JOBS.get(env.JOBS.idFromName('media')).fetch('https://job/media-pub?key=' + encodeURIComponent(key) + '&exp=' + encodeURIComponent(pubUrl.searchParams.get('exp') || '') + '&sig=' + encodeURIComponent(pubUrl.searchParams.get('sig') || ''));
+            return new Response(r.body, { status: r.status, headers: { 'Content-Type': r.headers.get('Content-Type') || 'video/mp4', ...(r.headers.get('Content-Length') ? { 'Content-Length': r.headers.get('Content-Length') } : {}) } });
+        }
         const origin = request.headers.get('Origin') || '';
         const allowed = ALLOWED_ORIGINS.includes(origin);
         const cors = {
@@ -74,6 +88,7 @@ export default {
         const url = new URL(request.url);
         if (url.pathname.startsWith('/jobs')) return handleJobs(request, env, url, cors);
         if (url.pathname.startsWith('/tiktok/')) return handleTikTok(request, env, url, cors);
+        if (url.pathname.startsWith('/instagram/')) return handleInstagram(request, env, url, cors);
         if (url.pathname.startsWith('/schedule')) return handleSchedule(request, env, url, cors);
         if (url.pathname.startsWith('/media')) {
             if (!env.JOBS) return json({ error: 'Stockage non activé' }, 501, cors);
@@ -95,7 +110,7 @@ export default {
         }
 
         const target = url.searchParams.get('url');
-        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push · media · schedule' + (env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET ? ' · tiktok' : '') : 'Relais OK', { status: 200, headers: cors });
+        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push · media · schedule' + (env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET ? ' · tiktok' : '') + (env.INSTAGRAM_APP_ID && env.INSTAGRAM_APP_SECRET ? ' · instagram' : '') : 'Relais OK', { status: 200, headers: cors });
         return relay(request, target, cors);
     }
 };
@@ -175,13 +190,60 @@ async function handleTikTok(request, env, url, cors) {
     } catch (e) { return json({ error: e.message }, 502, cors); }
     return json({ error: 'Requête inconnue' }, 404, cors);
 }
+// ─────────────── Instagram (API « Instagram Login », compte professionnel) ───────────────
+async function igLongToken(env, shortToken) {
+    const r = await fetch('https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=' + encodeURIComponent(env.INSTAGRAM_APP_SECRET) + '&access_token=' + encodeURIComponent(shortToken));
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.access_token) throw new Error((d.error && d.error.message) || ('Instagram ' + r.status));
+    return d;
+}
+async function igRefresh(token) {
+    const r = await fetch('https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=' + encodeURIComponent(token));
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.access_token) throw new Error((d.error && d.error.message) || ('Instagram ' + r.status));
+    return d;
+}
+async function igCall(method, path, token, params) {
+    const q = new URLSearchParams({ ...(params || {}), access_token: token });
+    const r = method === 'GET' ? await fetch(IG_GRAPH + path + '?' + q) : await fetch(IG_GRAPH + path, { method, body: q });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.error) throw new Error((d.error && (d.error.error_user_msg || d.error.message)) || ('Instagram ' + r.status));
+    return d;
+}
+async function handleInstagram(request, env, url, cors) {
+    const ready = !!(env.INSTAGRAM_APP_ID && env.INSTAGRAM_APP_SECRET);
+    const action = url.pathname.slice('/instagram/'.length);
+    if (action === 'config') return json({ appId: env.INSTAGRAM_APP_ID || '', ready }, 200, cors);
+    if (!ready) return json({ error: 'Instagram n\'est pas encore configuré sur ton serveur Cloudflare' }, 501, cors);
+    if (request.method !== 'POST') return json({ error: 'Requête inconnue' }, 404, cors);
+    let p = {};
+    try { p = JSON.parse(await request.text() || '{}'); } catch (e) { return json({ error: 'Données illisibles' }, 400, cors); }
+    try {
+        if (action === 'token') {
+            const body = new URLSearchParams({ client_id: env.INSTAGRAM_APP_ID, client_secret: env.INSTAGRAM_APP_SECRET, grant_type: 'authorization_code', redirect_uri: p.redirectUri, code: String(p.code || '').replace(/#_$/, '') });
+            const r = await fetch('https://api.instagram.com/oauth/access_token', { method: 'POST', body });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok || !d.access_token) throw new Error(d.error_message || (d.error && d.error.message) || ('Instagram ' + r.status));
+            const long = await igLongToken(env, d.access_token);
+            let username = '';
+            try { username = (await igCall('GET', '/me', long.access_token, { fields: 'username' })).username || ''; } catch (e) {}
+            return json({ accessToken: long.access_token, expiresIn: long.expires_in, userId: String(d.user_id), username }, 200, cors);
+        }
+        if (action === 'refresh') { const d = await igRefresh(p.accessToken); return json({ accessToken: d.access_token, expiresIn: d.expires_in }, 200, cors); }
+    } catch (e) { return json({ error: e.message }, 502, cors); }
+    return json({ error: 'Requête inconnue' }, 404, cors);
+}
 async function handleSchedule(request, env, url, cors) {
     if (!env.JOBS) return json({ error: 'Programmation non activée sur ce serveur' }, 501, cors);
     const parts = url.pathname.split('/').filter(Boolean);   // ['schedule', id?, action?]
     if (parts.length === 1 && request.method === 'POST') {
-        if (!(env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET)) return json({ error: 'TikTok n\'est pas encore configuré sur ton serveur Cloudflare' }, 501, cors);
+        const text = await request.text();
+        let platform = 'tiktok';
+        try { platform = JSON.parse(text).platform === 'instagram' ? 'instagram' : 'tiktok'; } catch (e) {}
+        if (platform === 'tiktok' && !(env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET)) return json({ error: 'TikTok n\'est pas encore configuré sur ton serveur Cloudflare' }, 501, cors);
+        if (platform === 'instagram' && !(env.INSTAGRAM_APP_ID && env.INSTAGRAM_APP_SECRET)) return json({ error: 'Instagram n\'est pas encore configuré sur ton serveur Cloudflare' }, 501, cors);
         const id = env.JOBS.newUniqueId();
-        const res = await env.JOBS.get(id).fetch('https://job/post-start', { method: 'POST', body: await request.text() });
+        const res = await env.JOBS.get(id).fetch('https://job/post-start?origin=' + encodeURIComponent(url.origin), { method: 'POST', body: text });
         const out = await res.json();
         return json(res.ok ? { id: id.toString() } : out, res.status, cors);
     }
@@ -233,6 +295,21 @@ export class VideoJob {
 
     async media(action, request) {
         const u = new URL(request.url), key = u.searchParams.get('key') || '';
+        if (action === 'media-sign' || action === 'media-pub') {
+            let sk = await this.storage.get('signKey');
+            if (!sk) { sk = b64url(crypto.getRandomValues(new Uint8Array(32))); await this.storage.put('signKey', sk); }
+            const hmac = async (k, exp) => {
+                const ck = await crypto.subtle.importKey('raw', new TextEncoder().encode(sk), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+                return b64url(new Uint8Array(await crypto.subtle.sign('HMAC', ck, new TextEncoder().encode(k + '.' + exp))));
+            };
+            if (action === 'media-sign') {
+                if (!(await this.storage.get('meta:' + key))) return Response.json({ error: 'Introuvable' }, { status: 404 });
+                const exp = Date.now() + IG_PUB_TTL_MS;
+                return Response.json({ exp, sig: await hmac(key, exp) });
+            }
+            const exp = +u.searchParams.get('exp');
+            if (!exp || exp < Date.now() || u.searchParams.get('sig') !== await hmac(key, exp)) return new Response('Lien expiré', { status: 403 });
+        }
         if (action === 'media-list') {
             const kind = u.searchParams.get('kind') || '';
             const metas = await this.storage.list({ prefix: 'meta:' });
@@ -244,6 +321,8 @@ export class VideoJob {
             if (!buf.length) return Response.json({ error: 'Fichier vide' }, { status: 400 });
             if (buf.length > 95 * 1024 * 1024) return Response.json({ error: 'Fichier trop lourd (95 Mo max)' }, { status: 413 });
             await this.deleteMedia(key);
+            // ménage : les vidéos déposées pour une publication sont effacées au bout de 70 jours
+            try { const old = await this.storage.list({ prefix: 'meta:post/' }); for (const m of old.values()) if (Date.now() - m.date > 70 * 24 * 3600000) await this.deleteMedia(m.key); } catch (e) {}
             const CH = 1500000, n = Math.ceil(buf.length / CH);
             for (let i = 0; i < n; i++) await this.storage.put('chunk:' + key + ':' + i, buf.slice(i * CH, (i + 1) * CH));
             await this.storage.put('meta:' + key, { key, kind: u.searchParams.get('kind') || 'clip', title: u.searchParams.get('title') || '', type: request.headers.get('Content-Type') || 'application/octet-stream', size: buf.length, chunks: n, date: Date.now() });
@@ -306,16 +385,18 @@ export class VideoJob {
         if (action === 'post-start') {
             let p;
             try { p = await request.json(); } catch (e) { return Response.json({ error: 'Données illisibles' }, { status: 400 }); }
-            if (!p.refreshToken || !p.mediaKey) return Response.json({ error: 'Connexion TikTok ou vidéo manquante' }, { status: 400 });
+            const platform = p.platform === 'instagram' ? 'instagram' : 'tiktok';
+            if (!p.mediaKey || (platform === 'tiktok' ? !p.refreshToken : !(p.igToken && p.igUserId))) return Response.json({ error: 'Connexion ' + (platform === 'tiktok' ? 'TikTok' : 'Instagram') + ' ou vidéo manquante' }, { status: 400 });
             const at = Math.max(Date.now() + 1000, +p.at || 0);
             if (at > Date.now() + POST_MAX_AHEAD_MS) return Response.json({ error: 'Date trop lointaine (60 jours maximum)' }, { status: 400 });
             const post = {
                 status: 'scheduled', message: 'Programmée', at, createdAt: Date.now(), attempts: 0, polls: 0,
                 mode: p.mode === 'inbox' ? 'inbox' : 'direct', mediaKey: String(p.mediaKey), title: String(p.title || '').slice(0, 2200),
-                privacy: String(p.privacy || 'SELF_ONLY'), push: p.push && p.push.endpoint ? p.push : null, publishId: null, deleteMedia: p.deleteMedia !== false
+                privacy: String(p.privacy || 'SELF_ONLY'), push: p.push && p.push.endpoint ? p.push : null, publishId: null, deleteMedia: p.deleteMedia !== false,
+                platform, origin: new URL(request.url).searchParams.get('origin') || '', igUserId: platform === 'instagram' ? String(p.igUserId) : null
             };
             await this.storage.put('post', post);
-            await this.storage.put('postSecret', { refreshToken: p.refreshToken });
+            await this.storage.put('postSecret', platform === 'tiktok' ? { refreshToken: p.refreshToken } : { igToken: p.igToken });
             await this.storage.setAlarm(at);
             return Response.json({ ok: true });
         }
@@ -325,15 +406,52 @@ export class VideoJob {
             post.status = 'cancelled'; post.message = 'Annulée';
             await this.endPost(post);
         }
-        return Response.json({ status: post.status, message: post.message, at: post.at, mode: post.mode, publishId: post.publishId });
+        return Response.json({ status: post.status, message: post.message, at: post.at, mode: post.mode, publishId: post.publishId, platform: post.platform || 'tiktok' });
     }
     async runPost(post) {
         if (['done', 'failed', 'cancelled'].includes(post.status)) {
             if (Date.now() - post.createdAt > POST_MAX_AHEAD_MS + JOB_MAX_AGE_MS) await this.storage.deleteAll();
             return;
         }
-        const env = this.env;
         try {
+            if (post.platform === 'instagram') await this.runInstagram(post);
+            else await this.runTikTok(post);
+        } catch (e) {
+            post.attempts++;
+            post.message = 'Erreur : ' + e.message;
+            if (post.attempts >= 4) { post.status = 'failed'; post.message = 'Échec : ' + e.message; }
+            else if (post.status === 'uploading') post.status = 'scheduled';   // on recommence l'envoi
+        }
+        await this.storage.put('post', post);
+        if (['done', 'failed'].includes(post.status)) await this.endPost(post);
+        else await this.storage.setAlarm(Date.now() + (post.status === 'processing' ? 15000 : 60000 * Math.max(1, post.attempts)));
+    }
+    async runInstagram(post) {
+        const env = this.env, secret = await this.storage.get('postSecret');
+        let token = secret.igToken;
+        if (post.status === 'scheduled') {
+            try { const d = await igRefresh(token); token = d.access_token; await this.storage.put('postSecret', { igToken: token }); } catch (e) { /* jeton encore valable */ }
+            post.status = 'uploading'; post.message = 'Envoi à Instagram…';
+            const sign = await (await env.JOBS.get(env.JOBS.idFromName('media')).fetch('https://job/media-sign?key=' + encodeURIComponent(post.mediaKey))).json();
+            if (!sign.sig) throw new Error('vidéo introuvable dans le stockage');
+            const videoUrl = post.origin + '/pub/' + encodeURIComponent(post.mediaKey) + '?exp=' + sign.exp + '&sig=' + sign.sig;
+            const c = await igCall('POST', '/' + post.igUserId + '/media', token, { media_type: 'REELS', video_url: videoUrl, caption: post.title, share_to_feed: 'true' });
+            post.publishId = c.id; post.status = 'processing'; post.message = 'Instagram traite la vidéo…';
+            return;
+        }
+        if (post.status === 'processing') {
+            const st = await igCall('GET', '/' + post.publishId, token, { fields: 'status_code,status' });
+            post.polls++;
+            if (st.status_code === 'FINISHED') {
+                await igCall('POST', '/' + post.igUserId + '/media_publish', token, { creation_id: post.publishId });
+                post.status = 'done'; post.message = 'Publiée sur Instagram ✓';
+            } else if (st.status_code === 'ERROR' || st.status_code === 'EXPIRED') { post.status = 'failed'; post.message = 'Instagram a refusé : ' + (st.status || st.status_code); }
+            else if (post.polls > 80) { post.status = 'failed'; post.message = 'Instagram n\'a pas fini de traiter la vidéo'; }
+        }
+    }
+    async runTikTok(post) {
+        const env = this.env;
+        {
             const secret = await this.storage.get('postSecret');
             const tok = await tiktokToken(env, { grant_type: 'refresh_token', refresh_token: secret.refreshToken });
             if (tok.refreshToken) await this.storage.put('postSecret', { refreshToken: tok.refreshToken });
@@ -375,15 +493,7 @@ export class VideoJob {
                 else if (st.status === 'FAILED') { post.status = 'failed'; post.message = 'TikTok a refusé : ' + (st.fail_reason || 'raison inconnue'); }
                 else if (post.polls > 60) { post.status = 'done'; post.message = 'Envoyée, TikTok la traite encore'; }
             }
-        } catch (e) {
-            post.attempts++;
-            post.message = 'Erreur : ' + e.message;
-            if (post.attempts >= 4) { post.status = 'failed'; post.message = 'Échec : ' + e.message; }
-            else if (post.status === 'uploading') post.status = 'scheduled';   // on recommence l'envoi
         }
-        await this.storage.put('post', post);
-        if (['done', 'failed'].includes(post.status)) await this.endPost(post);
-        else await this.storage.setAlarm(Date.now() + (post.status === 'processing' ? 15000 : 60000 * post.attempts));
     }
     async endPost(post) {
         await this.storage.delete('postSecret');

@@ -1,7 +1,38 @@
-// Service worker de Cartoon Instructeur : uniquement pour les notifications.
-// (Pas de mise en cache : l'appli se charge toujours à jour.)
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+// Service worker de Cartoon Instructeur :
+// 1. l'appli s'ouvre même avec un réseau faible ou absent (dernière version gardée en cache),
+//    tout en restant toujours à jour quand le réseau répond (réseau d'abord, cache en secours) ;
+// 2. notifications (génération terminée, vidéo publiée).
+const CACHE = 'cartoon-app-v1';
+const NETWORK_TIMEOUT_MS = 4000;
+
+self.addEventListener('install', e => {
+    e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', './index.html']).catch(() => {})).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', e => {
+    e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', e => {
+    const req = e.request;
+    if (req.method !== 'GET') return;
+    const url = new URL(req.url);
+    // seulement les fichiers de l'appli (et les polices) : jamais les API ni les vidéos
+    const own = url.origin === self.location.origin;
+    const fonts = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
+    if (!own && !fonts) return;
+    if (own && !/\.(html|js|css|json|png|svg|ico)$|\/$/.test(url.pathname)) return;
+    e.respondWith((async () => {
+        const cache = await caches.open(CACHE);
+        const network = fetch(req).then(res => { if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) cache.put(req, res.clone()); return res; });
+        if (fonts) { const hit = await cache.match(req); if (hit) { network.catch(() => {}); return hit; } return network; }
+        try {
+            return await Promise.race([network, new Promise((_, rej) => setTimeout(() => rej(new Error('lent')), NETWORK_TIMEOUT_MS))]);
+        } catch (err) {
+            const hit = await cache.match(req, { ignoreSearch: true }) || (req.mode === 'navigate' ? await cache.match('./index.html') : null);
+            if (hit) { network.catch(() => {}); return hit; }
+            return network;
+        }
+    })());
+});
 self.addEventListener('push', e => {
     let data = {};
     try { data = e.data ? e.data.json() : {}; } catch (err) {}

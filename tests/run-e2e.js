@@ -69,7 +69,10 @@ function claudeMock(route) {
     const body = JSON.parse(route.request().postData());
     const props = body.output_config?.format?.schema?.properties || {};
     let out;
-    if (props.videos) out = { videos: [{ title: 'Le cycle de l\'eau', views: 1200, likes: 80, comments: 5, shares: 3, avg_watch_seconds: 11, full_watch_pct: 34, duration_seconds: 30, notes: 'décroche à 4 s' }] };
+    if (props.videos?.items?.properties?.lines) out = { videos: [{ title: 'Les volcans', why: 'Spectaculaire', lines: ['Le soleil chauffe l\'eau.', 'Le soleil chauffe l\'eau.'] }, { title: 'La lune', why: 'Mystérieux', lines: ['Le soleil chauffe l\'eau.'] }] };
+    else if (props.replies) out = { replies: [{ i: 0, reply: 'Merci beaucoup ! 😄' }] };
+    else if (props.vocabulary) out = { title: 'Le cycle de l\'eau', objectives: ['Je sais expliquer l\'évaporation.'], summary: 'Le soleil chauffe l\'eau, qui monte et forme des nuages. Œuvre de la nature !', vocabulary: [{ word: 'Évaporation', definition: 'Passage de l\'eau liquide à la vapeur.' }], quiz: [{ question: 'Qui chauffe l\'eau ?', choices: ['Le soleil', 'La lune', 'Le vent'], answer: 0, explanation: 'C\'est la chaleur du soleil.' }], activity: 'Observe une casserole d\'eau chaude.' };
+    else if (props.videos) out = { videos: [{ title: 'Le cycle de l\'eau', views: 1200, likes: 80, comments: 5, shares: 3, avg_watch_seconds: 11, full_watch_pct: 34, duration_seconds: 30, notes: 'décroche à 4 s' }] };
     else if (props.script_rules) out = { analysis: 'Bon début.', tips: ['Accroche plus courte'], ideas: ['Les volcans'], script_rules: 'Accroche en moins de 3 secondes.' };
     else if (props.hooks) out = { hooks: [{ text: 'Savais-tu que l\'eau voyage ?', why: 'question' }, { text: 'Un chiffre fou.', why: 'chiffre' }, { text: 'Tout est faux.', why: 'surprise' }] };
     else if (props.question) out = { question: 'Et toi, tu bois combien de verres par jour ?' };
@@ -94,6 +97,7 @@ function toneWav() {
     return b;
 }
 async function commonRoutes(ctx, clipBufs, relayEnv, W, counters) {
+    await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/jspdf/**', r => r.fulfill({ status: 200, contentType: 'application/javascript', body: fs.readFileSync(require.resolve('jspdf/dist/jspdf.umd.min.js')) }));
     await ctx.route(ORIGIN + '/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(APP) }));
     await ctx.route('https://apihub.agnes-ai.com/v1/videos', r => { const b = JSON.parse(r.request().postData()); counters.agnes.push(b); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ video_id: 'v' + (counters.vid++) }) }); });
     await ctx.route('https://apihub.agnes-ai.com/agnesapi**', r => { const id = new URL(r.request().url()).searchParams.get('video_id'); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'completed', metadata: { url: 'https://cdn.test/' + id + '.webm' } }) }); });
@@ -137,15 +141,25 @@ async function fillProject(page) {
 async function testPhoneMontage(browser) {
     console.log('\n▶ Montage complet sur le téléphone');
     const W = await loadWorker(false);
-    const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
     const page = await ctx.newPage(); const errors = [], dialogs = [];
     page.on('pageerror', e => errors.push(e.message)); page.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
     const clipBufs = await makeClips(page);
     const counters = { agnes: [], vid: 0, clipFor: n => (n === 1 ? 1 : n % 2 === 0 ? 0 : 2) };
     const { env } = fakeDurableObjects(W);
     env.TIKTOK_CLIENT_KEY = 'ttkey'; env.TIKTOK_CLIENT_SECRET = 'ttsecret';
-    const tt = { uploaded: 0, inits: [], token: 0 };
+    env.INSTAGRAM_APP_ID = 'igapp'; env.INSTAGRAM_APP_SECRET = 'igsecret';
+    const tt = { uploaded: 0, inits: [], token: 0 }, ig = { fetched: 0, published: 0, caption: '' };
     counters.serverFetch = async (u, o) => {
+        if (u.startsWith('https://graph.instagram.com/refresh_access_token')) return Response.json({ access_token: 'igt2', expires_in: 5184000 });
+        if (u.startsWith('https://graph.instagram.com/v22.0/1789/media_publish')) { ig.published++; return Response.json({ id: 'm1' }); }
+        if (u.startsWith('https://graph.instagram.com/v22.0/1789/media')) {
+            const q = new URLSearchParams(String(o.body)); ig.caption = q.get('caption');
+            const r = await W.default.fetch(new Request(q.get('video_url')), env);   // Instagram vient chercher la vidéo
+            ig.fetched = r.ok ? (await r.arrayBuffer()).byteLength : -r.status;
+            return Response.json({ id: 'c1' });
+        }
+        if (u.startsWith('https://graph.instagram.com/v22.0/c1')) return Response.json({ status_code: 'FINISHED' });
         const ok = data => Response.json({ data, error: { code: 'ok' } });
         if (u.includes('/oauth/token/')) { tt.token++; return Response.json({ access_token: 'tta' + tt.token, refresh_token: 'ttr', expires_in: 86400, refresh_expires_in: 3e7, open_id: 'o1' }); }
         if (u.includes('/video/list/')) return ok({ videos: [{ id: '71', title: 'Le cycle de l\'eau', view_count: 1500, like_count: 90, comment_count: 7, share_count: 4, duration: 30, create_time: 1790000000 }] });
@@ -159,12 +173,18 @@ async function testPhoneMontage(browser) {
     await ctx.route('https://www.googleapis.com/upload/youtube/v3/videos**', r => { const b = r.request().postDataBuffer().toString('latin1'); const m = b.match(/\{"snippet".*?\}\}(?=\r\n)/s); yt.push(m ? JSON.parse(m[0]) : null); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'yt' + yt.length }) }); });
     await ctx.route('https://www.googleapis.com/upload/youtube/v3/captions**', r => { yt.captions = (yt.captions || 0) + 1; r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });
     await ctx.route('https://www.googleapis.com/upload/youtube/v3/thumbnails/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+    const replies = [];
+    await ctx.route('https://www.googleapis.com/youtube/v3/channels**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ id: 'UCme', snippet: { title: 'Prof Patate' } }] }) }));
+    await ctx.route('https://www.googleapis.com/youtube/v3/commentThreads**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
+        { id: 't1', snippet: { videoId: 'yt1', totalReplyCount: 0, canReply: true, topLevelComment: { snippet: { authorDisplayName: 'Léa', textOriginal: 'Trop bien cette vidéo !', authorChannelId: { value: 'UCx' } } } } },
+        { id: 't2', snippet: { videoId: 'yt1', totalReplyCount: 1, canReply: true, topLevelComment: { snippet: { authorDisplayName: 'Tom', textOriginal: 'Déjà répondu', authorChannelId: { value: 'UCy' } } } } }] }) }));
+    await ctx.route('https://www.googleapis.com/youtube/v3/comments**', r => { replies.push(JSON.parse(r.request().postData())); r.fulfill({ status: 200, contentType: 'application/json', body: '{"id":"r1"}' }); });
     await commonRoutes(ctx, clipBufs, env, W, counters);
     await setup(page, { voiceSource: 'fit', captionFont: 'impact', brandColor: '#00d2ff', genMode: 'phone', ...(process.env.STYLE ? { selectedStyle: process.env.STYLE } : {}) });
     if (process.env.STYLE) check(await page.evaluate(s => state.selectedStyle === s, process.env.STYLE), 'style testé : ' + process.env.STYLE);
     check(await page.evaluate(() => state.voiceSource === 'fit' && state.captionFont === 'impact' && state.poses.length === 1), 'réglages et poses retrouvés après rechargement');
     // Connexion TikTok (retour de TikTok avec ?code=…&state=…) + YouTube connecté
-    await page.evaluate(() => { localStorage.setItem('cartoon_tiktok_oauth_state', 'st1'); localStorage.setItem('youtube_oauth_token', 'ytok'); localStorage.setItem('youtube_oauth_token_exp', String(Date.now() + 3600000)); });
+    await page.evaluate(() => { localStorage.setItem('cartoon_instagram_token', JSON.stringify({ token: 'igt', exp: Date.now() + 30 * 24 * 3600000, userId: '1789', username: 'profpatate' })); localStorage.setItem('cartoon_tiktok_oauth_state', 'st1'); localStorage.setItem('youtube_oauth_token', 'ytok'); localStorage.setItem('youtube_oauth_token_exp', String(Date.now() + 3600000)); });
     await page.goto(ORIGIN + '/index.html?code=abc&state=st1');
     await page.waitForFunction(() => !!localStorage.getItem('cartoon_tiktok_token'), null, { timeout: 20000 }).catch(() => {});
     check(await page.evaluate(() => !!getTikTokToken() && location.search === '' && document.getElementById('tiktok-status').textContent.includes('connecté')), 'connexion TikTok réussie (jeton gardé, adresse nettoyée)');
@@ -296,6 +316,45 @@ async function testPhoneMontage(browser) {
     check((await page.inputValue('#script-input')).startsWith('Ligne modèle un.'), 'nouveau script sur le même modèle');
     const costs = await page.evaluate(() => { const c = getJSON(STORAGE.COSTS); const m = c.months[new Date().toISOString().slice(0, 7)]; renderCosts(); return m; });
     check(costs.agnes > 0 && costs.claude > 0 && costs.elevenlabs > 0, 'dépenses suivies (Agnes, Claude, ElevenLabs)');
+
+    // YouTube Shorts + Instagram Reels
+    await page.evaluate(() => wizardGo(5));
+    await page.fill('#pub-at', ''); await page.dispatchEvent('#pub-at', 'change');
+    await page.uncheck('#pub-tt'); await page.check('#pub-ys'); await page.check('#pub-ig');
+    await page.selectOption('#pub-tt-format', 'final');
+    const ytBefore = yt.length;
+    await page.click('#publish-btn');
+    await page.waitForFunction(() => !document.getElementById('publish-btn').dataset.busy && (getJSON('cartoon_schedule', []) || []).some(p => p.platform === 'instagram'), null, { timeout: 120000 });
+    check(yt.length === ytBefore + 1 && /#Shorts/.test(yt[yt.length - 1]?.snippet?.title || ''), 'YouTube Shorts publié (#Shorts)');
+    for (let i = 0; i < 30 && !ig.published; i++) await new Promise(r => setTimeout(r, 1000));
+    check(ig.published === 1 && ig.fetched === await page.evaluate(() => state.finalBlob.size) && ig.caption.length > 0, 'Instagram Reels : vidéo récupérée à l\'adresse signée et publiée (' + ig.fetched + ' octets)');
+    const badSig = await W.default.fetch(new Request('https://relais.test/pub/post%2Fx?exp=' + (Date.now() + 1e6) + '&sig=faux'), env);
+    check(badSig.status === 403, 'adresse publique refusée sans signature valide');
+
+    // Projets : la vidéo est rangée, on en commence une autre, puis on la rouvre
+    const proj = await page.evaluate(() => { const p = findProject(state.projectId); return p && { id: p.id, status: p.status, finalKey: p.finalKey, n: getProjects().length }; });
+    check(proj && ['scheduled', 'published'].includes(proj.status) && proj.finalKey, 'projet enregistré (' + (proj && proj.status) + ', vidéo finale sauvegardée)');
+    await page.click('[data-tab="home"]'); await page.click('#home-new-btn');
+    check(await page.evaluate(() => !state.finalBlob && !state.queue.length && document.getElementById('script-input').value === '' && NAV.step === 1), 'nouvelle vidéo : espace de travail vide');
+    await page.evaluate(() => navOpen('videos', 'videos'));
+    await page.waitForSelector('[data-project="' + proj.id + '"]', { timeout: 20000 });
+    await page.click('[data-project="' + proj.id + '"]');
+    await page.waitForFunction(() => !!state.finalBlob, null, { timeout: 60000 });
+    check(await page.evaluate(id => state.projectId === id && state.queue.filter(q => q.status === 'done').length === 3 && state.theme.length > 0 && !document.querySelector('[data-screen="video"]').hidden, proj.id), 'projet rouvert : scènes, vidéo finale et fiche retrouvées');
+
+    // Fiche pédagogique PDF
+    await page.click('#pdf-sheet-btn');
+    await page.waitForFunction(() => /Prêt|Réessayer/.test(document.getElementById('pdf-sheet-btn').textContent), null, { timeout: 60000 });
+    const pdf = await page.evaluate(async () => { const b = state.exportCache['pdf-sheet']?.blob; if (!b) return null; const t = new TextDecoder('latin1').decode(await b.arrayBuffer()); return { size: b.size, head: t.slice(0, 5), pages: (t.match(/\/Type \/Page\b/g) || []).length }; });
+    check(pdf && pdf.head === '%PDF-' && pdf.pages >= 2, 'fiche pédagogique PDF créée (' + (pdf ? pdf.pages + ' pages' : 'échec') + ')');
+
+    // Commentaires YouTube
+    await page.click('[data-tab="stats"]'); await page.click('#comments-btn');
+    await page.waitForFunction(() => document.querySelector('[data-comment-reply="0"]')?.value.includes('Merci'), null, { timeout: 30000 });
+    check(await page.evaluate(() => state.comments.length === 1), 'commentaires sans réponse trouvés, réponse proposée par Claude');
+    await page.click('[data-comment-send="0"]');
+    await page.waitForFunction(() => !state.comments.length, null, { timeout: 20000 });
+    check(replies.length === 1 && replies[0].snippet.parentId === 't1' && replies[0].snippet.textOriginal.startsWith('Merci'), 'réponse publiée sur YouTube');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }
@@ -303,7 +362,7 @@ async function testPhoneMontage(browser) {
 // Chaque style : les règles corrigées sont bien envoyées à l'IA vidéo, et le montage suit le bon chemin
 async function testStyles(browser) {
     console.log('\n▶ Tous les styles');
-    const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
     await ctx.route(ORIGIN + '/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(APP) }));
     const page = await ctx.newPage(); const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -348,7 +407,7 @@ async function testBackground(browser) {
     console.log('\n▶ Génération en arrière-plan');
     const W = await loadWorker(true);
     const { env, objects } = fakeDurableObjects(W);
-    const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
     const page = await ctx.newPage(); const errors = [];
     page.on('pageerror', e => errors.push(e.message)); page.on('dialog', d => d.accept());
     const clipBufs = await makeClips(page);
@@ -392,6 +451,24 @@ async function testBackground(browser) {
     let ready = 0;
     for (let i = 0; i < 40 && ready < 2; i++) { await new Promise(r => setTimeout(r, 1500)); await page2.click('#series-refresh-btn'); await new Promise(r => setTimeout(r, 400)); ready = await page2.evaluate(() => document.querySelectorAll('[data-series-finish]').length); }
     check(ready === 2, 'série : les 2 épisodes sont prêts à terminer');
+    // Pilote automatique : Claude prépare la semaine, le serveur génère, « Tout monter »
+    await page2.evaluate(() => navOpen('home', 'autopilot'));
+    await page2.selectOption('#ap-count', '2');
+    await page2.uncheck('#ap-yt'); await page2.uncheck('#ap-tt');
+    await page2.click('#ap-prepare-btn');
+    await page2.waitForSelector('#ap-launch-btn:not(.hidden)', { timeout: 30000 });
+    const slots = await page2.evaluate(() => state.apPlan.map(v => new Date(v.at)).map(d => [d.getDay(), d.getHours()]));
+    check(slots.length === 2 && slots.every(([d, h]) => [1, 3, 5].includes(d) && h === 18), 'semaine préparée : 2 vidéos aux créneaux choisis');
+    await page2.click('#ap-launch-btn');
+    await page2.waitForFunction(() => getProjects().filter(p => p.auto && p.status === 'generating' && p.jobId).length === 2, null, { timeout: 60000 });
+    check(true, 'pilote : 2 vidéos envoyées au serveur');
+    let apReady = 0;
+    for (let i = 0; i < 60 && apReady < 2; i++) { await new Promise(r => setTimeout(r, 1500)); apReady = await page2.evaluate(async () => { await refreshProjects(true); renderAutopilotProjects(); return getProjects().filter(p => p.auto && p.status === 'ready').length; }); }
+    check(apReady === 2, 'pilote : les 2 vidéos sont prêtes à monter');
+    await page2.click('#ap-finish-btn');
+    await page2.waitForFunction(() => document.getElementById('ap-report').textContent.includes('Bilan'), null, { timeout: 600000 });
+    check(await page2.evaluate(() => getProjects().filter(p => p.auto && p.status === 'done').length === 2 && document.getElementById('ap-report').textContent.includes('Les volcans') && getProjects().filter(p => p.auto).every(p => p.plan?.at)), 'pilote : « Tout monter » a monté les 2 vidéos');
+
     const keys = [...[...objects.values()].find(o => o.storage?._m?.has('job')).storage._m.keys()];
     check(!keys.includes('secrets') && !keys.includes('image'), 'clés et photo effacées du serveur (' + keys.join(', ') + ')');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
