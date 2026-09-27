@@ -7,6 +7,14 @@ const APP = path.join(ROOT, 'index.html');
 const ORIGIN = 'https://app.test';
 const RELAY = 'https://cartoon-instructeur.mendy-tamadouni2.workers.dev';
 let failures = 0;
+// Sert les fichiers de l'appli (index.html, css/, js/, sw.js) comme GitHub Pages
+const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json' };
+function serveApp(route) {
+    const rel = decodeURIComponent(new URL(route.request().url()).pathname).replace(/^\/+/, '') || 'index.html';
+    const f = path.join(ROOT, rel);
+    const file = f.startsWith(ROOT) && fs.existsSync(f) && fs.statSync(f).isFile() ? f : APP;
+    return route.fulfill({ status: 200, contentType: TYPES[path.extname(file)] || 'application/octet-stream', body: fs.readFileSync(file) });
+}
 const check = (ok, label) => { console.log((ok ? '  ✅ ' : '  ❌ ') + label); if (!ok) failures++; };
 
 // Copie du serveur qui accepte l'origine de test (et, en option, des délais courts)
@@ -98,7 +106,7 @@ function toneWav() {
 }
 async function commonRoutes(ctx, clipBufs, relayEnv, W, counters) {
     await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/jspdf/**', r => r.fulfill({ status: 200, contentType: 'application/javascript', body: fs.readFileSync(require.resolve('jspdf/dist/jspdf.umd.min.js')) }));
-    await ctx.route(ORIGIN + '/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(APP) }));
+    await ctx.route(ORIGIN + '/**', serveApp);
     await ctx.route('https://apihub.agnes-ai.com/v1/videos', r => { const b = JSON.parse(r.request().postData()); counters.agnes.push(b); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ video_id: 'v' + (counters.vid++) }) }); });
     await ctx.route('https://apihub.agnes-ai.com/agnesapi**', r => { const id = new URL(r.request().url()).searchParams.get('video_id'); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'completed', metadata: { url: 'https://cdn.test/' + id + '.webm' } }) }); });
     await ctx.route('https://api.anthropic.com/v1/messages', claudeMock);
@@ -363,7 +371,7 @@ async function testPhoneMontage(browser) {
 async function testStyles(browser) {
     console.log('\n▶ Tous les styles');
     const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
-    await ctx.route(ORIGIN + '/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(APP) }));
+    await ctx.route(ORIGIN + '/**', serveApp);
     const page = await ctx.newPage(); const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(ORIGIN + '/index.html');

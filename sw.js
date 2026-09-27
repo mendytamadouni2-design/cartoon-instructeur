@@ -4,9 +4,10 @@
 // 2. notifications (génération terminée, vidéo publiée).
 const CACHE = 'cartoon-app-v1';
 const NETWORK_TIMEOUT_MS = 4000;
+const APP_FILES = ['./', './index.html', './css/app.css', './js/core.js', './js/voices.js', './js/scenes.js', './js/claude.js', './js/settings.js', './js/media.js', './js/generation.js', './js/montage.js', './js/exports.js', './js/studio.js', './js/growth.js', './js/navigation.js', './js/projects.js', './js/integrations.js', './js/init.js'];
 
 self.addEventListener('install', e => {
-    e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', './index.html']).catch(() => {})).then(() => self.skipWaiting()));
+    e.waitUntil(caches.open(CACHE).then(c => c.addAll(APP_FILES).catch(() => {})).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
     e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
@@ -22,7 +23,7 @@ self.addEventListener('fetch', e => {
     if (own && !/\.(html|js|css|json|png|svg|ico)$|\/$/.test(url.pathname)) return;
     e.respondWith((async () => {
         const cache = await caches.open(CACHE);
-        const network = fetch(req).then(res => { if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) cache.put(req, res.clone()); return res; });
+        const network = fetch(req, own ? { cache: 'no-cache' } : undefined).then(res => { if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) cache.put(req, res.clone()); return res; });
         if (fonts) { const hit = await cache.match(req); if (hit) { network.catch(() => {}); return hit; } return network; }
         try {
             return await Promise.race([network, new Promise((_, rej) => setTimeout(() => rej(new Error('lent')), NETWORK_TIMEOUT_MS))]);
