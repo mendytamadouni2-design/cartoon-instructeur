@@ -160,7 +160,8 @@ async function testPhoneMontage(browser) {
     await ctx.route('https://www.googleapis.com/upload/youtube/v3/captions**', r => { yt.captions = (yt.captions || 0) + 1; r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });
     await ctx.route('https://www.googleapis.com/upload/youtube/v3/thumbnails/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
     await commonRoutes(ctx, clipBufs, env, W, counters);
-    await setup(page, { voiceSource: 'fit', captionFont: 'impact', brandColor: '#00d2ff', genMode: 'phone' });
+    await setup(page, { voiceSource: 'fit', captionFont: 'impact', brandColor: '#00d2ff', genMode: 'phone', ...(process.env.STYLE ? { selectedStyle: process.env.STYLE } : {}) });
+    if (process.env.STYLE) check(await page.evaluate(s => state.selectedStyle === s, process.env.STYLE), 'style testé : ' + process.env.STYLE);
     check(await page.evaluate(() => state.voiceSource === 'fit' && state.captionFont === 'impact' && state.poses.length === 1), 'réglages et poses retrouvés après rechargement');
     // Connexion TikTok (retour de TikTok avec ?code=…&state=…) + YouTube connecté
     await page.evaluate(() => { localStorage.setItem('cartoon_tiktok_oauth_state', 'st1'); localStorage.setItem('youtube_oauth_token', 'ytok'); localStorage.setItem('youtube_oauth_token_exp', String(Date.now() + 3600000)); });
@@ -299,6 +300,50 @@ async function testPhoneMontage(browser) {
     await ctx.close();
 }
 
+// Chaque style : les règles corrigées sont bien envoyées à l'IA vidéo, et le montage suit le bon chemin
+async function testStyles(browser) {
+    console.log('\n▶ Tous les styles');
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    await ctx.route(ORIGIN + '/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(APP) }));
+    const page = await ctx.newPage(); const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.goto(ORIGIN + '/index.html');
+    const res = await page.evaluate(() => {
+        const lines = ['Bonjour à tous !', 'Le soleil chauffe l\'eau.', 'Merci et à bientôt !'];
+        document.getElementById('script-input').value = lines.join('\n'); updateScriptStats();
+        state.pedagoFx = ['arrows', 'bubbles', 'highlight', 'schemas', 'progress'];
+        return CARTOON_STYLES.map(st => {
+            state.selectedStyle = st.id;
+            const wb = isWhiteboard();
+            const plan = fallbackScenePlan(lines);
+            state.scenePlan = { ...plan, setting: wb ? '' : 'a calm, simple classroom corner' };
+            const prompts = lines.map((t, i) => buildScenePrompt({ sceneIndex: i, sceneText: t }));
+            const bg = buildScenePrompt({ sceneIndex: 1, sceneText: lines[1] }, { total: 3, setting: '{{SETTING}}', plan: { spoken: '{{SPOKEN}}', action: '{{ACTION}}', camera: '{{CAMERA}}' } });
+            const req = planRequestFor(lines);
+            const problems = [];
+            prompts.forEach((p, i) => {
+                if (!p.includes('MUST stay IDENTICAL')) problems.push('identité');
+                if (!p.includes('STRICTLY NO TEXT')) problems.push('pas de texte');
+                if (!p.includes('says (spoken audio only, never written): "' + lines[i].replace(/"/g, "'") + '"')) problems.push('réplique exacte');
+                if (effectiveMusicMode() !== 'agnes' && !p.includes('No background music')) problems.push('voix seule');
+                if (!p.includes(st.prompt)) problems.push('style');
+                if (/diagram|progress bar/i.test(p)) problems.push('effets qui écrivent du faux texte');
+                if (wb ? !p.includes('pure plain white') : !(p.includes('a calm, simple classroom corner') && p.includes('Background: simple and uncluttered'))) problems.push('décor');
+                if (wb ? !p.includes('locked-off static') : !/No zoom-in at the start|locked-off static/.test(p)) problems.push('caméra');
+                if (i > 0 && !p.includes('directly continues the previous one')) problems.push('continuité');
+            });
+            if (!bg.includes(wb ? 'pure plain white' : 'Background: simple and uncluttered')) problems.push('décor en arrière-plan');
+            if (!req.prompt.includes('SIMPLE et épuré')) problems.push('décor simple demandé à Claude');
+            if (wb !== req.prompt.includes('MODE TABLEAU BLANC')) problems.push('règles tableau blanc');
+            if (/writing|lettering|numbers/i.test(st.prompt) && !/never|no /i.test(st.prompt)) problems.push('style qui pousse au texte');
+            return { id: st.id, wb, problems: [...new Set(problems)] };
+        });
+    });
+    res.forEach(r => check(!r.problems.length, 'style ' + r.id + (r.wb ? ' (tableau blanc : dessins de l\'appli)' : '') + (r.problems.length ? ' : ' + r.problems.join(', ') : '')));
+    check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
+    await ctx.close();
+}
+
 async function testBackground(browser) {
     console.log('\n▶ Génération en arrière-plan');
     const W = await loadWorker(true);
@@ -355,7 +400,11 @@ async function testBackground(browser) {
 
 (async () => {
     const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--autoplay-policy=no-user-gesture-required'] });
-    try { if (process.env.ONLY !== 'background') await testPhoneMontage(browser); if (process.env.ONLY !== 'phone') await testBackground(browser); }
+    try {
+        if (!process.env.ONLY || process.env.ONLY === 'styles') await testStyles(browser);
+        if (!process.env.ONLY || process.env.ONLY === 'phone') await testPhoneMontage(browser);
+        if (!process.env.ONLY || process.env.ONLY === 'background') await testBackground(browser);
+    }
     catch (e) { console.log('❌ Erreur du test : ' + e.message); failures++; }
     finally { await browser.close(); }
     console.log(failures ? '\n❌ ' + failures + ' vérification(s) en échec' : '\n✅ Tous les tests passent');

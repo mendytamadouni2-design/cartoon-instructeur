@@ -2061,14 +2061,14 @@ const CARTOON_STYLES = [
     { id: 'cartoon-modern', name: 'Cartoon moderne', emoji: '🎨', desc: 'Contours épais', prompt: 'modern cartoon style, thick black outlines, flat saturated colors, expressive characters, Adventure Time aesthetic. Character keeps the same identity as the source photo.' },
     { id: 'ghibli', name: 'Studio Ghibli', emoji: '🌿', desc: 'Anime poétique', prompt: 'Studio Ghibli anime style, Hayao Miyazaki aesthetic, soft watercolor backgrounds, warm lighting. Character keeps identity.' },
     { id: 'pixar', name: 'Pixar 3D', emoji: '✨', desc: '3D chaleureux', prompt: 'Pixar-style 3D animation, subsurface scattering, expressive big eyes, soft cinematic lighting. Character keeps identity.' },
-    { id: 'comic-bd', name: 'BD franco-belge', emoji: '📘', desc: 'Ligne claire', prompt: 'Franco-Belgian bande dessinée style, ligne claire technique, uniform clean ink outlines. Character keeps identity.' },
-    { id: 'chalkboard', name: 'Tableau noir', emoji: '📋', desc: 'Craie', prompt: 'chalkboard illustration style, white and colored chalk on dark green blackboard, hand-drawn educational look.' },
-    { id: 'kids-book', name: 'Livre enfants', emoji: '📖', desc: 'Illustration douce', prompt: 'children\'s book illustration style, soft pastel colors, gentle watercolor textures.' },
-    { id: 'papercut', name: 'Papercut', emoji: '✂️', desc: 'Découpage', prompt: 'paper cut-out animation style, layered paper shapes, subtle drop shadows.' },
-    { id: 'claymation', name: 'Claymation', emoji: '🧱', desc: 'Pâte à modeler', prompt: 'claymation stop-motion style, plasticine texture, fingerprint details.' },
-    { id: 'manga-edu', name: 'Manga pédagogique', emoji: '📚', desc: 'Manga N&B', prompt: 'Japanese educational manga style, black and white ink, screentones.' },
-    { id: 'watercolor-edu', name: 'Aquarelle', emoji: '🎨', desc: 'Aquarelle douce', prompt: 'soft educational watercolor style, translucent washes, paper texture.' },
-    { id: 'infographic', name: 'Infographie', emoji: '📊', desc: 'Data / schéma', prompt: 'animated infographic style, clean icons, animated charts, flat design.' }
+    { id: 'comic-bd', name: 'BD franco-belge', emoji: '📘', desc: 'Ligne claire', prompt: 'Franco-Belgian bande dessinée style, ligne claire technique, uniform clean ink outlines, no speech balloons. Character keeps identity.' },
+    { id: 'chalkboard', name: 'Tableau noir', emoji: '📋', desc: 'Craie', prompt: 'chalkboard illustration style, white and colored chalk on dark green blackboard, hand-drawn educational look; the board only shows simple chalk pictures, never any writing. Character keeps the same face and identity as the source photo.' },
+    { id: 'kids-book', name: 'Livre enfants', emoji: '📖', desc: 'Illustration douce', prompt: 'children\'s book illustration style, soft pastel colors, gentle watercolor textures. Character keeps the same face and identity as the source photo.' },
+    { id: 'papercut', name: 'Papercut', emoji: '✂️', desc: 'Découpage', prompt: 'paper cut-out animation style, layered paper shapes, subtle drop shadows. Character keeps the same face and identity as the source photo.' },
+    { id: 'claymation', name: 'Claymation', emoji: '🧱', desc: 'Pâte à modeler', prompt: 'claymation stop-motion style, plasticine texture, fingerprint details. Character keeps the same face and identity as the source photo.' },
+    { id: 'manga-edu', name: 'Manga pédagogique', emoji: '📚', desc: 'Manga N&B', prompt: 'Japanese educational manga style, black and white ink, screentones, no speech balloons and no sound-effect lettering. Character keeps the same face and identity as the source photo.' },
+    { id: 'watercolor-edu', name: 'Aquarelle', emoji: '🎨', desc: 'Aquarelle douce', prompt: 'soft educational watercolor style, translucent washes, paper texture. Character keeps the same face and identity as the source photo.' },
+    { id: 'infographic', name: 'Infographie', emoji: '📊', desc: 'Data / schéma', prompt: 'animated infographic style, clean pictogram icons and simple shapes, flat design; charts and icons never contain numbers, labels or letters. Character keeps the same face and identity as the source photo.' }
 ];
 
 const AUDIENCE_PROMPTS = {
@@ -2097,11 +2097,11 @@ const PEDAGO_FX_PROMPTS = {
     arrows: 'animated arrows pointing at key elements',
     bubbles: '',   // bulles dessinées par l'appli au montage, avec le vrai texte
     highlight: 'soft glowing highlights around the key objects',
-    schemas: 'simple drawn diagrams made only of shapes and pictures, appearing gradually',
+    schemas: '',   // schémas : dessinés par l'appli (tableau blanc) ; l'IA vidéo les remplit de faux texte
     icons: 'floating educational icons (pictures only)',
     particles: 'glowing particles of knowledge',
     chalkboard: 'a chalkboard with simple drawings on it (drawings only)',
-    progress: 'a progress bar advancing'
+    progress: ''
 };
 const LIPSYNC_PROMPTS = {
     basic: 'character\'s mouth opens and closes naturally as they speak',
@@ -2836,6 +2836,7 @@ function buildScenePrompt(item, override) {
     } else {
         const setting = override ? override.setting : state.scenePlan?.setting;
         if (setting) parts.push('Setting, identical in every shot: ' + setting + '.');
+        parts.push('Background: simple and uncluttered, few details, exactly the same place, colors and lighting in every shot.');
     }
     if (sceneIndex === 0) parts.push('Opening shot: the character greets the viewer.');
     else parts.push('This shot directly continues the previous one: it starts with the character already in motion, in the same place and the same lighting, with no intro.');
@@ -3181,7 +3182,7 @@ function planRequestFor(scenes) {
     return {
         system: 'Tu es réalisateur de dessins animés pédagogiques. Tu prépares la mise en scène d\'une vidéo générée scène par scène par une IA vidéo à partir de la photo d\'un personnage. Toutes les scènes doivent donner l\'impression d\'un seul plan-séquence continu : même décor, même lumière, gestes qui s\'enchaînent logiquement d\'une scène à l\'autre.',
         prompt: claudeContext() + '\nStyle visuel : ' + (style ? style.name : 'cartoon') + '.\n' +
-            'Pour la vidéo entière, donne "setting" : une description en anglais (1 à 2 phrases) d\'un décor unique, lié au sujet, qui restera identique dans toutes les scènes. Aucun texte, panneau écrit ou lettre dans le décor.\n' +
+            'Pour la vidéo entière, donne "setting" : une description en anglais (1 à 2 phrases) d\'un décor unique, SIMPLE et épuré (peu d\'objets, fond calme qui ne détourne pas l\'attention du personnage), lié au sujet, qui restera identique dans toutes les scènes. Aucun texte, panneau écrit ou lettre dans le décor.\n' +
             'Puis pour CHACUNE des ' + scenes.length + ' répliques ci-dessous, dans le même ordre, donne :\n' +
             '- "spoken" : la réplique à prononcer, dans la langue de la vidéo, sans changer le sens, adaptée à une voix de synthèse (' + SPEECH_RULES + ')\n' +
             '- "action" : en anglais, le geste ou l\'action du personnage (commence par un verbe, ex. "points at a glowing drop of water floating beside him"), qui prolonge naturellement l\'action précédente et illustre la réplique\n' +
@@ -4481,7 +4482,7 @@ function drawSketchLabel(ctx, area, text, alpha) {
 function drawTitleCard(ctx, cw, ch, title, t, kind) {
     const wb = isWhiteboard();
     if (wb) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch); }
-    else { const gr = ctx.createLinearGradient(0, 0, cw, ch); gr.addColorStop(0, '#6c5ce7'); gr.addColorStop(1, '#a29bfe'); ctx.fillStyle = gr; ctx.fillRect(0, 0, cw, ch); }
+    else { const gr = ctx.createLinearGradient(0, 0, cw, ch); gr.addColorStop(0, '#1D2433'); gr.addColorStop(1, '#2E3A55'); ctx.fillStyle = gr; ctx.fillRect(0, 0, cw, ch); }
     const base = Math.min(cw, ch);
     let fs = Math.round(base * (kind === 'intro' ? 0.12 : 0.095));
     ctx.save();
@@ -4509,7 +4510,7 @@ function drawTitleCard(ctx, cw, ch, title, t, kind) {
 }
 function drawOutro(ctx, cw, ch, t, dur, logoImg) {
     const wb = isWhiteboard();
-    ctx.fillStyle = wb ? '#fff' : '#1f1b3a'; ctx.fillRect(0, 0, cw, ch);
+    ctx.fillStyle = wb ? '#fff' : '#1D2433'; ctx.fillRect(0, 0, cw, ch);
     const base = Math.min(cw, ch);
     const drawings = state.drawings.filter(Boolean).slice(0, 6);
     const portrait = ch > cw;
