@@ -358,7 +358,7 @@ export class VideoJob {
             frames: p.frames || 153, frameRate: p.frameRate || 24,
             plan: p.plan || p.fallbackPlan || null, planRequest: p.plan ? null : (p.planRequest || null),
             drawingRequests: Array.isArray(p.drawingRequests) ? p.drawingRequests : [],
-            drawingsDone: 0, nextCreateAt: 0,
+            drawingsDone: 0, nextCreateAt: 0, narrDone: 0, drawingRetried: [],
             push: p.push && p.push.endpoint ? p.push : null,
             poseIds: [], backup: p.backup !== false,
             scenes: Array.from({ length: n }, (_, i) => ({ index: i, status: 'pending', videoId: null, videoUrl: null, error: null, startedAt: null, attempts: 0 }))
@@ -366,7 +366,7 @@ export class VideoJob {
         await this.storage.put('job', job);
         await this.storage.put('templates', p.templates);
         await this.storage.put('image', p.image);
-        await this.storage.put('secrets', { agnesKey: p.agnesKey, claudeKey: p.claudeKey || '', claudeModel: p.claudeModel || 'claude-opus-5' });
+        await this.storage.put('secrets', { agnesKey: p.agnesKey, claudeKey: p.claudeKey || '', claudeModel: p.claudeModel || 'claude-opus-5', eleven: p.eleven && p.eleven.key && p.eleven.voice ? p.eleven : null });
         await this.storage.put('drawings', given);
         // les dessins déjà fournis (storyboard validé) ne sont pas refaits
         job.drawingRequests = job.drawingRequests.map((r, i) => given[i] ? null : r);
@@ -553,14 +553,47 @@ export class VideoJob {
             const drawings = (await this.storage.get('drawings')) || [];
             try {
                 const req = { ...job.drawingRequests[i] };
-                const spoken = job.plan?.scenes?.[i]?.spoken;
-                if (spoken && req.prompt) req.prompt = req.prompt.replace('{{SPOKEN}}', spoken);
-                else if (req.prompt) req.prompt = req.prompt.replace('{{SPOKEN}}', req.fallbackText || '');
+                const sc = job.plan?.scenes?.[i] || {};
+                if (req.prompt) req.prompt = req.prompt.split('{{SPOKEN}}').join(sc.spoken || req.fallbackText || '').split('{{NARRATION}}').join(sc.narration || '').split('{{VISUAL}}').join(sc.visual || '')
+                    .replace(/\nCe qu'il faut dessiner : \s*\n/, '\n');
                 drawings[i] = await callClaude(secrets, req);
+                // vérification : Claude relit le dessin (tracés SVG) et le fait refaire s'il ne montre pas la bonne idée
+                if (req.verify && drawings[i] && Array.isArray(drawings[i].paths)) {
+                    const svg = drawings[i].paths.map(pth => '<path d="' + pth.d + '" stroke="' + pth.color + '"/>').join('\n');
+                    const intent = [sc.visual, sc.spoken || req.fallbackText, sc.narration].filter(Boolean).join(' — ');
+                    const check = await callClaude(secrets, {
+                        system: 'Tu es directeur artistique. Tu lis un dessin au trait décrit en SVG (zone 400 × 300) et tu juges s\'il illustre clairement l\'idée demandée.',
+                        prompt: 'Idée à illustrer : ' + intent + '\n\nDessin :\n' + svg + '\n\nDonne "ok" (true s\'il montre bien cette idée de façon reconnaissable) et "why" (sinon, ce qui ne va pas).',
+                        schema: { type: 'object', properties: { ok: { type: 'boolean' }, why: { type: 'string' } }, required: ['ok', 'why'], additionalProperties: false }, maxTokens: 2000
+                    }).catch(() => ({ ok: true }));
+                    if (!check.ok) {
+                        const again = await callClaude(secrets, { ...req, prompt: req.prompt + '\nUn premier dessin a été refusé pour cette raison : ' + check.why + ' Fais un dessin nettement plus clair.' }).catch(() => null);
+                        if (again && Array.isArray(again.paths)) drawings[i] = again;
+                    }
+                }
             } catch (e) { drawings[i] = null; }
             await this.storage.put('drawings', drawings);
             job.drawingsDone++;
         } else if (!secrets.claudeKey) job.drawingsDone = job.drawingRequests.length;
+
+        // 1 bis. Voix off des scènes riches (ElevenLabs), rangée dans le stockage
+        const narrTotal = job.scenes.length;
+        while (job.narrDone < narrTotal && !(secrets.eleven && job.plan?.scenes?.[job.narrDone]?.narration)) job.narrDone++;
+        if (job.narrDone < narrTotal && secrets.eleven && this.env?.JOBS) {
+            const i = job.narrDone, text = job.plan.scenes[i].narration;
+            try {
+                const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(secrets.eleven.voice), {
+                    method: 'POST', headers: { 'xi-api-key': secrets.eleven.key, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+                    body: JSON.stringify({ text, model_id: secrets.eleven.model || 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: true } })
+                });
+                if (r.ok) {
+                    const key = 'job/' + this.ctx.id.toString().slice(0, 24) + '/n' + i;
+                    const put = await this.env.JOBS.get(this.env.JOBS.idFromName('media')).fetch('https://job/media-put?kind=clip&key=' + encodeURIComponent(key), { method: 'POST', body: await r.arrayBuffer(), headers: { 'Content-Type': r.headers.get('Content-Type') || 'audio/mpeg' } });
+                    if (put.ok) job.scenes[i].narrKey = key;
+                }
+            } catch (e) { /* la voix off sera créée par le téléphone au montage */ }
+            job.narrDone++;
+        }
 
         // 2. Suivi des scènes en cours
         for (const sc of job.scenes) {
@@ -629,8 +662,9 @@ export class VideoJob {
         const done = job.scenes.filter(s => s.status === 'done').length;
         const failed = job.scenes.filter(s => s.status === 'failed').length;
         const drawingsLeft = job.drawingRequests.length - job.drawingsDone;
-        job.message = done + '/' + job.scenes.length + ' scènes prêtes' + (drawingsLeft > 0 ? ' · ' + drawingsLeft + ' dessins en cours' : '');
-        if (done + failed === job.scenes.length && drawingsLeft <= 0) {
+        const narrLeft = secrets?.eleven ? job.scenes.length - (job.narrDone || 0) : 0;
+        job.message = done + '/' + job.scenes.length + ' scènes prêtes' + (drawingsLeft > 0 ? ' · ' + drawingsLeft + ' dessins en cours' : '') + (narrLeft > 0 ? ' · voix off en cours' : '');
+        if (done + failed === job.scenes.length && drawingsLeft <= 0 && narrLeft <= 0) {
             job.status = done ? 'done' : 'failed';
             job.message = done ? 'Scènes prêtes : il ne reste que le montage' : 'Aucune scène n\'a pu être générée';
         }
@@ -654,7 +688,7 @@ function publicView(job, drawings) {
         status: job.status, message: job.message, createdAt: job.createdAt, updatedAt: job.updatedAt,
         plan: job.plan, planError: job.planError || null,
         drawings: drawings || [],
-        scenes: job.scenes.map(s => ({ index: s.index, status: s.status, videoUrl: s.videoUrl, mediaKey: s.mediaKey || null, error: s.error, progress: s.progress || 0 }))
+        scenes: job.scenes.map(s => ({ index: s.index, status: s.status, videoUrl: s.videoUrl, mediaKey: s.mediaKey || null, narrKey: s.narrKey || null, error: s.error, progress: s.progress || 0 }))
     };
 }
 

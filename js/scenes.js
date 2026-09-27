@@ -132,7 +132,7 @@ function renderStyles() {
         '<div class="style-emoji">' + s.emoji + '</div><div><div class="style-name">' + esc(s.name) + '</div><div class="style-desc">' + esc(s.desc) + '</div></div></div>'
     ).join('');
     container.innerHTML = html;
-    container.querySelectorAll('[data-style]').forEach(el => el.addEventListener('click', () => { state.selectedStyle = el.dataset.style; renderStyles(); }));
+    container.querySelectorAll('[data-style]').forEach(el => el.addEventListener('click', () => { state.selectedStyle = el.dataset.style; renderStyles(); if (typeof loadReference === 'function') loadReference(); }));
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -148,15 +148,19 @@ const WHITEBOARD_ACTIONS = ['holds a black marker and draws in the air toward th
 function isWhiteboard() { return state.selectedStyle === 'whiteboard'; }
 function fallbackScenePlan(scenes) {
     const actions = isWhiteboard() ? WHITEBOARD_ACTIONS : AUTO_ACTIONS;
+    const rich = typeof richActive === 'function' && richActive();
     return {
         setting: '',
-        scenes: scenes.map((text, i) => ({
-            spoken: text,
+        scenes: scenes.map((text, i) => {
+            // scènes riches : 1re phrase dite face caméra, la suite par la voix off sur un plan illustré
+            const parts = rich ? splitSentences(text) : [];
+            return {
+            spoken: parts.length > 1 ? parts[0] : text, narration: parts.length > 1 ? parts.slice(1).join(' ') : '', visual: '',
             action: state.motion === 'auto' || isWhiteboard() ? actions[i % actions.length] : (MOTION_PROMPTS[state.motion] || AUTO_ACTIONS[0]),
             camera: CAMERA_SHOTS[i % CAMERA_SHOTS.length],
             bubble: i === 0 ? (state.theme || '').slice(0, 40) : '',
             zoom: i % 3 === 1 ? 'in' : 'none', emphasis: '', section: '', shot: 'character', highlight: '', pose: 'main'
-        }))
+        }; })
     };
 }
 function scenePlanFor(i) {
@@ -178,6 +182,12 @@ function buildScenePrompt(item, override) {
     parts.push('Educational cartoon animation. This is shot ' + (sceneIndex + 1) + ' of ' + totalScenes + ' of ONE continuous video.');
     parts.push('The character from the input image MUST stay IDENTICAL: same face, hairstyle, body shape, clothing and colors.');
     const wb = isWhiteboard();
+    // Image de référence : le style, le décor et le cadrage sont déjà dans l'image de départ
+    const ref = !item.chained && typeof referenceImage === 'function' && !!referenceImage();
+    const chained = !!item.chained;
+    if (ref) {
+        parts.push('The input image is the exact reference frame of this video: keep its art style, colors, character design, background, lighting and framing EXACTLY. Do not restyle, redraw or change anything in it.');
+    } else {
     if (style) parts.push('Visual style: ' + style.prompt);
     if (wb) {
         parts.push('Background: pure plain white (#FFFFFF), completely empty in every shot: no floor, no furniture, no objects, no decoration, no scenery. Replace the background of the input image with pure white.');
@@ -187,12 +197,16 @@ function buildScenePrompt(item, override) {
         if (setting) parts.push('Setting, identical in every shot: ' + setting + '.');
         parts.push('Background: simple and uncluttered, few details, exactly the same place, colors and lighting in every shot.');
     }
+    }
+    // Raccords : chaque plan part de l'image de départ et revient à la même pose neutre (sauf en plan-séquence)
+    if (chained) parts.push('This shot directly continues the previous one: it starts with the character already in motion, in the same place and the same lighting, with no intro.');
+    else parts.push('The shot starts exactly on the input image, with the character in its neutral pose.');
     if (sceneIndex === 0) parts.push('Opening shot: the character greets the viewer.');
-    else parts.push('This shot directly continues the previous one: it starts with the character already in motion, in the same place and the same lighting, with no intro.');
     if (sceneIndex === totalScenes - 1 && totalScenes > 1) parts.push('Final shot: the character wraps up warmly.');
     if (plan.action) parts.push('Action: the character ' + plan.action + '.');
+    if (!chained) parts.push('In the last second, the character returns to the same neutral pose as at the start (facing the camera, arms relaxed), so that consecutive shots join seamlessly.');
     if (wb) parts.push('Camera: locked-off static medium-wide shot, identical framing in every shot. No zoom, no push-in, no camera movement at all.');
-    else if (state.camera === 'static') parts.push('Camera: locked-off static medium shot. No zoom, no push-in, no camera movement at all.');
+    else if (ref || state.camera === 'static') parts.push('Camera: locked-off static shot with exactly the same framing as the input image. No zoom, no push-in, no camera movement at all.');
     else parts.push('Camera: ' + (plan.camera || 'medium shot') + ', steady. No zoom-in at the start, no push-in intro, no dolly.');
     parts.push('The character talks to the viewer in ' + langName + ' and says (spoken audio only, never written): "' + spoken + '"');
     if (lipsync) parts.push(lipsync + '.');
@@ -356,6 +370,8 @@ function formatSRTTime(seconds) {
 function segmentsForScene(sceneIndex) {
     const over = typeof getSceneItem === 'function' ? getSceneItem(sceneIndex)?.edit?.caption : null;
     if (over != null && String(over).trim()) return [{ text: String(over).trim(), weight: 1 }];
+    const pl = sceneIndex >= 0 ? state.scenePlan?.scenes?.[sceneIndex] : null;
+    if (pl && pl.narration && pl.spoken) return [{ text: pl.spoken, weight: 1 }];   // scène riche : le personnage ne dit que la 1re phrase
     const segs = subtitleSegments.filter(sg => sg.sceneIndex === sceneIndex && String(sg.text || '').trim());
     if (segs.length) return segs.map(sg => ({ text: sg.text, weight: Math.max(0.1, sg.end - sg.start) }));
     const text = state.queue.find(q => q.sceneIndex === sceneIndex)?.sceneText || state.scenes[sceneIndex] || '';
@@ -377,7 +393,7 @@ function buildSubtitleCues() {
     const cues = [];
     if (state.timeline && state.timeline.length) {
         for (const t of state.timeline) {
-            const segs = segmentsForScene(t.sceneIndex);
+            const segs = t.narration ? [{ text: scenePlanFor(t.sceneIndex).narration, weight: 1 }] : segmentsForScene(t.sceneIndex);
             const total = segs.reduce((a, b) => a + b.weight, 0) || 1;
             let cur = t.start;
             for (const sg of segs) { const d = t.duration * sg.weight / total; cues.push({ start: cur, end: cur + d, text: sg.text }); cur += d; }

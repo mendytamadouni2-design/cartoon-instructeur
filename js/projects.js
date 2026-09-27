@@ -146,11 +146,12 @@ let lastProjectsRefresh = 0;
 async function refreshProjects(force) {
     if (!getProxyUrl() || (!force && Date.now() - lastProjectsRefresh < 30000)) return;
     lastProjectsRefresh = Date.now();
-    const gen = getProjects().filter(p => p.status === 'generating' && p.jobId);
+    const gen = getProjects().filter(p => p.status === 'generating' && (p.redo?.jobId || p.jobId));
     await Promise.all(gen.map(async p => {
         try {
-            const r = await fetch(getProxyUrl() + '/jobs/' + p.jobId); const job = await r.json().catch(() => ({}));
-            if (r.status === 404) updateProject(p.id, { status: 'failed', note: 'expiré sur le serveur' });
+            const r = await fetch(getProxyUrl() + '/jobs/' + (p.redo?.jobId || p.jobId)); const job = await r.json().catch(() => ({}));
+            if (r.status === 404 && p.redo) updateProject(p.id, { status: 'ready', redo: null, note: '' });
+            else if (r.status === 404) updateProject(p.id, { status: 'failed', note: 'expiré sur le serveur' });
             else if (r.ok && ['done', 'failed', 'cancelled'].includes(job.status)) updateProject(p.id, job.scenes.some(s => s.status === 'done') ? { status: 'ready' } : { status: 'failed', note: job.message });
             else if (r.ok) updateProject(p.id, { note: job.message });
         } catch (e) {}

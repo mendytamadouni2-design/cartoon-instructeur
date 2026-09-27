@@ -115,7 +115,7 @@ function renderBank() {
 async function generateBankClip(slot) {
     const cfg = BANK_SLOTS[slot];
     const text = (document.getElementById('bank-text-' + slot)?.value || cfg.def).trim();
-    const photo = (state.poses.find(p => p.id === 'salue') || state.poses.find(p => p.id === 'explique') || {}).image || state.images[0]?.dataUri || state.photoSmall;
+    const photo = referenceImage() || (state.poses.find(p => p.id === 'salue') || state.poses.find(p => p.id === 'explique') || {}).image || state.images[0]?.dataUri || state.photoSmall;
     if (!photo) { showToast('Ajoute d\'abord la photo du personnage', 'error'); return; }
     if (!getAgnesKey()) { showToast('Clé Agnes manquante', 'error'); return; }
     if (state.isRunning || assembling || state.regenerating) return;
@@ -270,14 +270,14 @@ async function buildLanguageVersion(lang) {
     const scenes = state.scenes.map((_, i) => scenePlanFor(i));
     const out = await callClaude({
         system: 'Tu traduis des vidéos pédagogiques en gardant le ton, le niveau et des phrases faciles à prononcer par une voix de synthèse.',
-        prompt: 'Traduis en ' + (LANG_NAMES_FR[lang] || lang) + '. Garde exactement ' + scenes.length + ' scènes, dans le même ordre. Pour chaque scène : "spoken" (la réplique), "bubble", "highlight" et "section" (vides si vides dans l\'original). Donne aussi "title" (le titre de la vidéo).\n\nTitre : ' + (state.theme || '') + '\n' +
-            JSON.stringify(scenes.map(p => ({ spoken: p.spoken, bubble: p.bubble || '', highlight: p.highlight || '', section: p.section || '' }))),
-        schema: { type: 'object', properties: { title: { type: 'string' }, scenes: { type: 'array', items: { type: 'object', properties: { spoken: { type: 'string' }, bubble: { type: 'string' }, highlight: { type: 'string' }, section: { type: 'string' } }, required: ['spoken', 'bubble', 'highlight', 'section'], additionalProperties: false } } }, required: ['title', 'scenes'], additionalProperties: false }
+        prompt: 'Traduis en ' + (LANG_NAMES_FR[lang] || lang) + '. Garde exactement ' + scenes.length + ' scènes, dans le même ordre. Pour chaque scène : "spoken" (la réplique), "narration" (la voix off), "bubble", "highlight" et "section" (vides si vides dans l\'original). Donne aussi "title" (le titre de la vidéo).\n\nTitre : ' + (state.theme || '') + '\n' +
+            JSON.stringify(scenes.map(p => ({ spoken: p.spoken, narration: p.narration || '', bubble: p.bubble || '', highlight: p.highlight || '', section: p.section || '' }))),
+        schema: { type: 'object', properties: { title: { type: 'string' }, scenes: { type: 'array', items: { type: 'object', properties: { spoken: { type: 'string' }, narration: { type: 'string' }, bubble: { type: 'string' }, highlight: { type: 'string' }, section: { type: 'string' } }, required: ['spoken', 'narration', 'bubble', 'highlight', 'section'], additionalProperties: false } } }, required: ['title', 'scenes'], additionalProperties: false }
     });
     if (!out.scenes || out.scenes.length !== scenes.length) throw new Error('traduction incomplète');
     // on échange temporairement textes, voix et langue, puis on remet tout en place
     const saved = { plan: state.scenePlan, theme: state.theme, language: state.language, voice: state.voiceSource, segs: subtitleSegments, sig: subtitleScriptSignature, bank: state.bankUse,
-        items: items.map(it => ({ it, fitBuffer: it.fitBuffer, fitSpeech: it.fitSpeech, stt: it.sttWords, edit: it.edit })) };
+        items: items.map(it => ({ it, fitBuffer: it.fitBuffer, fitSpeech: it.fitSpeech, stt: it.sttWords, edit: it.edit, narrBuffer: it.narrBuffer, narrSpeech: it.narrSpeech, narrKey: it.narrKey })) };
     try {
         state.scenePlan = { ...state.scenePlan, scenes: scenes.map((p, i) => ({ ...p, ...out.scenes[i], section: i > 0 ? out.scenes[i].section : '' })) };
         state.theme = out.title || state.theme; state.language = lang; state.voiceSource = 'fit'; state.bankUse = false;
@@ -285,18 +285,19 @@ async function buildLanguageVersion(lang) {
         items.forEach((it, i) => {
             const cache = it.langCache?.[lang];
             it.fitBuffer = cache?.fitBuffer; it.fitSpeech = cache?.fitSpeech;
+            it.narrBuffer = cache?.narrBuffer; it.narrSpeech = cache?.narrSpeech; it.narrKey = undefined;
             it.sttWords = null; it.edit = { ...(it.edit || {}), caption: out.scenes[it.sceneIndex]?.spoken };
         });
         const r = await assembleVideo({ label: 'Version ' + (LANG_NAMES_FR[lang] || lang) });
         const tl = state.timeline; state.timeline = r.timeline;
         try { state.langSrt = state.langSrt || {}; state.langSrt[lang] = generateSRT(); } finally { state.timeline = tl; }
         document.getElementById('lang-yt-btn')?.classList.toggle('hidden', !state.lastYouTubeId);
-        items.forEach(it => { it.langCache = it.langCache || {}; it.langCache[lang] = { fitBuffer: it.fitBuffer, fitSpeech: it.fitSpeech }; });
+        items.forEach(it => { it.langCache = it.langCache || {}; it.langCache[lang] = { fitBuffer: it.fitBuffer, fitSpeech: it.fitSpeech, narrBuffer: it.narrBuffer, narrSpeech: it.narrSpeech }; });
         return { blob: r.blob, name: 'video-' + lang.split('-')[0] + '-' + Date.now() + '.' + r.ext };
     } finally {
         state.scenePlan = saved.plan; state.theme = saved.theme; state.language = saved.language; state.voiceSource = saved.voice; state.bankUse = saved.bank;
         subtitleSegments = saved.segs; subtitleScriptSignature = saved.sig;
-        saved.items.forEach(s => { s.it.fitBuffer = s.fitBuffer; s.it.fitSpeech = s.fitSpeech; s.it.sttWords = s.stt; s.it.edit = s.edit; });
+        saved.items.forEach(s => { s.it.fitBuffer = s.fitBuffer; s.it.fitSpeech = s.fitSpeech; s.it.sttWords = s.stt; s.it.edit = s.edit; s.it.narrBuffer = s.narrBuffer; s.it.narrSpeech = s.narrSpeech; s.it.narrKey = s.narrKey; });
     }
 }
 function downloadLanguageVersion() {

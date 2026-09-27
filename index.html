@@ -14,7 +14,7 @@
 <title>Cartoon Instructeur</title>
 <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Cartoon%20Instructeur%20ULTIMATE%22%2C%22short_name%22%3A%22Cartoon%20Inst%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22theme_color%22%3A%22%236c5ce7%22%2C%22background_color%22%3A%22%23fafafa%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22portrait%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%3Bcharset%3Dutf-8%2C%253Csvg%2520xmlns%253D%2527http%253A%2F%2Fwww.w3.org%2F2000%2Fsvg%2527%2520viewBox%253D%25270%25200%2520512%2520512%2527%253E%253Crect%2520width%253D%2527512%2527%2520height%253D%2527512%2527%2520rx%253D%2527100%2527%2520fill%253D%2527%25236c5ce7%2527%2F%253E%253Ctext%2520x%253D%2527256%2527%2520y%253D%2527340%2527%2520font-size%253D%2527280%2527%2520text-anchor%253D%2527middle%2527%2520fill%253D%2527white%2527%253E%25F0%259F%258E%2593%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
 <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20rx%3D%27100%27%20fill%3D%27%236c5ce7%27%2F%3E%3Ctext%20x%3D%27256%27%20y%3D%27340%27%20font-size%3D%27280%27%20text-anchor%3D%27middle%27%20fill%3D%27white%27%3E%F0%9F%8E%93%3C%2Ftext%3E%3C%2Fsvg%3E">
-<link rel="stylesheet" href="css/app.css?v=202609271056">
+<link rel="stylesheet" href="css/app.css?v=202609271604">
 </head>
 <body>
 
@@ -133,6 +133,7 @@ Merci de m'avoir écouté !"></textarea>
     </div>
     <div class="wstep" data-step="3" hidden>
         <h2 class="step-title">Génération</h2>
+<div id="ref-hint"></div>
 <div class="control-row" id="gen-mode-row">
     <label class="control-label">Où faire la génération ?</label>
     <select id="gen-mode-select">
@@ -163,6 +164,9 @@ Merci de m'avoir écouté !"></textarea>
     <div class="wstep" data-step="4" hidden>
         <h2 class="step-title">Montage</h2>
         <div class="prompt-main-hint" id="montage-empty"></div>
+        <div class="hmuted" id="voice-indicator"></div>
+        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="qa-toggle" checked> 🔎 Contrôle par l'IA après le montage (≈ 50 images analysées, ≈ 0,15 €)</label>
+        <div class="hcard hidden" id="qa-report"></div>
 <div class="video-preview" id="video-preview">
     <video id="final-video" controls playsinline></video>
 </div>
@@ -404,6 +408,13 @@ Merci de m'avoir écouté !"></textarea>
 </div>
 </section>
 <section class="screen" data-screen="set-brand" data-title="Ma chaîne" hidden>
+<div class="section open" id="section-reference">
+    <div class="section-header"><span class="section-title">🎯 Image de référence <span class="tag rec">recommandé</span></span></div>
+    <div class="section-body"><div class="section-content">
+        <div class="hmuted" style="margin-bottom:0.6rem;">Ton personnage, dans le style choisi, sur son décor. Toutes les scènes partent de cette image : le personnage, le décor et le cadrage restent identiques d'une scène à l'autre. Une seule fois par style (1 à 2 min, appli ouverte), puis elle sert pour toutes tes vidéos, même en arrière-plan.</div>
+        <div id="reference-box" class="screen" style="gap:0.6rem"></div>
+    </div></div>
+</div>
 <div class="section open" id="section-character">
     <div class="section-header" data-toggle="section-character">
         <span class="section-title">👤 Personnage <span class="tag req">obligatoire</span></span>
@@ -1099,6 +1110,15 @@ Merci de m'avoir écouté !"></textarea>
         </div>
     </div></div>
 </div>
+<div class="section open" id="section-richness">
+    <div class="section-header"><span class="section-title">🎬 Rythme de la vidéo</span></div>
+    <div class="section-body"><div class="section-content">
+        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="rich-toggle" checked> Scènes riches : le personnage dit une phrase, puis un plan illustré pendant que la voix continue l'explication</label>
+        <div class="prompt-main-hint" id="rich-hint" style="margin-bottom:0.6rem;">Demande une voix ElevenLabs (Réglages → Voix et sous-titres).</div>
+        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="oneshot-toggle"> Plan-séquence : chaque scène part de la dernière image de la précédente</label>
+        <div class="prompt-main-hint">Génération sur le téléphone uniquement, appli ouverte. Le personnage est recalé sur l'image de départ toutes les 4 scènes.</div>
+    </div></div>
+</div>
 <div class="section open" id="section-series">
     <div class="section-header" data-toggle="section-series">
         <span class="section-title">📺 Mode série <span class="tag opt">optionnel</span></span>
@@ -1143,20 +1163,21 @@ Phrase 2..."></textarea>
 <div id="media-stage" aria-hidden="true"></div>
 <canvas id="noSleepCanvas" width="2" height="2"></canvas>
 <video id="noSleepVideo" playsinline muted loop></video>
-<script src="js/core.js?v=202609271056"></script>
-<script src="js/voices.js?v=202609271056"></script>
-<script src="js/scenes.js?v=202609271056"></script>
-<script src="js/claude.js?v=202609271056"></script>
-<script src="js/settings.js?v=202609271056"></script>
-<script src="js/media.js?v=202609271056"></script>
-<script src="js/generation.js?v=202609271056"></script>
-<script src="js/montage.js?v=202609271056"></script>
-<script src="js/exports.js?v=202609271056"></script>
-<script src="js/studio.js?v=202609271056"></script>
-<script src="js/growth.js?v=202609271056"></script>
-<script src="js/navigation.js?v=202609271056"></script>
-<script src="js/projects.js?v=202609271056"></script>
-<script src="js/integrations.js?v=202609271056"></script>
-<script src="js/init.js?v=202609271056"></script>
+<script src="js/core.js?v=202609271604"></script>
+<script src="js/voices.js?v=202609271604"></script>
+<script src="js/scenes.js?v=202609271604"></script>
+<script src="js/claude.js?v=202609271604"></script>
+<script src="js/settings.js?v=202609271604"></script>
+<script src="js/media.js?v=202609271604"></script>
+<script src="js/generation.js?v=202609271604"></script>
+<script src="js/montage.js?v=202609271604"></script>
+<script src="js/exports.js?v=202609271604"></script>
+<script src="js/studio.js?v=202609271604"></script>
+<script src="js/growth.js?v=202609271604"></script>
+<script src="js/navigation.js?v=202609271604"></script>
+<script src="js/projects.js?v=202609271604"></script>
+<script src="js/integrations.js?v=202609271604"></script>
+<script src="js/quality.js?v=202609271604"></script>
+<script src="js/init.js?v=202609271604"></script>
 </body>
 </html>

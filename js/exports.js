@@ -295,7 +295,7 @@ async function startGeneration() {
     unlockAudio();
     downscaleImage(state.images[0].dataUri, 1024, 0.85).then(d => { state.photoSmall = d; });
     if (state.storyboardOn && getClaudeKey() && !state.isSeriesMode && !storyboardValid()) { await prepareStoryboardFlow(); return; }
-    if (state.genMode === 'background' && !state.isSeriesMode) {
+    if (state.genMode === 'background' && !state.isSeriesMode && !state.oneShot) {
         if (getProxyUrl() && state.proxyJobs) { await startBackgroundGeneration(); return; }
         showToast('Arrière-plan indisponible (serveur Cloudflare pas à jour) : génération sur le téléphone', 'warn', 6000);
     }
@@ -331,7 +331,8 @@ async function startGeneration() {
             state.drawingsPromise = prepareDrawings().catch(e => log('Dessins : ' + e.message));
         }
         if (!state.stopRequested) {
-            if (state.chainScenes) await runChained(); else await runParallel();
+            // plan-séquence : enchaînement sur la dernière image ; sinon toutes les scènes partent de l'image de référence
+            if (state.oneShot || (state.chainScenes && !referenceImage())) await runChained(); else await runParallel();
         }
         if (!state.stopRequested && state.queue.some(q => q.status === 'done')) {
             if (state.drawingsPromise) { setStatus('Finalisation des dessins…'); await state.drawingsPromise; }

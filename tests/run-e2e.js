@@ -73,11 +73,17 @@ async function photoBuffer(page) {
     const d = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 360; c.height = 640; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 360, 640); g.fillStyle = '#f07a3a'; g.beginPath(); g.ellipse(180, 330, 110, 190, 0, 0, 7); g.fill(); return c.toDataURL('image/png'); });
     return { name: 'perso.png', mimeType: 'image/png', buffer: Buffer.from(d.split(',')[1], 'base64') };
 }
+const mockStats = { drawChecks: 0, paths: 0, refChecks: 0, qa: 0, images: 0 };
 function claudeMock(route) {
     const body = JSON.parse(route.request().postData());
     const props = body.output_config?.format?.schema?.properties || {};
+    const content = body.messages?.[0]?.content;
+    if (Array.isArray(content)) mockStats.images = Math.max(mockStats.images, content.filter(c => c.type === 'image').length);
     let out;
-    if (props.videos?.items?.properties?.lines) out = { videos: [{ title: 'Les volcans', why: 'Spectaculaire', lines: ['Le soleil chauffe l\'eau.', 'Le soleil chauffe l\'eau.'] }, { title: 'La lune', why: 'Mystérieux', lines: ['Le soleil chauffe l\'eau.'] }] };
+    if (props.score) { mockStats.qa++; out = { score: 7.5, summary: 'Personnage régulier, un dessin peu lisible.', issues: [{ scene: 2, kind: 'illustration', problem: 'le dessin ne montre pas la vapeur', action: 'redessiner' }] }; }
+    else if (props.results) { mockStats.drawChecks++; out = { results: mockStats.drawChecks === 1 ? [{ k: 1, ok: false, why: 'trop vague' }] : [{ k: 1, ok: true, why: '' }] }; }
+    else if (props.scenes && !props.setting) { mockStats.refChecks++; out = { scenes: [1, 2, 3].map(n => ({ scene: n, same: true, problem: '' })) }; }
+    else if (props.videos?.items?.properties?.lines) out = { videos: [{ title: 'Les volcans', why: 'Spectaculaire', lines: ['Le soleil chauffe l\'eau.', 'Le soleil chauffe l\'eau.'] }, { title: 'La lune', why: 'Mystérieux', lines: ['Le soleil chauffe l\'eau.'] }] };
     else if (props.replies) out = { replies: [{ i: 0, reply: 'Merci beaucoup ! 😄' }] };
     else if (props.vocabulary) out = { title: 'Le cycle de l\'eau', objectives: ['Je sais expliquer l\'évaporation.'], summary: 'Le soleil chauffe l\'eau, qui monte et forme des nuages. Œuvre de la nature !', vocabulary: [{ word: 'Évaporation', definition: 'Passage de l\'eau liquide à la vapeur.' }], quiz: [{ question: 'Qui chauffe l\'eau ?', choices: ['Le soleil', 'La lune', 'Le vent'], answer: 0, explanation: 'C\'est la chaleur du soleil.' }], activity: 'Observe une casserole d\'eau chaude.' };
     else if (props.videos) out = { videos: [{ title: 'Le cycle de l\'eau', views: 1200, likes: 80, comments: 5, shares: 3, avg_watch_seconds: 11, full_watch_pct: 34, duration_seconds: 30, notes: 'décroche à 4 s' }] };
@@ -87,14 +93,14 @@ function claudeMock(route) {
     else if (props.hashtags) out = { caption: 'Le voyage de l\'eau en 30 s', hashtags: ['science', 'eau'] };
     else if (props.lines) out = { lines: ['Ligne modèle un.', 'Ligne modèle deux.'] };
     else if (props.issues) out = { issues: [{ line: 1, problem: 'imprécis', fix: 'Le soleil réchauffe l\'eau des océans.' }] };
-    else if (props.paths) out = { paths: [
+    else if (props.paths && ++mockStats.paths) out = { paths: [
         { d: 'M 90 110 C 90 70 150 70 150 110 C 150 150 90 150 90 110 Z', color: 'orange', word: 'soleil' },
         { d: 'M 60 250 Q 120 230 180 250 Q 240 270 300 250', color: 'blue', word: 'eau' },
         { d: 'M 200 230 C 205 200 230 180 250 150', color: 'black', word: '' }] };
     else if (props.scenes) out = { setting: '', scenes: [
-        { spoken: 'Le soleil chauffe l\'eau.', action: 'draws', camera: 'medium-wide shot', bubble: 'Le soleil', zoom: 'none', emphasis: '', section: '', shot: 'character', highlight: '100 °C', pose: 'main' },
-        { spoken: 'Le soleil chauffe l\'eau.', action: 'points', camera: 'medium-wide shot', bubble: '', zoom: 'in', emphasis: 'chauffe', section: '', shot: 'board', highlight: '', pose: 'main' },
-        { spoken: 'Le soleil chauffe l\'eau.', action: 'waves', camera: 'medium-wide shot', bubble: 'Évaporation', zoom: 'none', emphasis: '', section: 'Les nuages', shot: 'character', highlight: '', pose: 'explique' }] };
+        { spoken: 'Le soleil chauffe l\'eau.', action: 'draws', camera: 'medium-wide shot', bubble: 'Le soleil', zoom: 'none', emphasis: '', section: '', shot: 'character', highlight: '100 °C', pose: 'main', narration: '', visual: 'un soleil au-dessus de la mer' },
+        { spoken: 'Le soleil chauffe l\'eau.', action: 'points', camera: 'medium-wide shot', bubble: 'Évaporation', zoom: 'in', emphasis: 'chauffe', section: '', shot: 'board', highlight: '', pose: 'main', narration: 'L\'eau chaude devient une vapeur invisible qui monte vers le ciel.', visual: 'des flèches qui montent de la mer' },
+        { spoken: 'Le soleil chauffe l\'eau.', action: 'waves', camera: 'medium-wide shot', bubble: 'Évaporation', zoom: 'none', emphasis: '', section: 'Les nuages', shot: 'character', highlight: '', pose: 'explique', narration: '', visual: 'un nuage' }] };
     else out = { text: 'EAU MAGIQUE' };
     return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify({ model: body.model, content: [{ type: 'text', text: JSON.stringify(out) }], stop_reason: 'end_turn', usage: { input_tokens: 1200, output_tokens: 400 } }) });
 }
@@ -197,9 +203,16 @@ async function testPhoneMontage(browser) {
     await page.waitForFunction(() => !!localStorage.getItem('cartoon_tiktok_token'), null, { timeout: 20000 }).catch(() => {});
     check(await page.evaluate(() => !!getTikTokToken() && location.search === '' && document.getElementById('tiktok-status').textContent.includes('connecté')), 'connexion TikTok réussie (jeton gardé, adresse nettoyée)');
     await fillProject(page);
+    await page.evaluate(() => navOpen('settings', 'set-brand'));
+    await page.click('#ref-create-btn');
+    await page.waitForFunction(() => !!referenceImage() && !!document.querySelector('#reference-box img'), null, { timeout: 60000 });
+    check(counters.agnes.length === 1 && /Reference shot/.test(counters.agnes[0].prompt) && await page.evaluate(() => referenceImage().startsWith('data:image/jpeg') && !!document.querySelector('#reference-box img')), 'image de référence créée (une scène Agnes, image gardée)');
+    await page.evaluate(() => wizardGo(1));
     await page.click('#wiz-next');
     await page.waitForSelector('#storyboard:not(.hidden) #sb-approve', { timeout: 60000 });
-    check(counters.agnes.length === 0 && await page.evaluate(() => NAV.step === 2), 'étape Storyboard : affiché sans rien payer chez Agnes');
+    check(counters.agnes.length === 1 && await page.evaluate(() => NAV.step === 2), 'étape Storyboard : affiché sans rien payer chez Agnes');
+    check(mockStats.drawChecks >= 1 && mockStats.paths >= 4, 'dessins vérifiés par Claude, le dessin refusé est refait (' + mockStats.paths + ' dessins demandés)');
+    check(await page.evaluate(() => scenePlanFor(1).narration.includes('vapeur') && !!document.querySelector('[data-sb-field="narration"][data-i="1"]')), 'scène riche : voix off prévue et modifiable au storyboard');
     await page.fill('[data-sb-field="bubble"][data-i="0"]', 'Chaleur !'); await page.dispatchEvent('[data-sb-field="bubble"][data-i="0"]', 'input');
     await page.click('#sb-approve');
     check(await page.evaluate(() => NAV.step === 3 && !state.isRunning), 'storyboard validé : étape Génération, rien lancé tout seul');
@@ -207,10 +220,24 @@ async function testPhoneMontage(browser) {
     await page.waitForSelector('#video-preview.visible', { timeout: 600000 });
     const r = await page.evaluate(async () => ({
         bubble: state.scenePlan.scenes[0].bubble, size: state.finalBlob.size, type: state.finalBlob.type,
-        tl: state.timeline.map(t => +t.duration.toFixed(2)), fit: state.queue.map(q => !!q.fitBuffer), stt: state.queue.map(q => !!q.sttWords),
+        tl: state.timeline.filter(t => !t.narration).map(t => +t.duration.toFixed(2)), board: state.timeline.filter(t => t.narration).map(t => [t.sceneIndex, +t.duration.toFixed(2)]),
+        prompts: [], refStart: null, fit: state.queue.map(q => !!q.fitBuffer), stt: state.queue.map(q => !!q.sttWords),
         journalHasKey: /sk-ant-test|sk-test|sk_test/.test(journalText())
     }));
     check(r.bubble === 'Chaleur !', 'modification du storyboard conservée');
+    const scenePrompts = counters.agnes.slice(1);
+    const ref = await page.evaluate(() => referenceImage());
+    check(scenePrompts.length >= 3 && scenePrompts.every(b => b.prompt.includes('exact reference frame') && b.prompt.includes('returns to the same neutral pose') && b.image === ref), 'toutes les scènes partent de l\'image de référence, pose neutre au début et à la fin');
+    check(r.board.length === 1 && r.board[0][0] === 1 && r.board[0][1] > 1.2, 'plan illustré commenté après la scène 2 (' + JSON.stringify(r.board) + ')');
+    check(await page.evaluate(() => segmentsForScene(1)[0].text === scenePlanFor(1).spoken && /-->/.test(generateSRT()) && generateSRT().includes('vapeur')), 'sous-titres : réplique puis voix off');
+    check(mockStats.refChecks >= 1, 'scènes comparées à l\'image de référence avant le montage');
+    check(await page.evaluate(() => document.getElementById('voice-indicator').textContent.includes('ElevenLabs')), 'voix utilisée affichée (ElevenLabs)');
+    await page.waitForFunction(() => !!state.qaReport, null, { timeout: 60000 }).catch(() => {});
+    check(await page.evaluate(() => (state.qaFrames || []).length >= 8 && !!state.qaReport && document.getElementById('qa-report').textContent.includes('7.5')) && mockStats.images >= 8, 'contrôle par l\'IA : ' + mockStats.images + ' images analysées, rapport affiché');
+    await page.evaluate(() => wizardGo(4));
+    await page.click('[data-qa-redraw]');
+    await page.waitForFunction(() => document.querySelector('[data-qa-redraw]')?.textContent.includes('refaites'), null, { timeout: 30000 });
+    check(true, 'contrôle par l\'IA : illustration refaite en un appui');
     check(dialogs.some(d => /pas de voix|personnage muet/.test(d)), 'contrôle qualité : scène muette détectée et refaite');
     check(r.size > 100000, 'vidéo finale produite (' + r.type + ', ' + Math.round(r.size / 1024) + ' Ko)');
     check(r.tl.every(d => d > 2 && d < 3.2), 'blancs coupés (durées ' + r.tl.join(', ') + ' s)');
@@ -266,7 +293,7 @@ async function testPhoneMontage(browser) {
     await page.waitForSelector('#fc-apply', { timeout: 30000 });
     await page.click('#fc-apply');
     check((await page.inputValue('#script-input')).startsWith('Le soleil réchauffe'), 'vérification des faits : correction appliquée');
-    await page.click('[data-tab="settings"]'); await page.click('[data-push="set-keys"]');
+    await page.evaluate(() => navOpen('settings', 'settings')); await page.click('[data-push="set-keys"]');
     const navOk = await page.evaluate(() => !document.querySelector('[data-screen="set-keys"]').hidden && !document.getElementById('nav-back').hidden);
     await page.click('#nav-back');
     check(navOk && await page.evaluate(() => !document.querySelector('[data-screen="settings"]').hidden), 'onglets et pages de réglages (aller-retour)');
@@ -397,12 +424,18 @@ async function testStyles(browser) {
                 if (/diagram|progress bar/i.test(p)) problems.push('effets qui écrivent du faux texte');
                 if (wb ? !p.includes('pure plain white') : !(p.includes('a calm, simple classroom corner') && p.includes('Background: simple and uncluttered'))) problems.push('décor');
                 if (wb ? !p.includes('locked-off static') : !/No zoom-in at the start|locked-off static/.test(p)) problems.push('caméra');
-                if (i > 0 && !p.includes('directly continues the previous one')) problems.push('continuité');
+                if (!p.includes('starts exactly on the input image') || !p.includes('returns to the same neutral pose')) problems.push('raccords (pose neutre)');
             });
             if (!bg.includes(wb ? 'pure plain white' : 'Background: simple and uncluttered')) problems.push('décor en arrière-plan');
             if (!req.prompt.includes('SIMPLE et épuré')) problems.push('décor simple demandé à Claude');
             if (wb !== req.prompt.includes('MODE TABLEAU BLANC')) problems.push('règles tableau blanc');
             if (/writing|lettering|numbers/i.test(st.prompt) && !/never|no /i.test(st.prompt)) problems.push('style qui pousse au texte');
+            // avec une image de référence : le style et le décor viennent de l'image, rien n'est redessiné
+            state.reference = { image: 'data:image/jpeg;base64,AAAA', sig: photoSig(), style: st.id };
+            const rp = buildScenePrompt({ sceneIndex: 1, sceneText: lines[1] });
+            if (!rp.includes('exact reference frame') || rp.includes(st.prompt) || !rp.includes('same framing as the input image') && !rp.includes('locked-off static')) problems.push('image de référence');
+            if (imageForScene(1) !== state.reference.image) problems.push('départ depuis la référence');
+            state.reference = null;
             return { id: st.id, wb, problems: [...new Set(problems)] };
         });
     });
@@ -433,6 +466,7 @@ async function testBackground(browser) {
     const counters = { agnes: [], vid: 0, clipFor: n => n % 2 === 0 ? 0 : 2 };
     // côté serveur : Agnes et Claude simulés
     counters.serverFetch = async (u, o) => {
+        if (u.startsWith('https://api.elevenlabs.io/v1/text-to-speech/')) { counters.tts = (counters.tts || 0) + 1; return new Response(toneWav(), { headers: { 'Content-Type': 'audio/wav' } }); }
         if (u.endsWith('/v1/videos')) { counters.agnes.push(JSON.parse(o.body)); return Response.json({ video_id: 'v' + (counters.vid++) }); }
         if (u.includes('agnesapi')) { const id = new URL(u).searchParams.get('video_id'); return Response.json({ status: 'completed', metadata: { url: 'https://cdn.test/' + id + '.webm' } }); }
         throw new Error('appel inattendu ' + u);
@@ -457,6 +491,15 @@ async function testBackground(browser) {
     await page2.waitForSelector('#video-preview.visible', { timeout: 300000 });
     check(await page2.evaluate(() => state.finalBlob.size > 100000), 'vidéo finale assemblée après la génération en arrière-plan');
     check(await page2.evaluate(() => state.queue.every(q => q.mediaKey && q.mediaKey.startsWith('job/'))), 'scènes copiées sur Cloudflare par le serveur');
+    check(counters.tts >= 1 && await page2.evaluate(() => !!state.queue[1].narrKey && state.timeline.some(t => t.narration)), 'voix off créée par le serveur (téléphone éteint) et utilisée au montage');
+    // Scène ratée refaite en arrière-plan, récupérée au montage suivant
+    const beforeUrl = await page2.evaluate(() => state.queue[0].videoUrl);
+    await page2.evaluate(() => redoInBackground([state.queue[0]]));
+    check(await page2.evaluate(() => { const p = findProject(state.projectId); return !!p.redo?.jobId && p.status === 'generating'; }), 'scène ratée renvoyée au serveur (nouvelle prise en arrière-plan)');
+    let redoReady = false;
+    for (let i = 0; i < 40 && !redoReady; i++) { await new Promise(r => setTimeout(r, 1500)); redoReady = await page2.evaluate(async () => { await refreshProjects(true); return findProject(state.projectId).status === 'ready'; }); }
+    await page2.evaluate(() => { unlockAudio(); return runAssembly(); });
+    check(redoReady && await page2.evaluate(url => state.queue[0].videoUrl !== url && !findProject(state.projectId).redo && !!state.finalBlob, beforeUrl), 'nouvelle prise récupérée et vidéo remontée');
     // Série entière en arrière-plan
     await page2.evaluate(() => wizardGo(1)); await page2.click('[data-sheet]');
     await page2.fill('#series-input', 'Épisode A\nLe soleil chauffe l\'eau.\nLe soleil chauffe l\'eau.\n\nÉpisode B\nLe soleil chauffe l\'eau.\nLe soleil chauffe l\'eau.');

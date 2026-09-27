@@ -51,12 +51,14 @@ function renderWizard() {
             : 'Appuie sur « Suivant » à l\'étape Script pour préparer le storyboard, ou passe directement à la génération.';
         e.hidden = !e.textContent;
     }
-    if (st === 3) updateEstimate();
+    if (st === 3) { updateEstimate(); renderReference(); }
     if (st === 4) {
         const has = state.queue.some(q => q.status === 'done'), fin = !!state.finalBlob;
         const e = document.getElementById('montage-empty');
         e.textContent = fin ? '✅ Vidéo prête. Tu peux encore retoucher le montage puis la recréer.' : has ? 'Vérifie avec l\'aperçu, retouche si besoin, puis crée la vidéo finale.' : 'Aucune scène prête pour l\'instant : lance d\'abord la génération (étape 3).';
         document.getElementById('goto-fiche-btn').classList.toggle('hidden', !fin);
+        updateVoiceIndicator();
+        if (state.qaReport) renderQaReport();
     }
     if (st === 5) {
         const e = document.getElementById('publish-empty');
@@ -164,12 +166,14 @@ function renderSettingsList() {
 // Photo principale gardée sur le téléphone (plus besoin de la remettre à chaque fois)
 async function saveMainImages() {
     try { await idbPut('mainImages', state.images.map(i => ({ id: i.id, dataUri: i.dataUri, thumbnail: i.thumbnail }))); } catch (e) {}
+    renderReference();
 }
 async function loadMainImages() {
     try {
         const list = await idbGet('mainImages');
         if (Array.isArray(list) && list.length && !state.images.length) { state.images = list; renderImages(); updateGenerateBtn(); }
     } catch (e) {}
+    await loadReference();
     if (NAV.tab === 'home') renderHome();
 }
 

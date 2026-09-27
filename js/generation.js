@@ -10,7 +10,7 @@ function saveProject() {
         date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle,
         scenePlan: state.scenePlan, photo: state.photoSmall, projectId: state.projectId,
         drawings: state.scenes.map((_, i) => state.drawings[i]?.raw || null),
-        queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null, edit: q.edit || undefined, mediaKey: q.mediaKey || undefined }))
+        queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null, edit: q.edit || undefined, mediaKey: q.mediaKey || undefined, narrKey: q.narrKey || undefined }))
     };
     setJSON(STORAGE.LAST_PROJECT, snap);
     if (typeof saveProjectSnapshot === 'function') saveProjectSnapshot(snap);
@@ -84,14 +84,16 @@ async function sendBackgroundJob(scenes, theme, script, useStoryboard) {
         }));
         const payload = {
             agnesKey: getAgnesKey(), claudeKey: getClaudeKey(), claudeModel: getClaudeModel(),
-            image: await downscaleImage(state.images[0].dataUri),
+            image: referenceImage() || await downscaleImage(state.images[0].dataUri),
             frames: state.durationFrames, frameRate: FRAME_RATE,
             templates, fallbackPlan: fallbackScenePlan(scenes),
             planRequest: withClaude && !sb ? planRequestFor(scenes) : null,
             plan: sb ? state.scenePlan : undefined,
             drawings: sb ? scenes.map((_, i) => state.drawings[i]?.raw || null) : undefined,
-            drawingRequests: withClaude && isWhiteboard() ? scenes.map((t, i) => ({ ...drawingRequestFor('{{SPOKEN}}', i, n), fallbackText: t })) : [],
-            poses: await Promise.all(state.poses.map(async p => ({ id: p.id, image: await downscaleImage(p.image, 1024, 0.85) }))),
+            drawingRequests: withClaude && needsDrawings() ? scenes.map((t, i) => ({ ...drawingRequestFor('{{SPOKEN}} {{NARRATION}}', i, n, '', '{{VISUAL}}'), fallbackText: t, verify: true })) : [],
+            poses: referenceImage() ? [] : await Promise.all(state.poses.map(async p => ({ id: p.id, image: await downscaleImage(p.image, 1024, 0.85) }))),
+            // voix off des scènes riches, créée par le serveur (téléphone éteint)
+            eleven: richActive() ? { key: getElevenLabsKey(), voice: elevenVoiceId(), model: document.getElementById('elevenlabs-model-select')?.value || 'eleven_multilingual_v2' } : null,
             push: getJSON(STORAGE.PUSH_SUB) || null,
             backup: state.backupOn
         };
@@ -164,7 +166,7 @@ function loadBackgroundResults(saved, job) {
     state.scenePlan = job.plan || fallbackScenePlan(lines);
     if (saved.photo) state.photoSmall = saved.photo;
     state.drawings = (job.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
-    state.queue = job.scenes.map(sc => ({ sceneIndex: sc.index, sceneText: lines[sc.index] || '', image: null, status: sc.status === 'done' ? 'done' : 'failed', progress: sc.status === 'done' ? 'Terminé' : 'Échec', error: sc.error, videoUrl: sc.videoUrl, mediaKey: sc.mediaKey || undefined, videoId: null, prompt: null, startTime: null }));
+    state.queue = job.scenes.map(sc => ({ sceneIndex: sc.index, sceneText: lines[sc.index] || '', image: null, status: sc.status === 'done' ? 'done' : 'failed', progress: sc.status === 'done' ? 'Terminé' : 'Échec', error: sc.error, videoUrl: sc.videoUrl, mediaKey: sc.mediaKey || undefined, narrKey: sc.narrKey || undefined, videoId: null, prompt: null, startTime: null }));
     state.completed = state.queue.filter(q => q.status === 'done').length;
     state.failed = state.queue.length - state.completed;
     initSubtitleSegmentsFromScript();
@@ -316,7 +318,9 @@ async function runChained() {
         if (i > 0) {
             const prev = state.queue[i - 1];
             const pose = scenePlanFor(i).pose;
-            if (prev.status === 'done' && (!pose || pose === 'main' || !imageForScene(i))) {
+            // toutes les 4 scènes, on repart de l'image de départ pour que le personnage ne dérive pas
+            const reanchor = i % 4 === 0 && !!(referenceImage() || state.images[0]);
+            if (prev.status === 'done' && !reanchor && (referenceImage() || !pose || pose === 'main' || !imageForScene(i))) {
                 setStatus('Scène ' + (i + 1) + ' : récupération de la dernière image…');
                 try { item.image = await extractLastFrame(prev); item.chained = true; }
                 catch (e) {

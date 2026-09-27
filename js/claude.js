@@ -114,9 +114,11 @@ const PLAN_SCHEMA = {
                     emphasis: { type: 'string' },
                     section: { type: 'string' },
                     shot: { type: 'string', enum: ['character', 'board'] },
-                    highlight: { type: 'string' }
+                    highlight: { type: 'string' },
+                    narration: { type: 'string' },
+                    visual: { type: 'string' }
                 },
-                required: ['spoken', 'action', 'camera', 'bubble', 'zoom', 'emphasis', 'section', 'shot', 'highlight'], additionalProperties: false
+                required: ['spoken', 'action', 'camera', 'bubble', 'zoom', 'emphasis', 'section', 'shot', 'highlight', 'narration', 'visual'], additionalProperties: false
             }
         }
     },
@@ -124,7 +126,7 @@ const PLAN_SCHEMA = {
 };
 function planSchema() {
     const sc = JSON.parse(JSON.stringify(PLAN_SCHEMA));
-    if (state.poses.length) {
+    if (state.poses.length && !referenceImage()) {
         sc.properties.scenes.items.properties.pose = { type: 'string', enum: ['main'].concat(state.poses.map(p => p.id)) };
         sc.properties.scenes.items.required.push('pose');
     }
@@ -149,7 +151,11 @@ function planRequestFor(scenes) {
             '- "section" : si cette réplique ouvre une nouvelle partie de la vidéo, un titre très court (2 à 4 mots) ; sinon "". 2 à 4 parties au total, jamais sur la première réplique, aucune partie si la vidéo a moins de 6 répliques\n\n' +
             '- "shot" : ' + (isWhiteboard() ? '"board" quand le dessin explique mieux que le personnage (environ une réplique sur quatre, jamais la première ni la dernière, jamais deux de suite) : on ne verra alors que le tableau en plein écran ; sinon "character"' : 'toujours "character"') + '\n' +
             '- "highlight" : si la réplique contient un chiffre clé, une date ou une définition courte à retenir, ce texte très court (1 à 5 mots, ex. "70 %", "1789", "H₂O") ; sinon "" (au plus une réplique sur trois)\n' +
-            (state.poses.length ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
+            '- "visual" : en français, ce qu\'il faut dessiner pour illustrer PRÉCISÉMENT l\'idée de la réplique' + (richActive() ? ' et de sa narration' : '') + ' : objets concrets, composition simple, sans aucun texte (1 phrase)\n' +
+            (richActive()
+                ? '- "narration" : SCÈNES RICHES. Si la réplique contient plusieurs phrases, "spoken" = la première phrase (courte, dite face caméra) et "narration" = la suite, sans la changer. Si elle n\'a qu\'une phrase, "narration" = 1 à 2 phrases (dans la langue de la vidéo) qui approfondissent l\'idée (exemple concret, chiffre juste, comparaison), exactes et faciles à prononcer, dites par la voix off pendant qu\'on montre l\'illustration en plein écran. "narration" vaut "" pour la toute première et la toute dernière réplique.\n'
+                : '- "narration" : toujours ""\n') +
+            (state.poses.length && !referenceImage() ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
             wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
         schema: planSchema()
     };
@@ -165,6 +171,7 @@ async function planScenesWithClaude(scenes) {
             return { spoken: p.spoken || text, action: p.action || fb[i].action, camera: p.camera || fb[i].camera, bubble: String(p.bubble || '').slice(0, 60),
                 zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '',
                 shot: isWhiteboard() && p.shot === 'board' && i > 0 && i < scenes.length - 1 ? 'board' : 'character', highlight: String(p.highlight || '').slice(0, 40),
+                narration: richActive() && i > 0 && i < scenes.length - 1 ? String(p.narration || '').trim() : (richActive() && splitSentences(text).length > 1 ? splitSentences(text).slice(1).join(' ') : ''), visual: String(p.visual || '').slice(0, 300),
                 pose: state.poses.some(x => x.id === p.pose) ? p.pose : 'main' };
         })
     };
@@ -203,6 +210,8 @@ async function addPoseFromFile(file, id) {
     showToast('Pose « ' + (POSE_TYPES.find(t => t.id === id)?.label || id) + ' » ajoutée ✓', 'success');
 }
 function imageForScene(i) {
+    const ref = referenceImage();
+    if (ref) return ref;
     const pid = scenePlanFor(i).pose;
     const p = pid && pid !== 'main' ? state.poses.find(x => x.id === pid) : null;
     return p ? p.image : null;
@@ -217,7 +226,7 @@ async function prepareStoryboardFlow() {
     state.storyboarding = true; state.storyboardApproved = false; updateGenerateBtn();
     try {
         await prepareScenePlan();
-        if (isWhiteboard() && getClaudeKey()) { setStatus('Claude dessine les illustrations…'); await prepareDrawings(); }
+        if (needsDrawings() && getClaudeKey()) { setStatus('Claude dessine les illustrations…'); await prepareDrawings(); }
         state.storyboardSig = currentScriptSignature();
         renderStoryboard();
         if (NAV.tab !== 'create' || NAV.step !== 2) wizardGo(2); else renderWizard();
@@ -227,7 +236,7 @@ async function prepareStoryboardFlow() {
 }
 function renderStoryboard() {
     const box = document.getElementById('storyboard'); if (!box || !state.scenePlan) return;
-    const wb = isWhiteboard();
+    const wb = needsDrawings();
     const poseOpts = [['main', 'Photo principale']].concat(state.poses.map(p => [p.id, POSE_TYPES.find(t => t.id === p.id)?.label || p.id]));
     const opt = (list, cur) => list.map(([v, l]) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>').join('');
     box.innerHTML = '<div class="sb-title">📋 Storyboard — vérifie avant de générer</div>' +
@@ -239,7 +248,9 @@ function renderStoryboard() {
                 (wb ? '<canvas class="sb-draw" data-sb-canvas="' + i + '" width="400" height="300"></canvas><button type="button" class="sb-mini" data-sb-redraw="' + i + '">🔄 Redessiner</button>' : '') +
                 '<label class="control-label">Texte dit par le personnage</label><textarea class="sb-text" data-sb-field="spoken" data-i="' + i + '">' + esc(p.spoken || line) + '</textarea>' +
                 '<div class="sb-grid">' +
-                (wb ? '<select data-sb-field="shot" data-i="' + i + '">' + opt([['character', '🧑 Personnage'], ['board', '🖊️ Tableau seul']], p.shot || 'character') + '</select>' : '') +
+                (p.narration || richActive() ? '<label class="control-label">Voix off sur le plan illustré</label><textarea class="sb-text" data-sb-field="narration" data-i="' + i + '" placeholder="(aucune)">' + esc(p.narration || '') + '</textarea>' : '') +
+                (p.visual ? '<div class="prompt-main-hint">🖊️ ' + esc(p.visual) + '</div>' : '') +
+                (isWhiteboard() ? '<select data-sb-field="shot" data-i="' + i + '">' + opt([['character', '🧑 Personnage'], ['board', '🖊️ Tableau seul']], p.shot || 'character') + '</select>' : '') +
                 '<select data-sb-field="zoom" data-i="' + i + '">' + opt([['none', 'Pas de zoom'], ['in', '🔍 Zoom' + (p.emphasis ? ' sur « ' + p.emphasis + ' »' : '')]], p.zoom || 'none') + '</select>' +
                 (state.poses.length ? '<select data-sb-field="pose" data-i="' + i + '">' + opt(poseOpts, p.pose || 'main') + '</select>' : '') +
                 '</div>' +

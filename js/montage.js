@@ -8,6 +8,7 @@
 // zooms, transitions intelligentes, intro / titres de parties / fin, 1080p.
 // ══════════════════════════════════════════════════════════════════
 const FADE_SEC = 0.5;
+const JOIN_SEC = 0.2;   // raccord très court entre deux plans du personnage (même pose, même cadrage)
 let assembling = false, assemblyInterrupted = false;
 document.addEventListener('visibilitychange', () => { if (document.hidden && assembling) assemblyInterrupted = true; });
 
@@ -497,6 +498,7 @@ async function prepareAssets(items, label) {
             } catch (e) { ttsFailed = true; showToast('Voix premium indisponible (' + e.message + ') : voix Agnes utilisée', 'warn', 6000); }
         }
         if (item.audioBuffer === undefined) { item.audioBuffer = await decodeAudioBlob(item.blob); item.speech = analyzeSpeech(item.audioBuffer); }
+        if (typeof prepareNarration === 'function' && scenePlanFor(item.sceneIndex).narration) { setStatus(label + ' : voix off ' + (i + 1) + '/' + items.length + '…'); await prepareNarration(item); }
         if (state.voiceSource === 'fit' && !item.fitBuffer && !ttsFailed) {
             setStatus(label + ' : voix ElevenLabs ' + (i + 1) + '/' + items.length + '…');
             try { await prepareFitVoice(item); }
@@ -531,6 +533,7 @@ function buildSegments(items, maxDuration) {
         const section = String(plan.section || '').trim();
         if (section && i > 0 && state.sectionCards && maxDuration > 20) segs.push({ type: 'card', dur: 1.7, title: section });
         segs.push({ type: 'scene', item, index: i, newSection: !!section && i > 0 });
+        if (plan.narration && item.sceneIndex >= 0) segs.push({ type: 'board', item, index: i });
     });
     if (state.outroOn && maxDuration > 20) segs.push({ type: 'outro', dur: 3.6 });
     return segs;
@@ -609,6 +612,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     if (rec) rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
     const stopped = rec ? new Promise(res => { rec.onstop = res; }) : Promise.resolve();
     const sceneTotal = items.length;
+    const qa = !preview && label === 'Montage' && state.qaOn && typeof createQa === 'function' ? createQa(segs.length) : null;
     const timeline = [];
     let T = 0, hasPrev = false, prevSketch = null, prevWasScene = false, musicSrc = null;
     if (rec) rec.start(1000);
@@ -622,6 +626,43 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
             if (T >= maxDuration - 0.05) break;
             setProgress(22 + (si / segs.length) * 75);
 
+            if (seg.type === 'board') {
+                const item = seg.item, plan = scenePlanFor(item.sceneIndex);
+                const buf = item.narrBuffer;
+                if (!buf) continue;
+                setStatus(label + ' : plan illustré ' + (seg.index + 1) + '/' + sceneTotal + ' — garde l\'appli ouverte');
+                const sp = item.narrSpeech;
+                let dur = Math.min(buf.duration + 0.15, (sp && !sp.silent ? sp.end : buf.duration) + 0.45);
+                dur = Math.min(Math.max(1.5, dur), maxDuration - T);
+                const words = narrationWords(plan.narration, sp, dur), groups = captionGroups(words);
+                const drawing = state.drawings[item.sceneIndex] || null;
+                const sched = drawing ? drawingSchedule(drawing, words, dur) : null;
+                const backdrop = document.createElement('canvas'); backdrop.width = W; backdrop.height = H; backdrop.getContext('2d').drawImage(prevCanvas, 0, 0);
+                if (musicBuf) duckTo(musicLow);
+                sfx.whoosh();
+                const src = actx.createBufferSource(); src.buffer = buf;
+                const vg = actx.createGain(), now = actx.currentTime;
+                const gv = voiceGainFor(item, sp);
+                vg.gain.setValueAtTime(0.0001, now); vg.gain.linearRampToValueAtTime(gv, now + 0.03);
+                src.connect(vg).connect(comp);
+                try { src.start(actx.currentTime + 0.05, 0, dur); } catch (e) {}
+                const info = { name: 'scène ' + (item.sceneIndex + 1) + ' · plan illustré' };
+                const played = await runFrames(dur, t => {
+                    const active = drawBoardShot(g, W, H, t, dur, { backdrop, drawing, sched, title: plan.bubble || '' });
+                    sfx.scribble(active);
+                    if (plan.highlight && t > dur * 0.55) drawHighlight(g, W, H, plan.highlight, t - dur * 0.55, dur - t);
+                    if (t < FADE_SEC) { g.save(); g.globalAlpha = 1 - t / FADE_SEC; g.drawImage(prevCanvas, 0, 0); g.restore(); }
+                    drawNarrationCaptions(g, W, H, words, groups, t);
+                    if (logoImg) drawLogo(g, W, H, logoImg);
+                    if (qa) qa.tick(canvas, T + t, t, dur, info);
+                });
+                sfx.scribble(false);
+                try { src.stop(); } catch (e) {}
+                timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played, narration: true });
+                pg.drawImage(canvas, 0, 0); hasPrev = true; prevSketch = null; prevWasScene = false;
+                T += played;
+                continue;
+            }
             if (seg.type !== 'scene') {
                 const dur = Math.min(seg.dur, maxDuration - T);
                 setStatus(label + ' : habillage — garde l\'appli ouverte');
@@ -656,7 +697,8 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 : computeWordTimes(item, cut, dur);
             const sc = { item, dur, words, groups: captionGroups(words) };
             const plan = scenePlanFor(item.sceneIndex);
-            const drawing = wb ? state.drawings[item.sceneIndex] : null;
+            const richScene = !!(plan.narration && item.narrBuffer);
+            const drawing = wb && !richScene ? state.drawings[item.sceneIndex] : null;
             const sched = drawing ? drawingSchedule(drawing, words, dur) : null;
             const shift = item.edit?.drawShift || 0;
             if (sched && shift) sched.forEach(x => { x.start = Math.max(0, Math.min(dur - 0.2, x.start + shift)); x.end = Math.max(x.start + 0.05, Math.min(dur, x.end + shift)); });
@@ -675,9 +717,11 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 const hit = nw ? words.find(w => normWord(w.text) === nw || normWord(w.text).startsWith(nw)) : null;
                 zoomAt = hit ? hit.start : dur * 0.35;
             }
-            const transition = state.transition === 'fade' ? 'fade' : state.transition === 'cut' ? 'cut' : (prevWasScene && !seg.newSection ? 'cut' : 'fade');
-            const fadeIn = hasPrev && transition === 'fade';
-            if (fadeIn && prevWasScene) sfx.whoosh();
+            const transition = state.transition === 'fade' ? 'fade' : state.transition === 'cut' ? 'cut' : (prevWasScene && !seg.newSection ? 'join' : 'fade');
+            const fadeIn = hasPrev && (transition === 'fade' || transition === 'join');
+            const fadeSec = transition === 'join' ? JOIN_SEC : FADE_SEC;
+            if (transition === 'fade' && prevWasScene) sfx.whoosh();
+            const qaInfo = { name: 'scène ' + (item.sceneIndex + 1) };
 
             await seekTo(v, cut.tin);
             const buf = usingTts ? item.ttsBuffer : usingFit ? item.fitBuffer : item.audioBuffer;
@@ -734,9 +778,10 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                     if (!highlightPopped) { highlightPopped = true; sfx.pop(); }
                     drawHighlight(g, W, H, plan.highlight, t - highlightAt, dur - t);
                 }
-                if (fadeIn && t < FADE_SEC) { g.save(); g.globalAlpha = 1 - t / FADE_SEC; g.drawImage(prevCanvas, 0, 0); g.restore(); }
+                if (fadeIn && t < fadeSec) { g.save(); g.globalAlpha = 1 - t / fadeSec; g.drawImage(prevCanvas, 0, 0); g.restore(); }
                 drawCaptions(g, W, H, sc, t);
                 if (logoImg) drawLogo(g, W, H, logoImg);
+                if (qa) qa.tick(canvas, T + t, t, dur, qaInfo);
             }, t => !usingTts && v.ended && t > 0.3);
             sfx.scribble(false);
             if (src) { try { src.stop(); } catch (e) {} }
@@ -766,6 +811,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     const blob = new Blob(chunks, { type });
     if (!blob.size) throw new Error('la vidéo enregistrée est vide');
     if (items.every(i => !i.audioBuffer) && !premium) showToast('Le son des scènes n\'a pas pu être récupéré : vidéo sans son', 'warn', 6000);
+    if (qa) state.qaFrames = qa.frames;
     return { blob, url: URL.createObjectURL(blob), timeline, ext: type.includes('mp4') ? 'mp4' : 'webm' };
 }
 
@@ -813,12 +859,23 @@ async function runAssembly() {
     await ensureWakeLockActive();
     if (state.drawingsPromise) { setStatus('Finalisation des dessins…'); await state.drawingsPromise; }
     try {
-        // Contrôle qualité : on repère les prises ratées et on propose de les refaire
+        // Nouvelles prises faites en arrière-plan : on les récupère d'abord
+        if (typeof applyPendingRedo === 'function' && !(await applyPendingRedo())) return false;
+        state.qaReport = null; document.getElementById('qa-report')?.classList.add('hidden');
+        // Contrôle qualité : son (voix coupée, personnage muet) + image (personnage différent de la référence)
         let items = montageItems().filter(q => q.sceneIndex >= 0);
         await prepareAssets(items, 'Vérification');
-        const bad = items.filter(sceneProblem);
-        if (bad.length && !state.autoRun && getAgnesKey() && (state.images[0] || state.photoSmall) &&
-            confirm(bad.length + ' scène' + (bad.length > 1 ? 's semblent ratées' : ' semble ratée') + ' (' + bad.map(b => 'scène ' + (b.sceneIndex + 1) + ' : ' + sceneProblem(b)).join(', ') + ').\n\nLes refaire automatiquement avant le montage ? (environ ' + Math.ceil(bad.length * 1.5) + ' min, appli ouverte)')) {
+        const visualBad = !state.autoRun && typeof checkScenesAgainstReference === 'function' ? await checkScenesAgainstReference(items) : [];
+        const bad = [...new Set([...items.filter(sceneProblem), ...visualBad])].sort((a, b) => a.sceneIndex - b.sceneIndex);
+        const why = b => sceneProblem(b) || b.visualProblem || 'différente';
+        const badMsg = bad.length + ' scène' + (bad.length > 1 ? 's semblent ratées' : ' semble ratée') + ' (' + bad.map(b => 'scène ' + (b.sceneIndex + 1) + ' : ' + why(b)).join(', ') + ').';
+        if (bad.length && !state.autoRun && getAgnesKey() && (state.images[0] || state.photoSmall) && canRedoInBackground() &&
+            confirm(badMsg + '\n\nOK : les refaire en arrière-plan sur ton serveur (tu peux éteindre ton téléphone), puis revenir appuyer sur « Créer la vidéo finale ».\nAnnuler : monter quand même.')) {
+            await redoInBackground(bad);
+            return false;
+        }
+        if (bad.length && !state.autoRun && !canRedoInBackground() && getAgnesKey() && (state.images[0] || state.photoSmall) &&
+            confirm(badMsg + '\n\nLes refaire automatiquement avant le montage ? (environ ' + Math.ceil(bad.length * 1.5) + ' min, appli ouverte)')) {
             state.regenerating = true; renderQueue();
             for (let i = 0; i < bad.length; i++) {
                 if (state.stopRequested) throw new Error('Arrêt demandé');
@@ -836,6 +893,8 @@ async function runAssembly() {
         showResultButtons();
         const bfb = document.getElementById('backup-final-btn');
         if (bfb) { bfb.textContent = '☁️ Sauvegarder la vidéo sur mon Cloudflare'; bfb.classList.toggle('hidden', !mediaAvailable()); }
+        // contrôle par l'IA des images du montage (en tâche de fond : la vidéo est déjà prête)
+        if (state.qaOn && getClaudeKey() && !state.autoRun && state.qaFrames?.length && typeof analyzeMontage === 'function') analyzeMontage();
         backupScenes().catch(e => log('Sauvegarde : ' + e.message));
         addToHistory({ date: Date.now(), theme: state.theme || document.getElementById('theme-input').value || 'Sans titre', script: state.script, scenes: state.queue.length, duration: formatEta(result.timeline.reduce((a, t) => a + t.duration, 0)) });
         trackAnalytics('generations');

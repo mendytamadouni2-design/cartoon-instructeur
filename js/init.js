@@ -288,6 +288,20 @@ function showCloudConfigRow(provider) {
     loadMainImages();
     updateMusicStatus(); updateLogoStatus();
     applySettings(getJSON(STORAGE.SETTINGS));
+    applyQualityDefaults();
+    const bindToggle = (id, key, prop, def, after) => {
+        const el = document.getElementById(id); if (!el) return;
+        state[prop] = getLS(STORAGE[key]) ? getLS(STORAGE[key]) === '1' : def;
+        el.checked = state[prop];
+        el.addEventListener('change', () => { state[prop] = el.checked; setLS(STORAGE[key], el.checked ? '1' : '0'); state.storyboardApproved = false; if (after) after(); });
+    };
+    const richHint = () => { const h = document.getElementById('rich-hint'); if (h) h.textContent = richActive() ? '✅ Voix ElevenLabs prête : les scènes auront un plan illustré commenté.' : 'Demande une voix ElevenLabs (Réglages → Voix et sous-titres).'; updateVoiceIndicator(); };
+    bindToggle('rich-toggle', 'RICH', 'richMode', true, richHint);
+    bindToggle('qa-toggle', 'QA_ON', 'qaOn', true);
+    bindToggle('oneshot-toggle', 'ONE_SHOT', 'oneShot', false, () => { if (state.oneShot) showToast('Plan-séquence : génération sur le téléphone, garde l\'appli ouverte', 'warn', 5000); });
+    richHint();
+    document.getElementById('voice-source-select')?.addEventListener('change', () => setTimeout(updateVoiceIndicator));
+    document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.tts-voice-item')) setTimeout(richHint, 50); });
     loadPoses(); updatePushStatus(); updateEstimate();
     // ouverture instantanée, même avec un réseau faible (et notifications)
     if (navigator.serviceWorker && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

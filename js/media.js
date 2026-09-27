@@ -53,25 +53,28 @@ function compileDrawing(raw) {
     }
     return strokes.length ? { strokes, total: strokes.reduce((a, b) => a + b.len, 0) } : null;
 }
-function drawingRequestFor(sceneText, index, total) {
+function drawingRequestFor(sceneText, index, total, feedback, visual) {
+    const v = visual !== undefined ? visual : (scenePlanFor(index).visual || '');
     return {
-        system: 'Tu es illustrateur de vidéos pédagogiques façon tableau blanc. Tu dessines au feutre, en quelques traits simples et lisibles, ce que dit le narrateur, comme un professeur qui illustre au tableau.',
-        prompt: 'Sujet de la vidéo : ' + (state.theme || 'non précisé') + '. Phrase ' + (index + 1) + '/' + total + ' dite par le personnage : « ' + sceneText + ' »\n\n' +
+        system: 'Tu es illustrateur de vidéos pédagogiques façon tableau blanc. Tu dessines au feutre, en quelques traits simples et lisibles, ce que dit le narrateur, comme un professeur qui illustre au tableau. Ton dessin doit être reconnaissable au premier coup d\'œil et montrer exactement l\'idée demandée, pas une idée voisine.',
+        prompt: 'Sujet de la vidéo : ' + (state.theme || 'non précisé') + '.\nScript complet (pour le contexte) :\n' + state.scenes.map((l, k) => (k + 1) + '. ' + l).join('\n') +
+            '\n\nÀ illustrer maintenant, phrase ' + (index + 1) + '/' + total + ' : « ' + sceneText + ' »' + (v ? '\nCe qu\'il faut dessiner : ' + v : '') + (feedback ? '\nUn premier dessin a été refusé pour cette raison : ' + feedback + ' Fais un dessin nettement plus clair.' : '') + '\n\n' +
             'Dessine une illustration concrète et compréhensible de cette phrase (objets, personnages simplifiés, flèches, symboles visuels), dans une zone de ' + DRAW_VB.w + ' × ' + DRAW_VB.h + ' (coordonnées SVG, origine en haut à gauche, marge de 20).\n' +
             'Contraintes :\n- 4 à 18 traits, chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer une forme)\n- dessin au trait uniquement (pas de remplissage)\n- AUCUNE lettre, AUCUN chiffre, AUCUN mot, aucun texte\n- ordre des traits = ordre dans lequel on les dessine (d\'abord l\'élément principal, puis les détails et les flèches)\n- surtout du noir ("black"), une ou deux couleurs d\'accent maximum pour ce qui est important\n- "word" : le mot de la phrase (écrit exactement pareil) au moment duquel ce trait doit commencer à être dessiné, pour que le dessin apparaisse quand le personnage en parle ; "" pour les traits qui suivent simplement le précédent',
         schema: DRAWING_SCHEMA,
         maxTokens: 8000
     };
 }
-async function generateDrawing(sceneText, index, total) {
-    const out = await callClaude(drawingRequestFor(sceneText, index, total));
+async function generateDrawing(sceneText, index, total, feedback) {
+    const p = scenePlanFor(index);
+    const out = await callClaude(drawingRequestFor([sceneText, p.narration].filter(Boolean).join(' '), index, total, feedback));
     const compiled = compileDrawing(out);
     if (compiled) compiled.raw = out;
     return compiled;
 }
 async function prepareDrawings() {
     state.drawings = [];
-    if (!isWhiteboard() || !getClaudeKey()) return;
+    if (!needsDrawings() || !getClaudeKey()) return;
     const scenes = state.scenes.slice();
     let next = 0, failures = 0;
     const worker = async () => {
@@ -83,6 +86,7 @@ async function prepareDrawings() {
         }
     };
     await Promise.all([worker(), worker(), worker()]);
+    if (!state.stopRequested) await verifyDrawings();
     saveProject();
     if (failures) showToast(failures + ' dessin' + (failures > 1 ? 's' : '') + ' n\'ont pas pu être créés', 'warn', 4000);
 }
