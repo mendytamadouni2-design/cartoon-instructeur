@@ -127,6 +127,7 @@ async function setup(page, extra) {
 }
 async function fillProject(page) {
     await page.setInputFiles('#file-input', await photoBuffer(page));
+    await page.evaluate(() => wizardGo(1));
     await page.fill('#theme-input', 'Le cycle de l\'eau');
     await page.fill('#script-input', 'Le soleil chauffe l\'eau.\nLe soleil chauffe l\'eau.\nLe soleil chauffe l\'eau.');
     await page.dispatchEvent('#script-input', 'input');
@@ -167,11 +168,13 @@ async function testPhoneMontage(browser) {
     await page.waitForFunction(() => !!localStorage.getItem('cartoon_tiktok_token'), null, { timeout: 20000 }).catch(() => {});
     check(await page.evaluate(() => !!getTikTokToken() && location.search === '' && document.getElementById('tiktok-status').textContent.includes('connecté')), 'connexion TikTok réussie (jeton gardé, adresse nettoyée)');
     await fillProject(page);
-    await page.click('#generate-btn');
+    await page.click('#wiz-next');
     await page.waitForSelector('#storyboard:not(.hidden) #sb-approve', { timeout: 60000 });
-    check(counters.agnes.length === 0, 'storyboard affiché sans rien payer chez Agnes');
+    check(counters.agnes.length === 0 && await page.evaluate(() => NAV.step === 2), 'étape Storyboard : affiché sans rien payer chez Agnes');
     await page.fill('[data-sb-field="bubble"][data-i="0"]', 'Chaleur !'); await page.dispatchEvent('[data-sb-field="bubble"][data-i="0"]', 'input');
     await page.click('#sb-approve');
+    check(await page.evaluate(() => NAV.step === 3 && !state.isRunning), 'storyboard validé : étape Génération, rien lancé tout seul');
+    await page.click('#generate-btn');
     await page.waitForSelector('#video-preview.visible', { timeout: 600000 });
     const r = await page.evaluate(async () => ({
         bubble: state.scenePlan.scenes[0].bubble, size: state.finalBlob.size, type: state.finalBlob.type,
@@ -186,6 +189,8 @@ async function testPhoneMontage(browser) {
     check(r.stt.every(Boolean), 'sous-titres synchronisés au mot');
     check(!r.journalHasKey, 'journal sans aucune clé');
     check(counters.agnes[counters.agnes.length - 1].prompt.includes('No background music'), 'Agnes : voix seule (musique gérée par l\'appli)');
+    check(await page.evaluate(() => NAV.step === 4), 'vidéo finie : étape Montage affichée');
+    await page.evaluate(() => navOpen('videos', 'video'));
     await page.click('#download-square-btn');
     await page.waitForFunction(() => document.getElementById('download-square-btn').textContent.includes('Prêt'), null, { timeout: 300000 });
     const sq = await page.evaluate(async () => { const b = state.exportCache['fmt-square'].blob; const v = document.createElement('video'); v.src = URL.createObjectURL(b); await new Promise(r => v.onloadedmetadata = r); return [v.videoWidth, v.videoHeight]; });
@@ -205,7 +210,7 @@ async function testPhoneMontage(browser) {
 
     // Éditeur de montage + banque + aperçu
     check(await page.evaluate(() => document.querySelectorAll('#montage-editor .me-card').length === 3), 'éditeur de montage affiché (3 scènes)');
-    await page.click('[data-toggle="section-editor"]'); await new Promise(r => setTimeout(r, 600));
+    await page.evaluate(() => wizardGo(4));
     await page.click('[data-me="skip"][data-i="1"]');
     await page.click('[data-me="up"][data-i="2"]');
     await page.fill('[data-me-field="caption"][data-i="0"]', 'Texte corrigé à la main'); await page.dispatchEvent('[data-me-field="caption"][data-i="0"]', 'input');
@@ -219,6 +224,7 @@ async function testPhoneMontage(browser) {
     check(await page.evaluate(() => !!document.querySelector('#preview-box canvas') && state.finalBlob.size > 100000), 'aperçu joué sans rien enregistrer');
 
     // Version dans une autre langue
+    await page.evaluate(() => navOpen('videos', 'video'));
     await page.selectOption('#lang-version-select', 'en-US');
     await page.click('#lang-version-btn');
     await page.waitForFunction(() => /Prêt|Réessayer/.test(document.getElementById('lang-version-btn').textContent), null, { timeout: 300000 });
@@ -226,15 +232,17 @@ async function testPhoneMontage(browser) {
     check(lv.ok && lv.lang === 'fr-FR' && lv.bank && lv.cap === 'Texte corrigé à la main', 'version anglaise créée, projet français intact');
 
     // Assistant de script + mode simple
+    await page.evaluate(() => wizardGo(1));
     await page.click('#factcheck-btn');
     await page.waitForSelector('#fc-apply', { timeout: 30000 });
     await page.click('#fc-apply');
     check((await page.inputValue('#script-input')).startsWith('Le soleil réchauffe'), 'vérification des faits : correction appliquée');
-    await page.click('#simple-mode-btn');
-    check(await page.evaluate(() => document.getElementById('section-style').classList.contains('simple-hidden') && !document.getElementById('generate-btn').classList.contains('simple-hidden')), 'mode simple : réglages avancés masqués');
-    await page.click('#simple-mode-btn');
+    await page.click('[data-tab="settings"]'); await page.click('[data-push="set-keys"]');
+    const navOk = await page.evaluate(() => !document.querySelector('[data-screen="set-keys"]').hidden && !document.getElementById('nav-back').hidden);
+    await page.click('#nav-back');
+    check(navOk && await page.evaluate(() => !document.querySelector('[data-screen="settings"]').hidden), 'onglets et pages de réglages (aller-retour)');
     // Stats TikTok (API + capture lue par Claude) et conseils
-    await page.click('[data-toggle="section-ytstats"]'); await new Promise(r => setTimeout(r, 600));
+    await page.click('[data-tab="stats"]');
     await page.click('#ttstats-btn');
     await page.waitForFunction(() => (state.ttStats || []).length === 1, null, { timeout: 20000 });
     await page.setInputFiles('#tt-shot-input', await photoBuffer(page));
@@ -245,6 +253,7 @@ async function testPhoneMontage(browser) {
     check(await page.evaluate(() => scriptExtras().includes('moins de 3 secondes') && !document.getElementById('insights-line').classList.contains('hidden')), 'conseils : leçons appliquées aux prochains scripts');
 
     // Publication programmée (YouTube natif + TikTok via le serveur), puis publication immédiate sur TikTok
+    await page.evaluate(() => wizardGo(5));
     const when = await page.evaluate(() => { const d = new Date(Date.now() + 2 * 3600000); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); });
     await page.fill('#pub-at', when); await page.dispatchEvent('#pub-at', 'change');
     await page.check('#pub-yt'); await page.check('#pub-tt');
@@ -256,9 +265,11 @@ async function testPhoneMontage(browser) {
     check(yt[0]?.status?.privacyStatus === 'private' && !!yt[0]?.status?.publishAt, 'YouTube : vidéo programmée (publishAt)');
     await page.waitForFunction(() => document.querySelectorAll('#schedule-list [data-unschedule]').length === 1, null, { timeout: 20000 });
     check(tt.uploaded === 0, 'TikTok : rien envoyé avant l\'heure');
+    await page.click('[data-tab="home"]');
     await page.click('#schedule-list [data-unschedule]');
     await page.waitForFunction(() => document.getElementById('schedule-list').textContent.includes('Annulée'), null, { timeout: 20000 });
     check(true, 'TikTok : publication programmée annulée');
+    await page.evaluate(() => wizardGo(5));
     await page.fill('#pub-at', ''); await page.dispatchEvent('#pub-at', 'change'); await page.uncheck('#pub-yt');
     await page.click('#publish-btn');
     await page.waitForFunction(() => (getJSON('cartoon_schedule', []) || []).length === 3 && !document.getElementById('publish-btn').dataset.busy, null, { timeout: 120000 });
@@ -269,10 +280,12 @@ async function testPhoneMontage(browser) {
 
     // Sous-titres traduits sur YouTube, découpage, zones TikTok, accroches, question de fin, même structure, dépenses
     check(await page.evaluate(() => /-->/.test(state.langSrt?.['en-US'] || '')), 'sous-titres anglais prêts');
+    await page.evaluate(() => navOpen('videos', 'video'));
     await page.click('#lang-yt-btn');
     await page.waitForFunction(() => document.getElementById('toast-text').textContent.includes('Sous-titres ajoutés'), null, { timeout: 20000 }).catch(() => {});
     check((yt.captions || 0) >= 2, 'sous-titres traduits ajoutés à la vidéo YouTube');
     check(await page.evaluate(() => computeParts(4).length > 1 && computeParts().length === 1 && safeZone(1080, 1920).on && !safeZone(1920, 1080).on), 'découpage en parties et zones TikTok');
+    await page.evaluate(() => wizardGo(1));
     await page.click('#hooks-btn'); await page.waitForSelector('[data-hook="0"]', { timeout: 20000 }); await page.click('[data-hook="0"]');
     check((await page.inputValue('#script-input')).startsWith('Savais-tu'), 'accroche choisie appliquée');
     await page.click('#end-question-btn');
@@ -304,29 +317,31 @@ async function testBackground(browser) {
     await commonRoutes(ctx, clipBufs, env, W, counters);
     await setup(page, { genMode: 'background', storyboardOn: true });
     await fillProject(page);
-    await page.click('#generate-btn');
+    await page.click('#wiz-next');
     await page.waitForSelector('#storyboard:not(.hidden) #sb-approve', { timeout: 60000 });
     await page.click('#sb-approve');
+    await page.click('#generate-btn');
     await page.waitForFunction(() => document.getElementById('bg-text').textContent.includes('éteindre'), null, { timeout: 30000 });
     check(true, 'projet envoyé au serveur');
     await page.close();                                   // « téléphone éteint »
     await new Promise(r => setTimeout(r, 9000));
     const page2 = await ctx.newPage(); page2.on('pageerror', e => errors.push(e.message)); page2.on('dialog', d => d.accept());
     await page2.goto(ORIGIN + '/index.html');
-    await page2.waitForSelector('#bg-finish-btn:not(.hidden)', { timeout: 60000 });
-    check(true, 'à la réouverture : « Tes scènes sont prêtes »');
+    await page2.waitForSelector('#home-finish-btn', { timeout: 60000 });
+    check(await page2.evaluate(() => state.images.length === 1), 'à la réouverture : Accueil « Terminer la vidéo », photo du personnage gardée');
     check(counters.agnes.length === 3 && counters.agnes[2].image.startsWith('data:image/jpeg'), 'pose choisie par Claude envoyée pour la scène 3');
-    await page2.click('#bg-finish-btn');
+    await page2.click('#home-finish-btn');
     await page2.waitForSelector('#video-preview.visible', { timeout: 300000 });
     check(await page2.evaluate(() => state.finalBlob.size > 100000), 'vidéo finale assemblée après la génération en arrière-plan');
     check(await page2.evaluate(() => state.queue.every(q => q.mediaKey && q.mediaKey.startsWith('job/'))), 'scènes copiées sur Cloudflare par le serveur');
     // Série entière en arrière-plan
-    await page2.click('[data-toggle="section-series"]'); await new Promise(r => setTimeout(r, 600));
+    await page2.evaluate(() => wizardGo(1)); await page2.click('[data-sheet]');
     await page2.fill('#series-input', 'Épisode A\nLe soleil chauffe l\'eau.\nLe soleil chauffe l\'eau.\n\nÉpisode B\nLe soleil chauffe l\'eau.\nLe soleil chauffe l\'eau.');
     await page2.dispatchEvent('#series-input', 'input');
     await page2.setInputFiles('#file-input', await photoBuffer(page2));
     await page2.waitForFunction(() => state.images.length > 0);
     await page2.click('#launch-series-btn');
+    await page2.click('#sheet-close'); await page2.click('[data-tab="home"]');
     await page2.waitForFunction(() => document.querySelectorAll('#series-jobs .series-item').length === 2, null, { timeout: 60000 });
     check(true, 'série : 2 épisodes envoyés en arrière-plan');
     let ready = 0;

@@ -2,35 +2,43 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#6c5ce7">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F7F6F1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Figtree:wght@400;500;600;700&display=swap">
 <meta name="description" content="Studio pédagogique IA — vidéos instructives avec avatar, voix premium et sous-titres.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cartoon Instructeur">
-<title>Cartoon Instructeur ULTIMATE</title>
+<title>Cartoon Instructeur</title>
 <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Cartoon%20Instructeur%20ULTIMATE%22%2C%22short_name%22%3A%22Cartoon%20Inst%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22theme_color%22%3A%22%236c5ce7%22%2C%22background_color%22%3A%22%23fafafa%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22portrait%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%3Bcharset%3Dutf-8%2C%253Csvg%2520xmlns%253D%2527http%253A%2F%2Fwww.w3.org%2F2000%2Fsvg%2527%2520viewBox%253D%25270%25200%2520512%2520512%2527%253E%253Crect%2520width%253D%2527512%2527%2520height%253D%2527512%2527%2520rx%253D%2527100%2527%2520fill%253D%2527%25236c5ce7%2527%2F%253E%253Ctext%2520x%253D%2527256%2527%2520y%253D%2527340%2527%2520font-size%253D%2527280%2527%2520text-anchor%253D%2527middle%2527%2520fill%253D%2527white%2527%253E%25F0%259F%258E%2593%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
 <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20rx%3D%27100%27%20fill%3D%27%236c5ce7%27%2F%3E%3Ctext%20x%3D%27256%27%20y%3D%27340%27%20font-size%3D%27280%27%20text-anchor%3D%27middle%27%20fill%3D%27white%27%3E%F0%9F%8E%93%3C%2Ftext%3E%3C%2Fsvg%3E">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 :root {
-    --bg: #fafafa; --panel: #ffffff; --panel-2: #f5f5f5; --border: #e5e5e5;
-    --ink: #1a1a1a; --ink-dim: #777; --ink-faint: #aaa;
-    --success: #2d8a4e; --error: #c0392b; --warn: #d4a017; --info: #4a6cf7;
-    --radius: 12px; --accent: #6c5ce7;
+    --bg: #F7F6F1; --panel: #ffffff; --panel-2: #F0EEE6; --border: #E3E0D6;
+    --ink: #1D2433; --ink-dim: #5B6270; --ink-faint: #9AA0AB;
+    --success: #1F8A4C; --error: #C23B2E; --warn: #B7791F; --info: #2B63D9;
+    --radius: 14px; --accent: #2B63D9; --brand: #FFD23F; --brand-ink: #3A2E00;
+    --ok-bg: #E3F4EA; --warn-bg: #FDF1DC;
+    --display: "Baloo 2", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+    --tabbar-h: 68px;
+    --shadow: 0 1px 2px rgba(29, 36, 51, 0.06), 0 6px 20px rgba(29, 36, 51, 0.07);
 }
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: "Figtree", -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
     background: var(--bg); color: var(--ink); min-height: 100vh;
-    padding: 1.5rem 1rem 9rem; font-size: 15px; line-height: 1.5;
-    max-width: 900px; margin: 0 auto;
+    padding: 0 0 calc(var(--tabbar-h) + 96px + env(safe-area-inset-bottom, 0px)); font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
 }
+#app-main { max-width: 640px; margin: 0 auto; padding: 1rem 1rem 0; }
 header { margin-bottom: 1.5rem; text-align: center; }
 h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 0.3rem; }
 .subtitle { font-size: 0.8rem; color: var(--ink-dim); font-style: italic; }
 
 .toast {
-    position: fixed; top: 1.5rem; left: 50%;
+    position: fixed; top: calc(0.8rem + env(safe-area-inset-top, 0px)); left: 50%;
     transform: translateX(-50%) translateY(-100px);
     background: var(--ink); color: #fff;
     padding: 0.85rem 1.4rem; border-radius: 10px;
@@ -243,8 +251,10 @@ select:focus { outline: none; border-color: var(--ink); }
     width: 100%; padding: 0.8rem; border-radius: var(--radius);
     border: 1px solid var(--border); background: var(--panel);
     color: var(--error); font-size: 0.85rem; font-weight: 600;
-    font-family: inherit; cursor: pointer; margin-bottom: 1rem;
+    font-family: inherit; cursor: pointer;
     display: none;
+    position: fixed; left: 50%; transform: translateX(-50%); width: min(608px, calc(100% - 32px));
+    bottom: calc(var(--tabbar-h) + 128px + env(safe-area-inset-bottom, 0px)); z-index: 160; box-shadow: var(--shadow);
 }
 .btn-stop.visible { display: block; }
 
@@ -284,13 +294,13 @@ select:focus { outline: none; border-color: var(--ink); }
 }
 
 .status-bar {
-    position: fixed; bottom: 0; left: 0; right: 0;
+    position: fixed; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); left: 0; right: 0;
     background: var(--ink); color: #fff; padding: 0.7rem 1rem;
     font-size: 0.78rem; display: flex; align-items: center; gap: 0.6rem;
-    transform: translateY(100%); transition: transform 0.3s;
-    z-index: 100;
+    transform: translateY(100%); visibility: hidden; transition: transform 0.3s, visibility 0.3s;
+    z-index: 150;
 }
-.status-bar.visible { transform: translateY(0); }
+.status-bar.visible { transform: translateY(0); visibility: visible; }
 .status-bar .spinner {
     width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3);
     border-top-color: #fff; border-radius: 50%;
@@ -478,7 +488,7 @@ select:focus { outline: none; border-color: var(--ink); }
 }
 
 .install-banner {
-    position: fixed; bottom: 80px; left: 50%;
+    position: fixed; bottom: calc(var(--tabbar-h) + 90px + env(safe-area-inset-bottom, 0px)); left: 50%;
     transform: translateX(-50%);
     background: var(--accent); color: #fff;
     padding: 0.7rem 1.2rem; border-radius: 10px;
@@ -580,120 +590,110 @@ select:focus { outline: none; border-color: var(--ink); }
 .series-results .series-item { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.4rem; background: var(--panel); font-size: 0.8rem; }
 .series-results .series-item button { padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); font-size: 0.75rem; cursor: pointer; }
 .badge-pill.beta { background: #fdf0d4; color: var(--warn); }
+
+/* ═══════════════ Navigation : barre du haut, onglets, assistant, réglages ═══════════════ */
+[hidden] { display: none !important; }
+.topbar { margin: 0; text-align: left; position: sticky; top: 0; z-index: 120; display: flex; align-items: center; gap: 8px; min-height: 54px;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 6px; background: rgba(247, 246, 241, 0.94); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.topbar h1 { flex: 1; margin: 0; font-family: var(--display); font-weight: 700; font-size: 1.35rem; letter-spacing: 0; line-height: 1.15; text-wrap: balance; }
+.back { border: 0; background: none; padding: 6px 8px 6px 0; color: var(--accent); font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 2px; font-family: inherit; cursor: pointer; }
+.screen { display: flex; flex-direction: column; gap: 1rem; }
+.screen > .section, .screen > .api-panel, .wstep > .section { margin-bottom: 0; }
+.section-header { cursor: default; pointer-events: none; }
+.section-header .chevron { display: none; }
+.section-title { font-size: 0.72rem; }
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 140; background: var(--panel); border-top: 1px solid var(--border);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); }
+.tabbar-inner { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
+.tab { border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; font: 600 11px/1.2 inherit; font-family: inherit; color: var(--ink-dim); cursor: pointer; }
+.tab svg { width: 24px; height: 24px; }
+.tab[aria-current="page"] { color: var(--accent); }
+.create-tab .dot { width: 46px; height: 32px; border-radius: 12px; background: var(--brand); color: var(--brand-ink); display: grid; place-items: center; }
+.create-tab[aria-current="page"] .dot { outline: 2px solid var(--accent); }
+.hello { font-family: var(--display); font-size: 1.75rem; font-weight: 800; line-height: 1.08; margin: 0.4rem 0 0; text-wrap: balance; }
+.new-video { display: flex; align-items: center; gap: 14px; width: 100%; border: 0; border-radius: 20px; padding: 18px; background: var(--brand); color: var(--brand-ink); text-align: left; box-shadow: var(--shadow); font-family: inherit; cursor: pointer; }
+.new-video .plus { width: 48px; height: 48px; border-radius: 14px; background: rgba(255,255,255,0.55); display: grid; place-items: center; font-size: 30px; font-weight: 800; flex: none; }
+.new-video b { font-family: var(--display); font-size: 1.35rem; display: block; line-height: 1.1; }
+.nv-sub { font-size: 13px; opacity: 0.8; }
+.label { font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-dim); margin: 0.2rem 0 -0.4rem; }
+.hcard { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.hcard .row { display: flex; align-items: center; gap: 10px; }
+.hcard .grow { flex: 1; min-width: 0; }
+.hcard .t { font-weight: 700; line-height: 1.3; }
+.hcard .btn-primary, .hcard .btn-secondary { margin: 0; }
+.hmuted { color: var(--ink-dim); font-size: 13px; line-height: 1.4; }
+.pill { display: inline-flex; align-items: center; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 9px; white-space: nowrap; background: var(--panel-2); color: var(--ink-dim); }
+.pill:empty { display: none; }
+.pill.ok { background: var(--ok-bg); color: var(--success); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.money { font-family: var(--display); font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stepper { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.step { border: 0; background: none; padding: 0; display: flex; flex-direction: column; gap: 5px; font: 600 11px/1.2 inherit; font-family: inherit; color: var(--ink-dim); text-align: left; cursor: pointer; }
+.step i { display: block; height: 4px; border-radius: 99px; background: var(--border); }
+.step.done i, .step.now i { background: var(--accent); }
+.step.now { color: var(--ink); }
+.wstep { display: flex; flex-direction: column; gap: 0.8rem; }
+.step-title { font-family: var(--display); font-size: 1.5rem; font-weight: 700; margin: 0; line-height: 1.1; }
+.wstep .btn-primary, .wstep .btn-secondary, .screen > .btn-secondary { margin-bottom: 0; }
+.wizard-foot { position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); z-index: 130; background: var(--bg); border-top: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 10px; justify-content: center; }
+.wizard-foot .btn-secondary, .wizard-foot .btn-primary { flex: 1; max-width: 300px; margin: 0; padding: 0.85rem; }
+.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 4px 0; text-align: left; font-family: inherit; font-size: 15px; cursor: pointer; }
+.char-chip { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; }
+.char-chip img { width: 48px; height: 48px; object-fit: cover; border-radius: 10px; background: #fff; border: 1px solid var(--border); }
+.char-chip .grow { flex: 1; min-width: 0; font-size: 14px; }
+.char-chip button { border: 1px solid var(--border); background: var(--panel); border-radius: 10px; padding: 7px 11px; font: 600 13px inherit; font-family: inherit; cursor: pointer; }
+.char-chip.missing { border-color: var(--warn); background: var(--warn-bg); }
+.list { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+.list-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 14px; border: 0; border-bottom: 1px solid var(--border); background: none; text-align: left; font-family: inherit; font-size: 15px; color: var(--ink); cursor: pointer; }
+.list-item:last-child { border-bottom: 0; }
+.list-item .ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 17px; flex: none; background: var(--panel-2); }
+.list-item .grow { flex: 1; min-width: 0; }
+.list-item small { display: block; color: var(--ink-dim); font-size: 12.5px; margin-top: 1px; }
+.chev { color: var(--ink-faint); font-size: 20px; flex: none; }
+.fiche-video { width: 100%; border-radius: 14px; background: #000; max-height: 60vh; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sheet-back { position: fixed; inset: 0; background: rgba(15, 18, 26, 0.45); z-index: 200; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 86vh; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg); border-radius: 22px 22px 0 0;
+    padding: 10px 16px calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 201; display: flex; flex-direction: column; gap: 12px; max-width: 640px; margin: 0 auto; }
+.sheet .section { margin-bottom: 0; }
+.sheet > * { flex-shrink: 0; }
+#home-setup:empty, #home-live:empty, #home-last:empty, #char-chip:empty { display: none; }
+.grab { width: 40px; height: 5px; border-radius: 99px; background: var(--border); margin: 0 auto 4px; flex: none; }
+.sheet-title { font-family: var(--display); font-size: 1.35rem; margin: 0; }
+@media (prefers-reduced-motion: no-preference) {
+    .screen:not([hidden]) { animation: scr-in 0.18s ease-out; }
+    .sheet { animation: sheet-up 0.22s ease-out; }
+    @keyframes scr-in { from { opacity: 0.4; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    @keyframes sheet-up { from { transform: translateY(40px); } to { transform: none; } }
+}
 </style>
 </head>
 <body>
 
-<header>
-    <h1>🎓 Cartoon Instructeur <span style="font-size:0.65rem;background:var(--accent);color:#fff;padding:0.15rem 0.5rem;border-radius:8px;vertical-align:middle;">ULTIMATE</span></h1>
-    <p class="subtitle">Studio pédagogique IA · vidéos cartoon</p>
+<header class="topbar" id="topbar">
+    <button type="button" class="back" id="nav-back" hidden><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Retour</button>
+    <h1 id="screen-title">Cartoon Instructeur</h1>
 </header>
 
-<div class="info-banner">
-    <strong>Pour générer une vidéo complète, 3 éléments suffisent :</strong> ① la clé Agnes, ② la photo du personnage, ③ le script.<br>
-    <span class="tag req">obligatoire</span> indispensable · <span class="tag rec">recommandé</span> améliore nettement le résultat · <span class="tag opt">optionnel</span> à régler seulement si tu veux.
-</div>
+<main id="app-main">
+<!-- ═══════════════ ACCUEIL ═══════════════ -->
+<section class="screen" data-screen="home" data-title="Cartoon Instructeur">
+    <p class="hello">Salut ! Prêt pour une nouvelle leçon ?</p>
+    <button type="button" class="new-video" id="home-new-btn"><span class="plus">+</span><span><b>Nouvelle vidéo</b><span class="nv-sub">Sujet, script, storyboard, puis génération</span></span></button>
+    <div id="home-setup"></div>
+    <div id="home-live"></div>
+<div class="bg-panel hidden" id="series-jobs"></div>
+<div class="bg-panel hidden" id="schedule-list"></div>
+    <div id="home-last"></div>
+    <div id="home-costs"></div>
+</section>
 
-<button type="button" class="simple-mode-btn" id="simple-mode-btn">✨ Passer en mode simple</button>
-
-<div class="essentials-title">① Essentiel</div>
-
-<!-- ═══════════════ APIs ═══════════════ -->
-<div class="api-panel" id="api-panel">
-    <div class="api-title">🎬 Clé Agnes (génération vidéo) <span class="tag req">obligatoire</span></div>
-    <input type="password" class="api-key-input" id="api-key-input" placeholder="Clé API Agnes (sk-...)" autocomplete="off">
-    <button type="button" class="api-save-btn" id="api-save-btn">Enregistrer la clé Agnes</button>
-    <div class="api-status-line" id="api-status-line">
-        <span class="status-dot"></span>
-        <span id="api-status-text">Aucune clé API Agnes</span>
-    </div>
-    <div class="stat-line">
-        <span>📊 Vitesse : <span id="stat-speed">en attente</span></span>
-        <span id="stat-samples">0 génération</span>
-    </div>
-    <div class="stat-line" id="quota-line">
-        <span>💰 Cette session : <span id="quota-text">0 scène traitée</span></span>
-        <span id="cost-text">≈ 0,00 € (estimation Agnes)</span>
-    </div>
-    <div class="wake-status" id="wake-status">
-        <span id="wake-status-text">💤 Veille automatique</span>
-        <button type="button" id="wake-toggle-btn">Garder l'écran allumé</button>
-    </div>
-</div>
-
-<!-- ═══════════════ Claude ═══════════════ -->
-<div class="api-panel" id="claude-panel">
-    <div class="api-title">🤖 Clé Claude (intelligence artificielle) <span class="tag rec">recommandé</span></div>
-    <div class="api-hint">Écrit le script, met en scène chaque scène (continuité, décor, bulles), rend le texte plus facile à prononcer, traduit, crée le quiz et le SEO. Sans cette clé, l'appli fonctionne quand même, avec une mise en scène automatique plus simple.</div>
-    <input type="password" class="api-key-input" id="claude-key-input" placeholder="Clé API Claude (sk-ant-...)" autocomplete="off">
-    <select id="claude-model-select" style="margin-bottom:0.5rem;">
-        <option value="claude-opus-5" selected>Claude Opus 5 (meilleure qualité)</option>
-        <option value="claude-sonnet-5">Claude Sonnet 5 (plus rapide, moins cher)</option>
-        <option value="claude-haiku-4-5">Claude Haiku 4.5 (le plus économique)</option>
-    </select>
-    <button type="button" class="api-save-btn" id="claude-save-btn">Enregistrer la clé Claude</button>
-    <div class="api-status-line" id="claude-status-line">
-        <span class="status-dot"></span>
-        <span id="claude-status-text">Aucune clé Claude</span>
-    </div>
-</div>
-
-<!-- ═══════════════ Relais de téléchargement ═══════════════ -->
-<div class="api-panel" id="proxy-panel">
-    <div class="api-title">🔁 Serveur Cloudflare <span class="tag rec">déjà configuré</span></div>
-    <div class="api-hint">Ton serveur Cloudflare télécharge les scènes pour le montage et fait la génération en arrière-plan. Il est déjà branché : rien à faire, sauf si tu changes de serveur. <a href="https://github.com/mendytamadouni2-design/cartoon-instructeur/blob/main/relais/INSTALLATION.md" target="_blank" rel="noopener">👉 Guide d'installation (10 min)</a></div>
-    <input type="url" class="api-key-input" id="proxy-url-input" placeholder="https://cartoon-relais.ton-nom.workers.dev" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <button type="button" class="api-save-btn" id="proxy-save-btn">Enregistrer et tester le relais</button>
-    <div class="api-status-line" id="proxy-status-line">
-        <span class="status-dot"></span>
-        <span id="proxy-status-text">Aucun relais</span>
-    </div>
-</div>
-
-<!-- ═══════════════ Sauvegarde des clés ═══════════════ -->
-<div class="api-panel" id="keys-panel">
-    <div class="api-title">🔐 Mes clés sur ce téléphone</div>
-    <div class="api-hint">Tes clés restent enregistrées sur ce téléphone : pas besoin de les retaper. Pour les retrouver après une réinstallation ou sur un autre appareil, sauvegarde-les une fois dans un fichier (dans l'app Fichiers / iCloud), puis restaure-le en un appui. Ce fichier est privé : ne le partage pas et ne le mets jamais sur GitHub.</div>
-    <input type="file" id="keys-import-input" accept=".json,application/json,text/plain" style="display:none;">
-    <button type="button" class="btn-secondary" id="keys-export-btn">💾 Sauvegarder mes clés dans un fichier</button>
-    <button type="button" class="btn-secondary" id="keys-import-btn" style="margin-top:0.4rem;">📂 Restaurer mes clés depuis le fichier</button>
-    <div class="api-hint" id="keys-summary" style="margin:0.6rem 0 0;"></div>
-</div>
-
-<!-- ═══════════════ Personnage ═══════════════ -->
-<div class="section open" id="section-character">
-    <div class="section-header" data-toggle="section-character">
-        <span class="section-title">👤 Personnage <span class="tag req">obligatoire</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="upload-zone" id="upload-zone">
-            <input type="file" id="file-input" accept="image/*" multiple>
-            <div class="upload-icon">＋</div>
-            <div class="upload-text">Ajoutez la photo du personnage</div>
-            <div class="upload-hint">La première image est la photo principale du personnage</div>
-        </div>
-        <div class="images-grid" id="images-grid"></div>
-        <div class="control-row" style="margin-top:0.9rem;">
-            <label class="control-label">Poses supplémentaires <span class="tag opt">optionnel</span></label>
-            <div class="prompt-main-hint" style="margin:0 0 0.5rem;">Ajoute les poses de ta planche (sur fond blanc) : Claude choisira la meilleure pose de départ pour chaque scène.</div>
-            <select id="pose-type-select">
-                <option value="explique">Explique (mains ouvertes)</option>
-                <option value="montre">Montre / pointe</option>
-                <option value="dessine">Dessine au feutre</option>
-                <option value="reflechit">Réfléchit</option>
-                <option value="salue">Salue / accueille</option>
-                <option value="surpris">Surpris</option>
-                <option value="rigole">Rigole</option>
-            </select>
-            <input type="file" id="pose-input" accept="image/*" style="display:none;">
-            <button type="button" class="btn-secondary" id="pose-add-btn" style="margin-top:0.4rem;">＋ Ajouter cette pose</button>
-            <div id="poses-list" style="margin-top:0.6rem;"></div>
-        </div>
-    </div></div>
-</div>
-
-<!-- ═══════════════ Thème & Script ═══════════════ -->
+<!-- ═══════════════ CRÉER (assistant en 5 étapes) ═══════════════ -->
+<section class="screen" data-screen="create" data-title="Créer" hidden>
+    <nav class="stepper" id="stepper" aria-label="Étapes"></nav>
+    <div class="wstep" data-step="1">
+        <h2 class="step-title">Sujet et script</h2>
+        <div id="char-chip"></div>
 <div class="section open" id="section-script">
     <div class="section-header" data-toggle="section-script">
         <span class="section-title">📝 Thème & Script <span class="tag req">obligatoire</span></span>
@@ -748,246 +748,330 @@ Merci de m'avoir écouté !"></textarea>
         <button type="button" class="btn-secondary" id="translate-script-btn" style="margin-top:0.4rem;">🌍 Traduire le script</button>
     </div></div>
 </div>
-
-<div class="options-title">② Options</div>
-
-<!-- ═══════════════ Mode série ═══════════════ -->
-<div class="section" id="section-series">
-    <div class="section-header" data-toggle="section-series">
-        <span class="section-title">📺 Mode série <span class="tag opt">optionnel</span></span>
+        <button type="button" class="linkbtn" data-sheet="1">⚙️ Plus d'options (style, langue, public, série)</button>
+    </div>
+    <div class="wstep" data-step="2" hidden>
+        <h2 class="step-title">Storyboard</h2>
+        <div class="prompt-main-hint" id="sb-empty"></div>
+<div class="storyboard hidden" id="storyboard"></div>
+    </div>
+    <div class="wstep" data-step="3" hidden>
+        <h2 class="step-title">Génération</h2>
+<div class="control-row" id="gen-mode-row">
+    <label class="control-label">Où faire la génération ?</label>
+    <select id="gen-mode-select">
+        <option value="background" selected>☁️ En arrière-plan sur Cloudflare (tu peux éteindre le téléphone)</option>
+        <option value="phone">📱 Sur le téléphone (écran allumé, scènes enchaînées)</option>
+    </select>
+    <div class="prompt-main-hint" id="gen-mode-hint"></div>
+</div>
+<div class="estimate-line" id="estimate-line"></div>
+<button type="button" class="btn-primary" id="generate-btn" disabled>🎬 Générer la vidéo pédagogique</button>
+<div class="bg-panel hidden" id="bg-panel">
+    <div class="bg-title" id="bg-title">☁️ Génération en arrière-plan</div>
+    <div class="bg-text" id="bg-text">Envoi du projet…</div>
+    <div class="bg-bar"><div id="bg-progress"></div></div>
+    <button type="button" class="btn-primary hidden" id="bg-finish-btn">🎞️ Terminer la vidéo</button>
+    <button type="button" class="btn-secondary" id="bg-cancel-btn">⏹ Arrêter la génération</button>
+    <button type="button" class="btn-secondary hidden" id="bg-dismiss-btn">Fermer</button>
+</div>
+<div class="progress-bar-wrap hidden" id="progress-bar-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+</div>
+<div class="queue" id="queue" style="display:none;"></div>
+<div class="gallery" id="gallery" style="display:none;">
+    <div class="section-title" style="margin-bottom:0.8rem;">🎞️ Scènes générées</div>
+    <div class="gallery-grid" id="gallery-grid"></div>
+</div>
+    </div>
+    <div class="wstep" data-step="4" hidden>
+        <h2 class="step-title">Montage</h2>
+        <div class="prompt-main-hint" id="montage-empty"></div>
+<div class="video-preview" id="video-preview">
+    <video id="final-video" controls playsinline></video>
+</div>
+<button type="button" class="btn-secondary hidden" id="assemble-btn" style="margin-top:0.6rem;">🎞️ Assembler la vidéo finale</button>
+<button type="button" class="btn-secondary hidden" id="preview-btn" style="margin-top:0.4rem;">▶️ Aperçu rapide (sans enregistrer)</button>
+<div class="preview-box hidden" id="preview-box"></div>
+<div class="section open hidden" id="section-editor" style="margin-top:0.6rem;">
+    <div class="section-header" data-toggle="section-editor">
+        <span class="section-title">✂️ Retoucher le montage</span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
-        <div class="control-row">
-            <label class="control-label">Épisodes de la série</label>
-            <textarea class="prompt-main" id="series-input" placeholder="Un épisode par bloc, séparés par une ligne vide.
-
-Épisode 1 : Le cycle de l'eau
-Phrase 1...
-Phrase 2...
-
-Épisode 2 : La photosynthèse
-Phrase 1...
-Phrase 2..."></textarea>
-            <div class="prompt-main-hint">Chaque bloc séparé par une ligne vide devient un épisode.</div>
-        </div>
-        <div class="stat-line"><span id="series-stats">0 épisode</span></div>
-        <button type="button" class="btn-secondary" id="launch-series-btn" style="margin-top:0.6rem;">🚀 Lancer la génération de la série</button>
-        <div class="prompt-main-hint" style="margin-top:0.4rem;">Avec « En arrière-plan sur Cloudflare », tous les épisodes sont envoyés d'un coup : tu peux éteindre ton téléphone. Chaque épisode aura ensuite son bouton « Terminer ».</div>
+        <div id="montage-editor"></div>
     </div></div>
 </div>
+        <button type="button" class="btn-secondary hidden" id="goto-fiche-btn">🎬 Formats, versions et téléchargements</button>
+    </div>
+    <div class="wstep" data-step="5" hidden>
+        <h2 class="step-title">Publier</h2>
+        <div class="prompt-main-hint" id="publish-empty"></div>
+<div class="publish-box hidden" id="section-publish">
+    <div class="section-title" style="margin-bottom:0.5rem;">📅 Publier ou programmer</div>
+    <label class="control-label">Quand ? (vide = maintenant)</label>
+    <input type="datetime-local" class="text-input" id="pub-at">
+    <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;"><input type="checkbox" id="pub-yt"> ▶️ YouTube</label>
+    <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="pub-tt"> 🎵 TikTok</label>
+    <div id="tt-options" class="hidden">
+        <select id="pub-tt-mode" style="margin-top:0.3rem;">
+            <option value="direct" selected>Publier directement sur TikTok</option>
+            <option value="inbox">Envoyer en brouillon (je finis dans l'appli TikTok)</option>
+        </select>
+        <select id="pub-tt-privacy" style="margin-top:0.3rem;"><option value="SELF_ONLY">Moi seulement (privé)</option></select>
+        <select id="pub-tt-format" style="margin-top:0.3rem;">
+            <option value="vertical" selected>Version verticale 9:16 (créée automatiquement)</option>
+            <option value="final">Vidéo finale telle quelle</option>
+        </select>
+        <label class="control-label" style="margin-top:0.4rem;">Texte TikTok</label>
+        <textarea class="sb-text" id="tt-caption" placeholder="Texte et hashtags de la publication"></textarea>
+        <button type="button" class="btn-secondary" id="tt-caption-btn" style="margin-top:0.3rem;">🤖 Écrire le texte + hashtags (Claude)</button>
+    </div>
+    <button type="button" class="btn-primary" id="publish-btn" style="margin-top:0.6rem;">🚀 Publier maintenant</button>
+    <div class="prompt-main-hint" id="pub-hint" style="margin-top:0.3rem;"></div>
+</div>
+    </div>
+</section>
 
-<!-- ═══════════════ Langue ═══════════════ -->
-<div class="section" id="section-language">
-    <div class="section-header" data-toggle="section-language">
-        <span class="section-title">🌍 Langue & Traduction <span class="tag opt">optionnel</span></span>
+<!-- ═══════════════ MES VIDÉOS ═══════════════ -->
+<section class="screen" data-screen="videos" data-title="Mes vidéos" hidden>
+    <div id="videos-current"></div>
+<div class="series-results hidden" id="series-results"></div>
+<div class="section open" id="section-library">
+    <div class="section-header" data-toggle="section-library">
+        <span class="section-title">☁️ Mes vidéos sauvegardées <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
-        <div class="control-row">
-            <label class="control-label">Langue de la vidéo</label>
-            <select id="language-select">
-                <option value="fr-FR" selected>🇫🇷 Français</option>
-                <option value="en-US">🇬🇧 English (US)</option>
-                <option value="en-GB">🇬🇧 English (UK)</option>
-                <option value="es-ES">🇪🇸 Español</option>
-                <option value="de-DE">🇩🇪 Deutsch</option>
-                <option value="it-IT">🇮🇹 Italiano</option>
-                <option value="pt-BR">🇧🇷 Português (BR)</option>
-                <option value="ar-SA">🇸🇦 العربية</option>
-                <option value="zh-CN">🇨🇳 中文</option>
-                <option value="ja-JP">🇯🇵 日本語</option>
-                <option value="ko-KR">🇰🇷 한국어</option>
-                <option value="ru-RU">🇷🇺 Русский</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Moteur de traduction</label>
-            <select id="translate-engine-select">
-                <option value="claude" selected>Claude (utilise la clé Claude)</option>
-                <option value="deepl">DeepL</option>
-                <option value="google">Google Translate</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Clé DeepL ou Google (inutile avec Claude)</label>
-            <input type="password" class="api-key-input" id="translate-key-input" placeholder="Clé API DeepL ou Google Translate">
-        </div>
+        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Tes scènes et tes vidéos finales sont gardées sur ton serveur Cloudflare : plus de liens Agnes expirés, et tu les retrouves sur n'importe quel appareil.</div>
+        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="backup-toggle" checked> Sauvegarder automatiquement les scènes</label>
+        <div id="library-list"></div>
+        <button type="button" class="btn-secondary" id="library-refresh-btn" style="margin-top:0.4rem;">🔄 Actualiser</button>
     </div></div>
 </div>
-
-<!-- ═══════════════ Style ═══════════════ -->
-<div class="section" id="section-style">
-    <div class="section-header" data-toggle="section-style">
-        <span class="section-title">🎨 Style visuel <span class="tag opt">optionnel</span></span>
+<div class="section open" id="section-history">
+    <div class="section-header" data-toggle="section-history">
+        <span class="section-title">📚 Historique des projets <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
-        <div class="styles-grid" id="styles-grid"></div>
+        <div id="history-list"></div>
+        <button type="button" class="btn-secondary" id="clear-history-btn" style="margin-top:0.5rem;">🗑️ Effacer l'historique</button>
     </div></div>
 </div>
+</section>
 
-<!-- ═══════════════ Mise en scène ═══════════════ -->
-<div class="section" id="section-staging">
-    <div class="section-header" data-toggle="section-staging">
-        <span class="section-title">🎬 Mise en scène & montage <span class="tag opt">optionnel</span></span>
+<section class="screen" data-screen="video" data-title="Ma vidéo" hidden>
+    <video id="fiche-video" class="fiche-video" controls playsinline></video>
+    <p class="label">Enregistrer</p>
+<button type="button" class="btn-secondary hidden" id="download-final-btn" style="margin-top:1rem;">⬇️ Enregistrer la vidéo</button>
+<button type="button" class="btn-secondary hidden" id="download-youtube-fmt-btn" style="margin-top:0.4rem;">⬇️ Créer la version YouTube 16:9</button>
+<button type="button" class="btn-secondary hidden" id="download-vertical-btn" style="margin-top:0.4rem;">⬇️ Créer la version Shorts/TikTok 9:16 (entière)</button>
+<button type="button" class="btn-secondary hidden" id="download-square-btn" style="margin-top:0.4rem;">⬇️ Créer la version carrée 1:1</button>
+<button type="button" class="btn-secondary hidden" id="download-shorts-btn" style="margin-top:0.4rem;">⬇️ Télécharger Shorts 30s</button>
+<button type="button" class="btn-secondary hidden" id="download-thumbnail-btn" style="margin-top:0.4rem;">⬇️ Télécharger miniature</button>
+<button type="button" class="btn-secondary hidden" id="download-srt-btn" style="margin-top:0.4rem;">⬇️ Télécharger SRT</button>
+<button type="button" class="btn-secondary hidden" id="download-chapters-btn" style="margin-top:0.4rem;">⬇️ Télécharger chapitres</button>
+<button type="button" class="btn-secondary hidden" id="download-seo-btn" style="margin-top:0.4rem;">⬇️ Télécharger SEO</button>
+<button type="button" class="btn-secondary hidden" id="download-quiz-btn" style="margin-top:0.4rem;">⬇️ Télécharger quiz</button>
+<button type="button" class="btn-secondary hidden" id="download-audio-btn" style="margin-top:0.4rem;">⬇️ Télécharger l'audio de la voix premium</button>
+<button type="button" class="btn-secondary hidden" id="download-scenes-btn" style="margin-top:0.4rem;">⬇️ Télécharger scènes</button>
+<button type="button" class="btn-secondary hidden" id="download-zip-btn" style="margin-top:0.4rem;">⬇️ Télécharger ZIP complet</button>
+<button type="button" class="btn-secondary hidden" id="backup-final-btn" style="margin-top:0.4rem;">☁️ Sauvegarder la vidéo sur mon Cloudflare</button>
+    <p class="label">Décliner sans rien régénérer</p>
+<div class="control-row hidden" id="lang-version-row" style="margin-top:0.6rem;">
+    <label class="control-label">Même vidéo dans une autre langue (voix ElevenLabs + sous-titres traduits, aucune scène refaite)</label>
+    <select id="lang-version-select">
+        <option value="en-US" selected>🇬🇧 Anglais</option>
+        <option value="es-ES">🇪🇸 Espagnol</option>
+        <option value="de-DE">🇩🇪 Allemand</option>
+        <option value="it-IT">🇮🇹 Italien</option>
+        <option value="pt-BR">🇧🇷 Portugais</option>
+        <option value="ar-SA">🇸🇦 Arabe</option>
+        <option value="fr-FR">🇫🇷 Français</option>
+    </select>
+    <button type="button" class="btn-secondary" id="lang-version-btn" style="margin-top:0.4rem;">🌍 Créer la version traduite</button>
+    <button type="button" class="btn-secondary hidden" id="lang-yt-btn" style="margin-top:0.4rem;">➕ Ajouter les sous-titres traduits à ma vidéo YouTube</button>
+</div>
+<div class="control-row hidden" id="parts-row" style="margin-top:0.6rem;">
+    <label class="control-label">✂️ Découper en plusieurs TikToks de moins d'une minute (Partie 1, 2…), sans refaire de scène</label>
+    <div id="parts-list"></div>
+    <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;"><input type="checkbox" id="safe-zones-toggle" checked> Format vertical : textes et dessins hors des boutons TikTok</label>
+</div>
+    <div class="btn-row">
+        <button type="button" class="btn-secondary" data-wizard="4">✂️ Retoucher le montage</button>
+        <button type="button" class="btn-secondary" data-wizard="5">📅 Publier</button>
+    </div>
+</section>
+
+<!-- ═══════════════ STATS ═══════════════ -->
+<section class="screen" data-screen="stats" data-title="Stats" hidden>
+<div class="section open" id="section-ytstats">
+    <div class="section-header" data-toggle="section-ytstats">
+        <span class="section-title">📈 YouTube + TikTok</span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
-        <div class="control-row">
-            <label class="control-label">Enchaîner les scènes</label>
-            <select id="chain-select">
-                <option value="on" selected>Oui : chaque scène part de la dernière image de la précédente (recommandé)</option>
-                <option value="off">Non : chaque scène part de la photo (plus rapide)</option>
-            </select>
-            <div class="prompt-main-hint">Donne l'impression d'une seule vidéo continue. Les scènes sont alors générées l'une après l'autre (un peu plus long).</div>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Caméra</label>
-            <select id="camera-select">
-                <option value="varied" selected>Plans variés, sans zoom d'intro</option>
-                <option value="static">Caméra fixe</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Transition entre les scènes</label>
-            <select id="transition-select">
-                <option value="smart" selected>Intelligentes : coupes nettes, fondu entre les parties (recommandé)</option>
-                <option value="fade">Fondu enchaîné partout</option>
-                <option value="cut">Coupes nettes partout</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Blancs au début et à la fin des scènes</label>
-            <select id="trim-select">
-                <option value="auto" selected>Coupés automatiquement (détection de la voix)</option>
-                <option value="fixed">Couper seulement 0,4 s au début</option>
-                <option value="none">Ne rien couper</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Zooms sur les mots importants</label>
-            <select id="zoom-select">
-                <option value="on" selected>Oui (choisis par Claude)</option>
-                <option value="off">Non</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Habillage</label>
-            <select id="intro-select">
-                <option value="on" selected>Intro animée avec le titre (thème)</option>
-                <option value="off">Pas d'intro</option>
-            </select>
-            <select id="sections-select" style="margin-top:0.4rem;">
-                <option value="on" selected>Titres des parties (choisis par Claude)</option>
-                <option value="off">Pas de titres de parties</option>
-            </select>
-            <select id="outro-select" style="margin-top:0.4rem;">
-                <option value="on" selected>Fin : récap des dessins + « Abonne-toi »</option>
-                <option value="off">Pas d'écran de fin</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Logo de ta chaîne (en haut à droite)</label>
-            <input type="file" id="logo-input" accept="image/*" style="display:none;">
-            <button type="button" class="btn-secondary" id="logo-btn">🖼️ Choisir un logo</button>
-            <button type="button" class="btn-secondary hidden" id="logo-remove-btn" style="margin-top:0.4rem;">Retirer le logo</button>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Qualité d'export</label>
-            <select id="quality-select">
-                <option value="1080" selected>1080p (Full HD)</option>
-                <option value="720">720p (plus léger)</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Format de la vidéo finale</label>
-            <select id="video-format-select">
-                <option value="auto" selected>Automatique (même format que les scènes)</option>
-                <option value="portrait">Portrait 9:16 (Shorts, TikTok, Reels)</option>
-                <option value="landscape">Paysage 16:9 (YouTube)</option>
-            </select>
-            <div class="prompt-main-hint">Si les scènes ne sont pas au bon format, l'image est centrée avec un fond flouté, sans rien couper.</div>
-        </div>
+        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Vues, likes et pourcentage regardé des vidéos publiées depuis l'appli, puis Claude te dit ce qui marche et quoi faire ensuite.</div>
+        <button type="button" class="btn-secondary" id="ytstats-btn">📈 Voir mes statistiques YouTube</button>
+        <div id="ytstats-box" style="margin-top:0.5rem;"></div>
+        <button type="button" class="btn-secondary" id="ttstats-btn" style="margin-top:0.4rem;">📈 Voir mes statistiques TikTok</button>
+        <input type="file" id="tt-shot-input" accept="image/*" style="display:none;">
+        <button type="button" class="btn-secondary" id="tt-shot-btn" style="margin-top:0.4rem;">📸 Ajouter une capture des stats TikTok (temps regardé…)</button>
+        <div class="prompt-main-hint" style="margin-top:0.3rem;">TikTok ne donne pas le temps de visionnage aux applis : fais une capture de l'écran « Statistiques » d'une vidéo dans TikTok, Claude lira les chiffres.</div>
+        <div id="ttstats-box" style="margin-top:0.5rem;"></div>
+        <button type="button" class="btn-secondary" id="platform-advice-btn" style="margin-top:0.6rem;">🤖 Conseils de Claude (YouTube + TikTok)</button>
+        <div id="platform-advice" class="prompt-main-hint" style="white-space:pre-wrap;margin-top:0.5rem;"></div>
     </div></div>
 </div>
-
-<!-- ═══════════════ Options pédagogiques ═══════════════ -->
-<div class="section" id="section-pedago">
-    <div class="section-header" data-toggle="section-pedago">
-        <span class="section-title">🧠 Options pédagogiques <span class="tag opt">optionnel</span></span>
+<div class="section open" id="section-costs">
+    <div class="section-header" data-toggle="section-costs">
+        <span class="section-title">💰 Mes dépenses <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
-        <div class="control-row">
-            <label class="control-label">Niveau du public</label>
-            <select id="audience-select">
-                <option value="kids">Enfants (5-10 ans)</option>
-                <option value="teens" selected>Adolescents (11-17 ans)</option>
-                <option value="adults">Adultes</option>
-                <option value="experts">Experts</option>
-            </select>
+        <div id="costs-box"></div>
+        <button type="button" class="btn-secondary" id="costs-refresh-btn" style="margin-top:0.4rem;">🔄 Actualiser</button>
+        <button type="button" class="btn-secondary" id="costs-reset-btn" style="margin-top:0.4rem;">Remettre à zéro</button>
+    </div></div>
+</div>
+<div class="section open" id="section-analytics">
+    <div class="section-header" data-toggle="section-analytics">
+        <span class="section-title">📊 Statistiques <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="analytics-grid" id="analytics-grid"></div>
+        <button type="button" class="btn-secondary" id="analytics-refresh-btn" style="margin-top:0.5rem;">Rafraîchir</button>
+        <button type="button" class="btn-secondary" id="analytics-reset-btn" style="margin-top:0.4rem;">Réinitialiser</button>
+    </div></div>
+</div>
+</section>
+
+<!-- ═══════════════ RÉGLAGES ═══════════════ -->
+<section class="screen" data-screen="settings" data-title="Réglages" hidden>
+    <div class="list">
+        <button type="button" class="list-item" data-push="set-keys"><span class="ico">🔑</span><span class="grow">Clés et serveur<small>Agnes, Claude, Cloudflare</small></span><span class="pill" id="keys-pill"></span><span class="chev">›</span></button>
+        <button type="button" class="list-item" data-push="set-brand"><span class="ico">🎨</span><span class="grow">Ma chaîne<small>Personnage, poses, logo, couleur, musique, intro et fin</small></span><span class="pill" id="brand-pill"></span><span class="chev">›</span></button>
+        <button type="button" class="list-item" data-push="set-voice"><span class="ico">🗣️</span><span class="grow">Voix et sous-titres<small>ElevenLabs, style des sous-titres, avatar</small></span><span class="chev">›</span></button>
+        <button type="button" class="list-item" data-push="set-style"><span class="ico">🎞️</span><span class="grow">Style et montage<small>Mise en scène, transitions, storyboard, exports</small></span><span class="chev">›</span></button>
+        <button type="button" class="list-item" data-push="set-accounts"><span class="ico">📺</span><span class="grow">Comptes<small>YouTube, TikTok, notifications, sauvegarde</small></span><span class="chev">›</span></button>
+        <button type="button" class="list-item" data-push="set-help"><span class="ico">🧰</span><span class="grow">Aide et journal<small>En cas de souci</small></span><span class="chev">›</span></button>
+    </div>
+</section>
+<section class="screen" data-screen="set-keys" data-title="Clés et serveur" hidden>
+<div class="api-panel" id="api-panel">
+    <div class="api-title">🎬 Clé Agnes (génération vidéo) <span class="tag req">obligatoire</span></div>
+    <input type="password" class="api-key-input" id="api-key-input" placeholder="Clé API Agnes (sk-...)" autocomplete="off">
+    <button type="button" class="api-save-btn" id="api-save-btn">Enregistrer la clé Agnes</button>
+    <div class="api-status-line" id="api-status-line">
+        <span class="status-dot"></span>
+        <span id="api-status-text">Aucune clé API Agnes</span>
+    </div>
+    <div class="stat-line">
+        <span>📊 Vitesse : <span id="stat-speed">en attente</span></span>
+        <span id="stat-samples">0 génération</span>
+    </div>
+    <div class="stat-line" id="quota-line">
+        <span>💰 Cette session : <span id="quota-text">0 scène traitée</span></span>
+        <span id="cost-text">≈ 0,00 € (estimation Agnes)</span>
+    </div>
+    <div class="wake-status" id="wake-status">
+        <span id="wake-status-text">💤 Veille automatique</span>
+        <button type="button" id="wake-toggle-btn">Garder l'écran allumé</button>
+    </div>
+</div>
+<div class="api-panel" id="claude-panel">
+    <div class="api-title">🤖 Clé Claude (intelligence artificielle) <span class="tag rec">recommandé</span></div>
+    <div class="api-hint">Écrit le script, met en scène chaque scène (continuité, décor, bulles), rend le texte plus facile à prononcer, traduit, crée le quiz et le SEO. Sans cette clé, l'appli fonctionne quand même, avec une mise en scène automatique plus simple.</div>
+    <input type="password" class="api-key-input" id="claude-key-input" placeholder="Clé API Claude (sk-ant-...)" autocomplete="off">
+    <select id="claude-model-select" style="margin-bottom:0.5rem;">
+        <option value="claude-opus-5" selected>Claude Opus 5 (meilleure qualité)</option>
+        <option value="claude-sonnet-5">Claude Sonnet 5 (plus rapide, moins cher)</option>
+        <option value="claude-haiku-4-5">Claude Haiku 4.5 (le plus économique)</option>
+    </select>
+    <button type="button" class="api-save-btn" id="claude-save-btn">Enregistrer la clé Claude</button>
+    <div class="api-status-line" id="claude-status-line">
+        <span class="status-dot"></span>
+        <span id="claude-status-text">Aucune clé Claude</span>
+    </div>
+</div>
+<div class="api-panel" id="proxy-panel">
+    <div class="api-title">🔁 Serveur Cloudflare <span class="tag rec">déjà configuré</span></div>
+    <div class="api-hint">Ton serveur Cloudflare télécharge les scènes pour le montage et fait la génération en arrière-plan. Il est déjà branché : rien à faire, sauf si tu changes de serveur. <a href="https://github.com/mendytamadouni2-design/cartoon-instructeur/blob/main/relais/INSTALLATION.md" target="_blank" rel="noopener">👉 Guide d'installation (10 min)</a></div>
+    <input type="url" class="api-key-input" id="proxy-url-input" placeholder="https://cartoon-relais.ton-nom.workers.dev" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button type="button" class="api-save-btn" id="proxy-save-btn">Enregistrer et tester le relais</button>
+    <div class="api-status-line" id="proxy-status-line">
+        <span class="status-dot"></span>
+        <span id="proxy-status-text">Aucun relais</span>
+    </div>
+</div>
+<div class="api-panel" id="keys-panel">
+    <div class="api-title">🔐 Mes clés sur ce téléphone</div>
+    <div class="api-hint">Tes clés restent enregistrées sur ce téléphone : pas besoin de les retaper. Pour les retrouver après une réinstallation ou sur un autre appareil, sauvegarde-les une fois dans un fichier (dans l'app Fichiers / iCloud), puis restaure-le en un appui. Ce fichier est privé : ne le partage pas et ne le mets jamais sur GitHub.</div>
+    <input type="file" id="keys-import-input" accept=".json,application/json,text/plain" style="display:none;">
+    <button type="button" class="btn-secondary" id="keys-export-btn">💾 Sauvegarder mes clés dans un fichier</button>
+    <button type="button" class="btn-secondary" id="keys-import-btn" style="margin-top:0.4rem;">📂 Restaurer mes clés depuis le fichier</button>
+    <div class="api-hint" id="keys-summary" style="margin:0.6rem 0 0;"></div>
+</div>
+</section>
+<section class="screen" data-screen="set-brand" data-title="Ma chaîne" hidden>
+<div class="section open" id="section-character">
+    <div class="section-header" data-toggle="section-character">
+        <span class="section-title">👤 Personnage <span class="tag req">obligatoire</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" accept="image/*" multiple>
+            <div class="upload-icon">＋</div>
+            <div class="upload-text">Ajoutez la photo du personnage</div>
+            <div class="upload-hint">La première image est la photo principale du personnage</div>
         </div>
-        <div class="control-row">
-            <label class="control-label">Ton du personnage</label>
-            <select id="tone-select">
-                <option value="friendly" selected>Amical</option>
-                <option value="enthusiastic">Enthousiaste</option>
-                <option value="calm">Calme</option>
-                <option value="funny">Drôle</option>
-                <option value="serious">Sérieux</option>
+        <div class="images-grid" id="images-grid"></div>
+        <div class="control-row" style="margin-top:0.9rem;">
+            <label class="control-label">Poses supplémentaires <span class="tag opt">optionnel</span></label>
+            <div class="prompt-main-hint" style="margin:0 0 0.5rem;">Ajoute les poses de ta planche (sur fond blanc) : Claude choisira la meilleure pose de départ pour chaque scène.</div>
+            <select id="pose-type-select">
+                <option value="explique">Explique (mains ouvertes)</option>
+                <option value="montre">Montre / pointe</option>
+                <option value="dessine">Dessine au feutre</option>
+                <option value="reflechit">Réfléchit</option>
+                <option value="salue">Salue / accueille</option>
+                <option value="surpris">Surpris</option>
+                <option value="rigole">Rigole</option>
             </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Mouvement du personnage</label>
-            <select id="motion-select">
-                <option value="auto" selected>Automatique</option>
-                <option value="explain">Explique</option>
-                <option value="point">Pointe</option>
-                <option value="think">Réfléchit</option>
-                <option value="show">Montre</option>
-                <option value="nod">Approuve</option>
-                <option value="count">Compte</option>
-                <option value="draw">Dessine</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Effets pédagogiques</label>
-            <select id="pedago-fx-select" multiple>
-                <option value="arrows" selected>Flèches animées</option>
-                <option value="bubbles" selected>Bulles avec mots-clés (texte net ajouté par l'appli)</option>
-                <option value="highlight" selected>Mise en lumière des objets clés</option>
-                <option value="schemas" selected>Schémas dessinés (sans écriture)</option>
-                <option value="icons">Icônes</option>
-                <option value="particles">Particules</option>
-                <option value="chalkboard">Tableau (dessins, sans écriture)</option>
-                <option value="progress">Barre de progression</option>
-            </select>
-            <div class="prompt-main-hint">L'IA vidéo ne sait pas écrire : elle a désormais l'interdiction de dessiner du texte. Tous les textes (bulles, sous-titres) sont ajoutés proprement par l'appli au montage.</div>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Synchronisation labiale</label>
-            <select id="lipsync-select">
-                <option value="basic" selected>Basique</option>
-                <option value="advanced">Avancée</option>
-                <option value="audio-driven">Pilotée par l'audio</option>
-                <option value="off">Désactivée</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Quiz à la fin</label>
-            <select id="quiz-select">
-                <option value="off" selected>Désactivé</option>
-                <option value="3">3 questions</option>
-                <option value="5">5 questions</option>
-                <option value="10">10 questions</option>
-            </select>
+            <input type="file" id="pose-input" accept="image/*" style="display:none;">
+            <button type="button" class="btn-secondary" id="pose-add-btn" style="margin-top:0.4rem;">＋ Ajouter cette pose</button>
+            <div id="poses-list" style="margin-top:0.6rem;"></div>
         </div>
     </div></div>
 </div>
-
-<!-- ═══════════════ Musique & bruitages ═══════════════ -->
-<div class="section" id="section-music">
+<div class="section open" id="section-kit">
+    <div class="section-header" data-toggle="section-kit">
+        <span class="section-title">🎨 Kit de ma chaîne <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="prompt-main-hint" style="margin-bottom:0.7rem;">Tous tes réglages sont retenus automatiquement. Le kit rassemble ton style, ta couleur, ta police, ta musique, ton logo et tes poses dans un fichier, pour les retrouver partout.</div>
+        <div class="control-row">
+            <label class="control-label">Couleur de ta chaîne (mots allumés, titres, chiffres)</label>
+            <input type="color" id="brand-color-input" value="#ffd23f" style="width:100%;height:44px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+        </div>
+        <div class="control-row">
+            <label class="control-label">Police des sous-titres</label>
+            <select id="caption-font-select">
+                <option value="rounded" selected>Moderne (grasse)</option>
+                <option value="marker">Feutre (écrit à la main)</option>
+                <option value="impact">Impact (très épaisse)</option>
+            </select>
+        </div>
+        <input type="file" id="kit-input" accept=".json,application/json" style="display:none;">
+        <button type="button" class="btn-secondary" id="kit-export-btn">💾 Exporter mon kit de chaîne</button>
+        <button type="button" class="btn-secondary" id="kit-import-btn" style="margin-top:0.4rem;">📂 Importer un kit</button>
+    </div></div>
+</div>
+<div class="section open" id="section-music">
     <div class="section-header" data-toggle="section-music">
         <span class="section-title">🎵 Musique & bruitages <span class="tag rec">recommandé</span></span>
         <span class="chevron">▼</span>
@@ -1033,9 +1117,20 @@ Phrase 2..."></textarea>
         </div>
     </div></div>
 </div>
-
-<!-- ═══════════════ TTS multi-moteurs ═══════════════ -->
-<div class="section" id="section-tts">
+<div class="section open" id="section-bank">
+    <div class="section-header" data-toggle="section-bank">
+        <span class="section-title">🎬 Intro et fin parlées <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Ton personnage dit une phrase d'accueil et une phrase de fin. Elles sont créées une seule fois (1 scène Agnes chacune) puis ajoutées à toutes tes vidéos, sans rien payer de plus.</div>
+        <div id="bank-list"></div>
+        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="bank-use-toggle" checked> Ajouter l'intro et la fin à mes vidéos</label>
+    </div></div>
+</div>
+</section>
+<section class="screen" data-screen="set-voice" data-title="Voix et sous-titres" hidden>
+<div class="section open" id="section-tts">
     <div class="section-header" data-toggle="section-tts">
         <span class="section-title">🔊 Voix <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
@@ -1174,40 +1269,7 @@ Phrase 2..."></textarea>
         </div>
     </div></div>
 </div>
-
-<!-- ═══════════════ Avatar réaliste ═══════════════ -->
-<div class="section" id="section-avatar">
-    <div class="section-header" data-toggle="section-avatar">
-        <span class="section-title">🧑‍🎤 Avatar réaliste <span class="tag exp">expérimental</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="control-row">
-            <label class="control-label">Fournisseur avatar</label>
-            <select id="avatar-provider-select">
-                <option value="off" selected>Désactivé (utiliser les images)</option>
-                <option value="did">D-ID (avatar parlant réaliste)</option>
-                <option value="heygen">HeyGen (avatar standard, pas ta photo)</option>
-            </select>
-            <div class="prompt-main-hint">Fonction indépendante de la vidéo principale, à tester séparément. D-ID utilise ta photo et l'audio de la voix premium.</div>
-        </div>
-        <div class="control-row hidden" id="avatar-key-row">
-            <label class="control-label">Clé API avatar</label>
-            <input type="password" class="api-key-input" id="avatar-key-input" placeholder="Clé API D-ID ou HeyGen">
-            <button type="button" class="api-save-btn" id="avatar-save-btn">Enregistrer</button>
-        </div>
-        <div class="avatar-status" id="avatar-status">
-            <span id="avatar-status-text">🧑‍🎤 Avatar désactivé</span>
-            <button type="button" id="avatar-test-btn">Tester</button>
-        </div>
-        <div class="avatar-preview-box" id="avatar-preview-box">
-            <video id="avatar-preview-video" controls playsinline></video>
-        </div>
-    </div></div>
-</div>
-
-<!-- ═══════════════ Sous-titres ═══════════════ -->
-<div class="section" id="section-subtitles">
+<div class="section open" id="section-subtitles">
     <div class="section-header" data-toggle="section-subtitles">
         <span class="section-title">✏️ Sous-titres & bulles <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
@@ -1248,9 +1310,7 @@ Phrase 2..."></textarea>
         </div>
     </div></div>
 </div>
-
-<!-- ═══════════════ Whisper ═══════════════ -->
-<div class="section" id="section-whisper">
+<div class="section open" id="section-whisper">
     <div class="section-header" data-toggle="section-whisper">
         <span class="section-title">🎧 Transcription audio <span class="tag opt">optionnel · clé OpenAI</span></span>
         <span class="chevron">▼</span>
@@ -1264,9 +1324,126 @@ Phrase 2..."></textarea>
         </div>
     </div></div>
 </div>
-
-<!-- ═══════════════ Export & SEO ═══════════════ -->
-<div class="section" id="section-export">
+<div class="section open" id="section-avatar">
+    <div class="section-header" data-toggle="section-avatar">
+        <span class="section-title">🧑‍🎤 Avatar réaliste <span class="tag exp">expérimental</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="control-row">
+            <label class="control-label">Fournisseur avatar</label>
+            <select id="avatar-provider-select">
+                <option value="off" selected>Désactivé (utiliser les images)</option>
+                <option value="did">D-ID (avatar parlant réaliste)</option>
+                <option value="heygen">HeyGen (avatar standard, pas ta photo)</option>
+            </select>
+            <div class="prompt-main-hint">Fonction indépendante de la vidéo principale, à tester séparément. D-ID utilise ta photo et l'audio de la voix premium.</div>
+        </div>
+        <div class="control-row hidden" id="avatar-key-row">
+            <label class="control-label">Clé API avatar</label>
+            <input type="password" class="api-key-input" id="avatar-key-input" placeholder="Clé API D-ID ou HeyGen">
+            <button type="button" class="api-save-btn" id="avatar-save-btn">Enregistrer</button>
+        </div>
+        <div class="avatar-status" id="avatar-status">
+            <span id="avatar-status-text">🧑‍🎤 Avatar désactivé</span>
+            <button type="button" id="avatar-test-btn">Tester</button>
+        </div>
+        <div class="avatar-preview-box" id="avatar-preview-box">
+            <video id="avatar-preview-video" controls playsinline></video>
+        </div>
+    </div></div>
+</div>
+</section>
+<section class="screen" data-screen="set-style" data-title="Style et montage" hidden>
+<div class="section open"><div class="section-header"><span class="section-title">📋 Storyboard</span></div><div class="section-body"><div class="section-content"><label class="control-label">Avant de générer</label>
+    <select id="storyboard-select" style="margin-top:0.5rem;">
+        <option value="on" selected>📋 Me montrer le storyboard avant de générer (recommandé)</option>
+        <option value="off">Générer directement</option>
+    </select></div></div></div>
+<div class="section open" id="section-staging">
+    <div class="section-header" data-toggle="section-staging">
+        <span class="section-title">🎬 Mise en scène & montage <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="control-row">
+            <label class="control-label">Enchaîner les scènes</label>
+            <select id="chain-select">
+                <option value="on" selected>Oui : chaque scène part de la dernière image de la précédente (recommandé)</option>
+                <option value="off">Non : chaque scène part de la photo (plus rapide)</option>
+            </select>
+            <div class="prompt-main-hint">Donne l'impression d'une seule vidéo continue. Les scènes sont alors générées l'une après l'autre (un peu plus long).</div>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Caméra</label>
+            <select id="camera-select">
+                <option value="varied" selected>Plans variés, sans zoom d'intro</option>
+                <option value="static">Caméra fixe</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Transition entre les scènes</label>
+            <select id="transition-select">
+                <option value="smart" selected>Intelligentes : coupes nettes, fondu entre les parties (recommandé)</option>
+                <option value="fade">Fondu enchaîné partout</option>
+                <option value="cut">Coupes nettes partout</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Blancs au début et à la fin des scènes</label>
+            <select id="trim-select">
+                <option value="auto" selected>Coupés automatiquement (détection de la voix)</option>
+                <option value="fixed">Couper seulement 0,4 s au début</option>
+                <option value="none">Ne rien couper</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Zooms sur les mots importants</label>
+            <select id="zoom-select">
+                <option value="on" selected>Oui (choisis par Claude)</option>
+                <option value="off">Non</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Habillage</label>
+            <select id="intro-select">
+                <option value="on" selected>Intro animée avec le titre (thème)</option>
+                <option value="off">Pas d'intro</option>
+            </select>
+            <select id="sections-select" style="margin-top:0.4rem;">
+                <option value="on" selected>Titres des parties (choisis par Claude)</option>
+                <option value="off">Pas de titres de parties</option>
+            </select>
+            <select id="outro-select" style="margin-top:0.4rem;">
+                <option value="on" selected>Fin : récap des dessins + « Abonne-toi »</option>
+                <option value="off">Pas d'écran de fin</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Logo de ta chaîne (en haut à droite)</label>
+            <input type="file" id="logo-input" accept="image/*" style="display:none;">
+            <button type="button" class="btn-secondary" id="logo-btn">🖼️ Choisir un logo</button>
+            <button type="button" class="btn-secondary hidden" id="logo-remove-btn" style="margin-top:0.4rem;">Retirer le logo</button>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Qualité d'export</label>
+            <select id="quality-select">
+                <option value="1080" selected>1080p (Full HD)</option>
+                <option value="720">720p (plus léger)</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Format de la vidéo finale</label>
+            <select id="video-format-select">
+                <option value="auto" selected>Automatique (même format que les scènes)</option>
+                <option value="portrait">Portrait 9:16 (Shorts, TikTok, Reels)</option>
+                <option value="landscape">Paysage 16:9 (YouTube)</option>
+            </select>
+            <div class="prompt-main-hint">Si les scènes ne sont pas au bon format, l'image est centrée avec un fond flouté, sans rien couper.</div>
+        </div>
+    </div></div>
+</div>
+<div class="section open" id="section-export">
     <div class="section-header" data-toggle="section-export">
         <span class="section-title">📦 Exports supplémentaires & SEO <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
@@ -1285,9 +1462,9 @@ Phrase 2..."></textarea>
         </div>
     </div></div>
 </div>
-
-<!-- ═══════════════ YouTube ═══════════════ -->
-<div class="section" id="section-youtube">
+</section>
+<section class="screen" data-screen="set-accounts" data-title="Comptes" hidden>
+<div class="section open" id="section-youtube">
     <div class="section-header" data-toggle="section-youtube">
         <span class="section-title">📺 Publication YouTube <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
@@ -1318,72 +1495,14 @@ Phrase 2..."></textarea>
         <button type="button" class="btn-secondary hidden" id="youtube-upload-btn" style="margin-top:0.5rem;">⬆️ Publier sur YouTube</button>
     </div></div>
 </div>
-
-<!-- ═══════════════ Banque de plans ═══════════════ -->
-<div class="section" id="section-bank">
-    <div class="section-header" data-toggle="section-bank">
-        <span class="section-title">🎬 Intro et fin parlées <span class="tag opt">optionnel</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Ton personnage dit une phrase d'accueil et une phrase de fin. Elles sont créées une seule fois (1 scène Agnes chacune) puis ajoutées à toutes tes vidéos, sans rien payer de plus.</div>
-        <div id="bank-list"></div>
-        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="bank-use-toggle" checked> Ajouter l'intro et la fin à mes vidéos</label>
-    </div></div>
-</div>
-
-<!-- ═══════════════ Bibliothèque Cloudflare ═══════════════ -->
-<div class="section" id="section-library">
-    <div class="section-header" data-toggle="section-library">
-        <span class="section-title">☁️ Mes vidéos sauvegardées <span class="tag opt">optionnel</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Tes scènes et tes vidéos finales sont gardées sur ton serveur Cloudflare : plus de liens Agnes expirés, et tu les retrouves sur n'importe quel appareil.</div>
-        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="backup-toggle" checked> Sauvegarder automatiquement les scènes</label>
-        <div id="library-list"></div>
-        <button type="button" class="btn-secondary" id="library-refresh-btn" style="margin-top:0.4rem;">🔄 Actualiser</button>
-    </div></div>
-</div>
-
-<!-- ═══════════════ Stats YouTube ═══════════════ -->
-<div class="section" id="section-ytstats">
-    <div class="section-header" data-toggle="section-ytstats">
-        <span class="section-title">📈 Mes stats YouTube + TikTok <span class="tag opt">optionnel</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Vues, likes et pourcentage regardé des vidéos publiées depuis l'appli, puis Claude te dit ce qui marche et quoi faire ensuite.</div>
-        <button type="button" class="btn-secondary" id="ytstats-btn">📈 Voir mes statistiques YouTube</button>
-        <div id="ytstats-box" style="margin-top:0.5rem;"></div>
+<div class="section open"><div class="section-header"><span class="section-title">🎵 TikTok</span></div><div class="section-body"><div class="section-content">
         <div class="control-label" style="margin-top:0.9rem;">🎵 TikTok · <span id="tiktok-status">Non connecté</span> <span id="tiktok-account" class="prompt-main-hint"></span></div>
         <button type="button" class="btn-secondary" id="tiktok-connect-btn">🎵 Connecter TikTok</button>
-        <button type="button" class="btn-secondary hidden" id="tiktok-disconnect-btn" style="margin-top:0.4rem;">Déconnecter TikTok</button>
-        <button type="button" class="btn-secondary" id="ttstats-btn" style="margin-top:0.4rem;">📈 Voir mes statistiques TikTok</button>
-        <input type="file" id="tt-shot-input" accept="image/*" style="display:none;">
-        <button type="button" class="btn-secondary" id="tt-shot-btn" style="margin-top:0.4rem;">📸 Ajouter une capture des stats TikTok (temps regardé…)</button>
-        <div class="prompt-main-hint" style="margin-top:0.3rem;">TikTok ne donne pas le temps de visionnage aux applis : fais une capture de l'écran « Statistiques » d'une vidéo dans TikTok, Claude lira les chiffres.</div>
-        <div id="ttstats-box" style="margin-top:0.5rem;"></div>
-        <button type="button" class="btn-secondary" id="platform-advice-btn" style="margin-top:0.6rem;">🤖 Conseils de Claude (YouTube + TikTok)</button>
-        <div id="platform-advice" class="prompt-main-hint" style="white-space:pre-wrap;margin-top:0.5rem;"></div>
-    </div></div>
-</div>
-
-<!-- ═══════════════ Dépenses ═══════════════ -->
-<div class="section" id="section-costs">
-    <div class="section-header" data-toggle="section-costs">
-        <span class="section-title">💰 Mes dépenses <span class="tag opt">optionnel</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div id="costs-box"></div>
-        <button type="button" class="btn-secondary" id="costs-refresh-btn" style="margin-top:0.4rem;">🔄 Actualiser</button>
-        <button type="button" class="btn-secondary" id="costs-reset-btn" style="margin-top:0.4rem;">Remettre à zéro</button>
-    </div></div>
-</div>
-
-<!-- ═══════════════ Firebase ═══════════════ -->
-<div class="section" id="section-firebase">
+        <button type="button" class="btn-secondary hidden" id="tiktok-disconnect-btn" style="margin-top:0.4rem;">Déconnecter TikTok</button></div></div></div>
+<div class="section open"><div class="section-header"><span class="section-title">🔔 Notifications</span></div><div class="section-body"><div class="section-content">
+    <div class="prompt-main-hint" id="push-status" style="margin-top:0.5rem;"></div>
+    <button type="button" class="btn-secondary" id="push-btn" style="margin-top:0.3rem;">🔔 Me prévenir quand c'est prêt</button></div></div></div>
+<div class="section open" id="section-firebase">
     <div class="section-header" data-toggle="section-firebase">
         <span class="section-title">🔥 Firebase <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
@@ -1407,9 +1526,7 @@ Phrase 2..."></textarea>
         </div>
     </div></div>
 </div>
-
-<!-- ═══════════════ Sauvegarde cloud ═══════════════ -->
-<div class="section" id="section-cloud">
+<div class="section open" id="section-cloud">
     <div class="section-header" data-toggle="section-cloud">
         <span class="section-title">☁️ Sauvegarde cloud <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
@@ -1437,34 +1554,9 @@ Phrase 2..."></textarea>
         </div>
     </div></div>
 </div>
-
-<!-- ═══════════════ Analytics ═══════════════ -->
-<div class="section" id="section-kit">
-    <div class="section-header" data-toggle="section-kit">
-        <span class="section-title">🎨 Kit de ma chaîne <span class="tag opt">optionnel</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="prompt-main-hint" style="margin-bottom:0.7rem;">Tous tes réglages sont retenus automatiquement. Le kit rassemble ton style, ta couleur, ta police, ta musique, ton logo et tes poses dans un fichier, pour les retrouver partout.</div>
-        <div class="control-row">
-            <label class="control-label">Couleur de ta chaîne (mots allumés, titres, chiffres)</label>
-            <input type="color" id="brand-color-input" value="#ffd23f" style="width:100%;height:44px;border:1px solid var(--border);border-radius:8px;background:#fff;">
-        </div>
-        <div class="control-row">
-            <label class="control-label">Police des sous-titres</label>
-            <select id="caption-font-select">
-                <option value="rounded" selected>Moderne (grasse)</option>
-                <option value="marker">Feutre (écrit à la main)</option>
-                <option value="impact">Impact (très épaisse)</option>
-            </select>
-        </div>
-        <input type="file" id="kit-input" accept=".json,application/json" style="display:none;">
-        <button type="button" class="btn-secondary" id="kit-export-btn">💾 Exporter mon kit de chaîne</button>
-        <button type="button" class="btn-secondary" id="kit-import-btn" style="margin-top:0.4rem;">📂 Importer un kit</button>
-    </div></div>
-</div>
-
-<div class="section" id="section-help">
+</section>
+<section class="screen" data-screen="set-help" data-title="Aide et journal" hidden>
+<div class="section open" id="section-help">
     <div class="section-header" data-toggle="section-help">
         <span class="section-title">🧰 Aide & journal <span class="tag opt">en cas de souci</span></span>
         <span class="chevron">▼</span>
@@ -1475,152 +1567,170 @@ Phrase 2..."></textarea>
         <button type="button" class="btn-secondary" id="journal-share-btn" style="margin-top:0.4rem;">📤 Envoyer le journal (fichier)</button>
     </div></div>
 </div>
+</section>
+</main>
 
-<div class="section" id="section-analytics">
-    <div class="section-header" data-toggle="section-analytics">
-        <span class="section-title">📊 Statistiques <span class="tag opt">optionnel</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="analytics-grid" id="analytics-grid"></div>
-        <button type="button" class="btn-secondary" id="analytics-refresh-btn" style="margin-top:0.5rem;">Rafraîchir</button>
-        <button type="button" class="btn-secondary" id="analytics-reset-btn" style="margin-top:0.4rem;">Réinitialiser</button>
-    </div></div>
+<div class="wizard-foot" id="wizard-foot" hidden>
+    <button type="button" class="btn-secondary" id="wiz-prev">Retour</button>
+    <button type="button" class="btn-primary" id="wiz-next">Suivant</button>
 </div>
-
-<!-- ═══════════════ Historique ═══════════════ -->
-<div class="section" id="section-history">
-    <div class="section-header" data-toggle="section-history">
-        <span class="section-title">📚 Historique des projets <span class="tag opt">optionnel</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div id="history-list"></div>
-        <button type="button" class="btn-secondary" id="clear-history-btn" style="margin-top:0.5rem;">🗑️ Effacer l'historique</button>
-    </div></div>
-</div>
-
-<!-- ═══════════════ Actions ═══════════════ -->
-<div class="control-row" id="gen-mode-row" style="margin-top:1rem;">
-    <label class="control-label">Où faire la génération ?</label>
-    <select id="gen-mode-select">
-        <option value="background" selected>☁️ En arrière-plan sur Cloudflare (tu peux éteindre le téléphone)</option>
-        <option value="phone">📱 Sur le téléphone (écran allumé, scènes enchaînées)</option>
-    </select>
-    <div class="prompt-main-hint" id="gen-mode-hint"></div>
-    <select id="storyboard-select" style="margin-top:0.5rem;">
-        <option value="on" selected>📋 Me montrer le storyboard avant de générer (recommandé)</option>
-        <option value="off">Générer directement</option>
-    </select>
-    <div class="prompt-main-hint" id="push-status" style="margin-top:0.5rem;"></div>
-    <button type="button" class="btn-secondary" id="push-btn" style="margin-top:0.3rem;">🔔 Me prévenir quand c'est prêt</button>
-</div>
-
-<div class="storyboard hidden" id="storyboard"></div>
-
-<div class="bg-panel hidden" id="bg-panel">
-    <div class="bg-title" id="bg-title">☁️ Génération en arrière-plan</div>
-    <div class="bg-text" id="bg-text">Envoi du projet…</div>
-    <div class="bg-bar"><div id="bg-progress"></div></div>
-    <button type="button" class="btn-primary hidden" id="bg-finish-btn">🎞️ Terminer la vidéo</button>
-    <button type="button" class="btn-secondary" id="bg-cancel-btn">⏹ Arrêter la génération</button>
-    <button type="button" class="btn-secondary hidden" id="bg-dismiss-btn">Fermer</button>
-</div>
-
-<div class="bg-panel hidden" id="series-jobs"></div>
-<div class="bg-panel hidden" id="schedule-list"></div>
-
-<button type="button" class="btn-primary" id="generate-btn" disabled>🎬 Générer la vidéo pédagogique</button>
-<div class="estimate-line" id="estimate-line"></div>
 <button type="button" class="btn-stop" id="stop-btn">⏹ Arrêter</button>
-<button type="button" class="btn-secondary hidden" id="assemble-btn" style="margin-top:0.6rem;">🎞️ Assembler la vidéo finale</button>
-<button type="button" class="btn-secondary hidden" id="preview-btn" style="margin-top:0.4rem;">▶️ Aperçu rapide (sans enregistrer)</button>
-<div class="preview-box hidden" id="preview-box"></div>
 
-<div class="section hidden" id="section-editor" style="margin-top:0.6rem;">
-    <div class="section-header" data-toggle="section-editor">
-        <span class="section-title">✂️ Retoucher le montage</span>
+<nav class="tabbar" id="tabbar" aria-label="Navigation">
+    <div class="tabbar-inner">
+    <button type="button" class="tab" data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Accueil</button><button type="button" class="tab" data-tab="videos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></svg>Vidéos</button><button type="button" class="tab create-tab" data-tab="create"><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>Créer</button><button type="button" class="tab" data-tab="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Stats</button><button type="button" class="tab" data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Réglages</button>
+    </div>
+</nav>
+
+<div id="sheet-wrap" hidden>
+    <div class="sheet-back" id="sheet-back"></div>
+    <div class="sheet" role="dialog" aria-label="Plus d'options">
+        <div class="grab"></div>
+        <h2 class="sheet-title">Plus d'options</h2>
+<div class="section open" id="section-style">
+    <div class="section-header" data-toggle="section-style">
+        <span class="section-title">🎨 Style visuel <span class="tag opt">optionnel</span></span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
-        <div id="montage-editor"></div>
+        <div class="styles-grid" id="styles-grid"></div>
     </div></div>
 </div>
-
-<div class="progress-bar-wrap hidden" id="progress-bar-wrap">
-    <div class="progress-bar" id="progress-bar"></div>
-</div>
-
-<div class="queue" id="queue" style="display:none;"></div>
-
-<div class="gallery" id="gallery" style="display:none;">
-    <div class="section-title" style="margin-bottom:0.8rem;">🎞️ Scènes générées</div>
-    <div class="gallery-grid" id="gallery-grid"></div>
-</div>
-
-<div class="series-results hidden" id="series-results"></div>
-
-<div class="video-preview" id="video-preview">
-    <video id="final-video" controls playsinline></video>
-</div>
-
-<button type="button" class="btn-secondary hidden" id="download-final-btn" style="margin-top:1rem;">⬇️ Enregistrer la vidéo</button>
-<button type="button" class="btn-secondary hidden" id="download-srt-btn" style="margin-top:0.4rem;">⬇️ Télécharger SRT</button>
-<button type="button" class="btn-secondary hidden" id="download-scenes-btn" style="margin-top:0.4rem;">⬇️ Télécharger scènes</button>
-<button type="button" class="btn-secondary hidden" id="download-audio-btn" style="margin-top:0.4rem;">⬇️ Télécharger l'audio de la voix premium</button>
-<button type="button" class="btn-secondary hidden" id="download-zip-btn" style="margin-top:0.4rem;">⬇️ Télécharger ZIP complet</button>
-<button type="button" class="btn-secondary hidden" id="download-shorts-btn" style="margin-top:0.4rem;">⬇️ Télécharger Shorts 30s</button>
-<button type="button" class="btn-secondary hidden" id="download-youtube-fmt-btn" style="margin-top:0.4rem;">⬇️ Créer la version YouTube 16:9</button>
-<button type="button" class="btn-secondary hidden" id="download-vertical-btn" style="margin-top:0.4rem;">⬇️ Créer la version Shorts/TikTok 9:16 (entière)</button>
-<button type="button" class="btn-secondary hidden" id="download-square-btn" style="margin-top:0.4rem;">⬇️ Créer la version carrée 1:1</button>
-<button type="button" class="btn-secondary hidden" id="download-thumbnail-btn" style="margin-top:0.4rem;">⬇️ Télécharger miniature</button>
-<button type="button" class="btn-secondary hidden" id="download-seo-btn" style="margin-top:0.4rem;">⬇️ Télécharger SEO</button>
-<button type="button" class="btn-secondary hidden" id="download-chapters-btn" style="margin-top:0.4rem;">⬇️ Télécharger chapitres</button>
-<button type="button" class="btn-secondary hidden" id="download-quiz-btn" style="margin-top:0.4rem;">⬇️ Télécharger quiz</button>
-<button type="button" class="btn-secondary hidden" id="backup-final-btn" style="margin-top:0.4rem;">☁️ Sauvegarder la vidéo sur mon Cloudflare</button>
-<div class="control-row hidden" id="lang-version-row" style="margin-top:0.6rem;">
-    <label class="control-label">Même vidéo dans une autre langue (voix ElevenLabs + sous-titres traduits, aucune scène refaite)</label>
-    <select id="lang-version-select">
-        <option value="en-US" selected>🇬🇧 Anglais</option>
-        <option value="es-ES">🇪🇸 Espagnol</option>
-        <option value="de-DE">🇩🇪 Allemand</option>
-        <option value="it-IT">🇮🇹 Italien</option>
-        <option value="pt-BR">🇧🇷 Portugais</option>
-        <option value="ar-SA">🇸🇦 Arabe</option>
-        <option value="fr-FR">🇫🇷 Français</option>
-    </select>
-    <button type="button" class="btn-secondary" id="lang-version-btn" style="margin-top:0.4rem;">🌍 Créer la version traduite</button>
-    <button type="button" class="btn-secondary hidden" id="lang-yt-btn" style="margin-top:0.4rem;">➕ Ajouter les sous-titres traduits à ma vidéo YouTube</button>
-</div>
-
-<div class="control-row hidden" id="parts-row" style="margin-top:0.6rem;">
-    <label class="control-label">✂️ Découper en plusieurs TikToks de moins d'une minute (Partie 1, 2…), sans refaire de scène</label>
-    <div id="parts-list"></div>
-    <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;"><input type="checkbox" id="safe-zones-toggle" checked> Format vertical : textes et dessins hors des boutons TikTok</label>
-</div>
-
-<div class="publish-box hidden" id="section-publish">
-    <div class="section-title" style="margin-bottom:0.5rem;">📅 Publier ou programmer</div>
-    <label class="control-label">Quand ? (vide = maintenant)</label>
-    <input type="datetime-local" class="text-input" id="pub-at">
-    <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;"><input type="checkbox" id="pub-yt"> ▶️ YouTube</label>
-    <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="pub-tt"> 🎵 TikTok</label>
-    <div id="tt-options" class="hidden">
-        <select id="pub-tt-mode" style="margin-top:0.3rem;">
-            <option value="direct" selected>Publier directement sur TikTok</option>
-            <option value="inbox">Envoyer en brouillon (je finis dans l'appli TikTok)</option>
-        </select>
-        <select id="pub-tt-privacy" style="margin-top:0.3rem;"><option value="SELF_ONLY">Moi seulement (privé)</option></select>
-        <select id="pub-tt-format" style="margin-top:0.3rem;">
-            <option value="vertical" selected>Version verticale 9:16 (créée automatiquement)</option>
-            <option value="final">Vidéo finale telle quelle</option>
-        </select>
-        <label class="control-label" style="margin-top:0.4rem;">Texte TikTok</label>
-        <textarea class="sb-text" id="tt-caption" placeholder="Texte et hashtags de la publication"></textarea>
-        <button type="button" class="btn-secondary" id="tt-caption-btn" style="margin-top:0.3rem;">🤖 Écrire le texte + hashtags (Claude)</button>
+<div class="section open" id="section-language">
+    <div class="section-header" data-toggle="section-language">
+        <span class="section-title">🌍 Langue & Traduction <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
     </div>
-    <button type="button" class="btn-primary" id="publish-btn" style="margin-top:0.6rem;">🚀 Publier maintenant</button>
-    <div class="prompt-main-hint" id="pub-hint" style="margin-top:0.3rem;"></div>
+    <div class="section-body"><div class="section-content">
+        <div class="control-row">
+            <label class="control-label">Langue de la vidéo</label>
+            <select id="language-select">
+                <option value="fr-FR" selected>🇫🇷 Français</option>
+                <option value="en-US">🇬🇧 English (US)</option>
+                <option value="en-GB">🇬🇧 English (UK)</option>
+                <option value="es-ES">🇪🇸 Español</option>
+                <option value="de-DE">🇩🇪 Deutsch</option>
+                <option value="it-IT">🇮🇹 Italiano</option>
+                <option value="pt-BR">🇧🇷 Português (BR)</option>
+                <option value="ar-SA">🇸🇦 العربية</option>
+                <option value="zh-CN">🇨🇳 中文</option>
+                <option value="ja-JP">🇯🇵 日本語</option>
+                <option value="ko-KR">🇰🇷 한국어</option>
+                <option value="ru-RU">🇷🇺 Русский</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Moteur de traduction</label>
+            <select id="translate-engine-select">
+                <option value="claude" selected>Claude (utilise la clé Claude)</option>
+                <option value="deepl">DeepL</option>
+                <option value="google">Google Translate</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Clé DeepL ou Google (inutile avec Claude)</label>
+            <input type="password" class="api-key-input" id="translate-key-input" placeholder="Clé API DeepL ou Google Translate">
+        </div>
+    </div></div>
+</div>
+<div class="section open" id="section-pedago">
+    <div class="section-header" data-toggle="section-pedago">
+        <span class="section-title">🧠 Options pédagogiques <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="control-row">
+            <label class="control-label">Niveau du public</label>
+            <select id="audience-select">
+                <option value="kids">Enfants (5-10 ans)</option>
+                <option value="teens" selected>Adolescents (11-17 ans)</option>
+                <option value="adults">Adultes</option>
+                <option value="experts">Experts</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Ton du personnage</label>
+            <select id="tone-select">
+                <option value="friendly" selected>Amical</option>
+                <option value="enthusiastic">Enthousiaste</option>
+                <option value="calm">Calme</option>
+                <option value="funny">Drôle</option>
+                <option value="serious">Sérieux</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Mouvement du personnage</label>
+            <select id="motion-select">
+                <option value="auto" selected>Automatique</option>
+                <option value="explain">Explique</option>
+                <option value="point">Pointe</option>
+                <option value="think">Réfléchit</option>
+                <option value="show">Montre</option>
+                <option value="nod">Approuve</option>
+                <option value="count">Compte</option>
+                <option value="draw">Dessine</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Effets pédagogiques</label>
+            <select id="pedago-fx-select" multiple>
+                <option value="arrows" selected>Flèches animées</option>
+                <option value="bubbles" selected>Bulles avec mots-clés (texte net ajouté par l'appli)</option>
+                <option value="highlight" selected>Mise en lumière des objets clés</option>
+                <option value="schemas" selected>Schémas dessinés (sans écriture)</option>
+                <option value="icons">Icônes</option>
+                <option value="particles">Particules</option>
+                <option value="chalkboard">Tableau (dessins, sans écriture)</option>
+                <option value="progress">Barre de progression</option>
+            </select>
+            <div class="prompt-main-hint">L'IA vidéo ne sait pas écrire : elle a désormais l'interdiction de dessiner du texte. Tous les textes (bulles, sous-titres) sont ajoutés proprement par l'appli au montage.</div>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Synchronisation labiale</label>
+            <select id="lipsync-select">
+                <option value="basic" selected>Basique</option>
+                <option value="advanced">Avancée</option>
+                <option value="audio-driven">Pilotée par l'audio</option>
+                <option value="off">Désactivée</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label class="control-label">Quiz à la fin</label>
+            <select id="quiz-select">
+                <option value="off" selected>Désactivé</option>
+                <option value="3">3 questions</option>
+                <option value="5">5 questions</option>
+                <option value="10">10 questions</option>
+            </select>
+        </div>
+    </div></div>
+</div>
+<div class="section open" id="section-series">
+    <div class="section-header" data-toggle="section-series">
+        <span class="section-title">📺 Mode série <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="control-row">
+            <label class="control-label">Épisodes de la série</label>
+            <textarea class="prompt-main" id="series-input" placeholder="Un épisode par bloc, séparés par une ligne vide.
+
+Épisode 1 : Le cycle de l'eau
+Phrase 1...
+Phrase 2...
+
+Épisode 2 : La photosynthèse
+Phrase 1...
+Phrase 2..."></textarea>
+            <div class="prompt-main-hint">Chaque bloc séparé par une ligne vide devient un épisode.</div>
+        </div>
+        <div class="stat-line"><span id="series-stats">0 épisode</span></div>
+        <button type="button" class="btn-secondary" id="launch-series-btn" style="margin-top:0.6rem;">🚀 Lancer la génération de la série</button>
+        <div class="prompt-main-hint" style="margin-top:0.4rem;">Avec « En arrière-plan sur Cloudflare », tous les épisodes sont envoyés d'un coup : tu peux éteindre ton téléphone. Chaque épisode aura ensuite son bouton « Terminer ».</div>
+    </div></div>
+</div>
+        <button type="button" class="btn-primary" id="sheet-close">OK</button>
+    </div>
 </div>
 
 <div class="install-banner" id="install-banner">
@@ -1628,17 +1738,14 @@ Phrase 2..."></textarea>
     <button type="button" id="install-btn">Installer</button>
     <button type="button" id="install-dismiss">✕</button>
 </div>
-
 <div class="status-bar" id="status-bar">
     <div class="spinner"></div>
     <span id="status-text">Préparation…</span>
 </div>
-
 <div class="toast" id="toast">
     <span class="toast-icon" id="toast-icon">✓</span>
     <span id="toast-text">Message</span>
 </div>
-
 <div id="media-stage" aria-hidden="true"></div>
 <canvas id="noSleepCanvas" width="2" height="2"></canvas>
 <video id="noSleepVideo" playsinline muted loop></video>
@@ -2644,8 +2751,9 @@ async function handleFiles(files) {
         renderImages();
     }
     state.isLoadingImages = false; updateGenerateBtn();
+    saveMainImages();
 }
-function removeImage(id) { state.images = state.images.filter(i => i.id !== id); renderImages(); updateGenerateBtn(); }
+function removeImage(id) { state.images = state.images.filter(i => i.id !== id); renderImages(); updateGenerateBtn(); saveMainImages(); }
 function renderImages() {
     const grid = document.getElementById('images-grid');
     grid.innerHTML = state.images.map(img =>
@@ -3155,7 +3263,7 @@ async function prepareStoryboardFlow() {
         if (isWhiteboard() && getClaudeKey()) { setStatus('Claude dessine les illustrations…'); await prepareDrawings(); }
         state.storyboardSig = currentScriptSignature();
         renderStoryboard();
-        document.getElementById('storyboard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (NAV.tab !== 'create' || NAV.step !== 2) wizardGo(2); else renderWizard();
         showToast('Storyboard prêt : vérifie, modifie si besoin, puis valide', 'success', 5000);
     } catch (e) { showToast('Storyboard impossible : ' + e.message, 'error', 6000); }
     finally { state.storyboarding = false; setStatus(null); updateGenerateBtn(); }
@@ -3166,7 +3274,7 @@ function renderStoryboard() {
     const poseOpts = [['main', 'Photo principale']].concat(state.poses.map(p => [p.id, POSE_TYPES.find(t => t.id === p.id)?.label || p.id]));
     const opt = (list, cur) => list.map(([v, l]) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>').join('');
     box.innerHTML = '<div class="sb-title">📋 Storyboard — vérifie avant de générer</div>' +
-        '<div class="prompt-main-hint" style="margin-bottom:0.7rem;">Rien n\'est encore payé chez Agnes. Modifie ce que tu veux, puis appuie sur « Valider et générer ».</div>' +
+        '<div class="prompt-main-hint" style="margin-bottom:0.7rem;">Rien n\'est encore payé chez Agnes. Modifie ce que tu veux, puis valide le storyboard.</div>' +
         state.scenes.map((line, i) => {
             const p = scenePlanFor(i);
             return '<div class="sb-card">' +
@@ -3183,9 +3291,8 @@ function renderStoryboard() {
                 (i > 0 ? '<input class="text-input" data-sb-field="section" data-i="' + i + '" placeholder="Titre de nouvelle partie (optionnel)" value="' + esc(p.section || '') + '">' : '') +
                 '</div>';
         }).join('') +
-        '<button type="button" class="btn-primary" id="sb-approve">✅ Valider et générer</button>' +
-        '<button type="button" class="btn-secondary" id="sb-redo" style="margin-top:0.4rem;">↺ Refaire tout le storyboard</button>' +
-        '<button type="button" class="btn-secondary" id="sb-close" style="margin-top:0.4rem;">Fermer</button>';
+        '<button type="button" class="btn-primary" id="sb-approve">✅ Valider le storyboard</button>' +
+        '<button type="button" class="btn-secondary" id="sb-redo" style="margin-top:0.4rem;">↺ Refaire tout le storyboard</button>';
     box.classList.remove('hidden');
     if (wb) state.scenes.forEach((_, i) => drawStoryboardCanvas(i));
 }
@@ -3212,12 +3319,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('click', async e => {
     const t = e.target.closest ? e.target : null; if (!t) return;
-    if (t.id === 'sb-approve') {
-        unlockAudio();
-        state.storyboardApproved = true; state.storyboardSig = currentScriptSignature();
-        document.getElementById('storyboard')?.classList.add('hidden');
-        startGeneration();
-    } else if (t.id === 'sb-redo') { prepareStoryboardFlow(); }
+    if (t.id === 'sb-approve') approveStoryboard(); else if (t.id === 'sb-redo') { prepareStoryboardFlow(); }
     else if (t.id === 'sb-close') { document.getElementById('storyboard')?.classList.add('hidden'); }
     else if (t.dataset?.sbRedraw !== undefined) {
         const i = parseInt(t.dataset.sbRedraw, 10);
@@ -3872,7 +3974,7 @@ async function finishBackgroundJob() {
         const saved = getJSON(STORAGE.BG_JOB);
         if (saved) setJSON(STORAGE.BG_JOB, { ...saved, finished: true });
         hideBgPanel();
-        document.getElementById('video-preview')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        wizardGo(4);
     }
 }
 async function cancelBackgroundJob(silent) {
@@ -4828,6 +4930,7 @@ function showResultButtons() {
     if (state.extraExports.includes('seo')) document.getElementById('download-seo-btn')?.classList.remove('hidden');
     if (state.quizCount > 0) document.getElementById('download-quiz-btn')?.classList.remove('hidden');
     if (getLS(STORAGE.YOUTUBE_TOKEN)) document.getElementById('youtube-upload-btn')?.classList.remove('hidden');
+    if (typeof onFinalReady === 'function') onFinalReady();
 }
 
 async function runAssembly() {
@@ -5936,7 +6039,7 @@ async function sameStructure(script) {
         document.getElementById('theme-input').value = theme; state.theme = theme;
         document.getElementById('script-input').value = lines.join('\n');
         updateScriptStats(); renderScenesEditor();
-        document.getElementById('script-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        wizardGo(1);
         showToast('Nouveau script écrit sur le même modèle ✓', 'success');
     } catch (e) { showToast('Impossible : ' + e.message, 'error'); }
     finally { setStatus(null); }
@@ -6129,6 +6232,188 @@ document.addEventListener('click', e => {
     if (e.target.id === 'schedule-refresh-btn') renderSchedule();
     else if (e.target.id === 'schedule-clear-btn' && confirm('Effacer la liste ? (les publications programmées ne sont pas annulées)')) { localStorage.removeItem(STORAGE.SCHEDULE); renderSchedule(); }
 });
+
+// ══════════════════════════════════════════════════════════════════
+// NAVIGATION : onglets, pages de réglages, assistant de création en 5 étapes
+// ══════════════════════════════════════════════════════════════════
+const NAV = { tab: 'home', stacks: { home: ['home'], create: ['create'], videos: ['videos'], stats: ['stats'], settings: ['settings'] }, step: 1 };
+const WIZ_STEPS = ['Script', 'Storyboard', 'Génération', 'Montage', 'Publier'];
+function navRender() {
+    const stack = NAV.stacks[NAV.tab], id = stack[stack.length - 1];
+    document.querySelectorAll('[data-screen]').forEach(s => { s.hidden = s.dataset.screen !== id; });
+    const scr = document.querySelector('[data-screen="' + id + '"]');
+    document.getElementById('screen-title').textContent = id === 'video' ? (state.theme || scr.dataset.title) : scr.dataset.title;
+    document.getElementById('nav-back').hidden = stack.length < 2;
+    document.querySelectorAll('[data-tab]').forEach(b => { if (b.dataset.tab === NAV.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+    document.getElementById('wizard-foot').hidden = id !== 'create';
+    if (id === 'create') renderWizard();
+    else if (id === 'home') renderHome();
+    else if (id === 'videos') renderVideosTab();
+    else if (id === 'stats') renderCosts();
+    else if (id === 'settings') renderSettingsList();
+    else if (id === 'video') syncFicheVideo();
+}
+function navTab(t) {
+    if (t === NAV.tab && NAV.stacks[t].length > 1) NAV.stacks[t] = [NAV.stacks[t][0]];
+    NAV.tab = t; navRender(); window.scrollTo(0, 0);
+}
+function navPush(id) { NAV.stacks[NAV.tab].push(id); navRender(); window.scrollTo(0, 0); }
+function navBack() { const st = NAV.stacks[NAV.tab]; if (st.length > 1) st.pop(); navRender(); window.scrollTo(0, 0); }
+// Ouvre une page précise (ex. navOpen('settings', 'set-keys'))
+function navOpen(tab, page) { NAV.tab = tab; NAV.stacks[tab] = page && page !== tab ? [tab, page] : [tab]; navRender(); window.scrollTo(0, 0); }
+function wizardGo(n) {
+    NAV.step = Math.max(1, Math.min(5, n));
+    NAV.tab = 'create'; NAV.stacks.create = ['create'];
+    navRender(); window.scrollTo(0, 0);
+}
+function renderWizard() {
+    const st = NAV.step;
+    document.getElementById('stepper').innerHTML = WIZ_STEPS.map((s, i) => '<button type="button" class="step ' + (i + 1 < st ? 'done' : i + 1 === st ? 'now' : '') + '" data-step-go="' + (i + 1) + '"><i></i>' + s + '</button>').join('');
+    document.querySelectorAll('.wstep').forEach(d => { d.hidden = +d.dataset.step !== st; });
+    const prev = document.getElementById('wiz-prev'), next = document.getElementById('wiz-next');
+    prev.hidden = st === 1;
+    const sbShown = !document.getElementById('storyboard').classList.contains('hidden');
+    next.textContent = ['Suivant : storyboard', sbShown && !storyboardValid() ? '✅ Valider le storyboard' : 'Suivant : génération', 'Suivant : montage', 'Suivant : publier', 'Terminé'][st - 1];
+    if (st === 1) renderCharChip();
+    if (st === 2) {
+        const e = document.getElementById('sb-empty');
+        e.textContent = state.storyboarding ? '⏳ Claude prépare la mise en scène et les dessins…'
+            : sbShown ? '' : !getClaudeKey() ? 'Le storyboard demande la clé Claude : la mise en scène sera automatique. Passe à la génération.'
+            : 'Appuie sur « Suivant » à l\'étape Script pour préparer le storyboard, ou passe directement à la génération.';
+        e.hidden = !e.textContent;
+    }
+    if (st === 3) updateEstimate();
+    if (st === 4) {
+        const has = state.queue.some(q => q.status === 'done'), fin = !!state.finalBlob;
+        const e = document.getElementById('montage-empty');
+        e.textContent = fin ? '✅ Vidéo prête. Tu peux encore retoucher le montage puis la recréer.' : has ? 'Vérifie avec l\'aperçu, retouche si besoin, puis crée la vidéo finale.' : 'Aucune scène prête pour l\'instant : lance d\'abord la génération (étape 3).';
+        document.getElementById('goto-fiche-btn').classList.toggle('hidden', !fin);
+    }
+    if (st === 5) {
+        const e = document.getElementById('publish-empty');
+        e.textContent = state.finalBlob ? '' : 'Crée d\'abord la vidéo finale (étape 4).';
+        e.hidden = !e.textContent;
+        if (state.finalBlob) updatePublishUI();
+    }
+}
+async function wizardNext() {
+    const st = NAV.step;
+    if (st === 1) {
+        if (!state.scenes.length) { showToast('Écris d\'abord ton script (une phrase par scène)', 'warn'); return; }
+        if (storyboardValid()) { wizardGo(3); return; }
+        if (state.storyboardOn && getClaudeKey()) { wizardGo(2); unlockAudio(); await prepareStoryboardFlow(); renderWizard(); return; }
+        wizardGo(3); return;
+    }
+    if (st === 2) {
+        const sbShown = !document.getElementById('storyboard').classList.contains('hidden');
+        if (sbShown && !storyboardValid()) { approveStoryboard(); return; }
+        wizardGo(3); return;
+    }
+    if (st < 5) { wizardGo(st + 1); return; }
+    navOpen('videos', state.finalBlob ? 'video' : 'videos');
+}
+function approveStoryboard() {
+    unlockAudio();
+    state.storyboardApproved = true; state.storyboardSig = currentScriptSignature();
+    showToast('Storyboard validé ✓ Choisis où générer, puis lance la génération', 'success', 4000);
+    wizardGo(3);
+}
+function renderCharChip() {
+    const box = document.getElementById('char-chip'); if (!box) return;
+    const img = state.images[0];
+    box.innerHTML = img
+        ? '<div class="char-chip"><img src="' + (img.thumbnail || img.dataUri) + '" alt=""><div class="grow"><b>Personnage</b><br><span class="hmuted">' + (state.poses.length ? state.poses.length + ' pose' + (state.poses.length > 1 ? 's' : '') + ' en plus' : 'Photo principale') + '</span></div><button type="button" data-open="settings:set-brand">Changer</button></div>'
+        : '<div class="char-chip missing"><div class="grow"><b>Ajoute la photo de ton personnage</b><br><span class="hmuted">Obligatoire pour générer (une seule fois, elle est gardée).</span></div><button type="button" data-open="settings:set-brand">Ajouter</button></div>';
+}
+
+// ─────────────── Accueil ───────────────
+function renderHome() {
+    const setup = document.getElementById('home-setup'), live = document.getElementById('home-live');
+    const last = document.getElementById('home-last'), costs = document.getElementById('home-costs');
+    if (!setup) return;
+    const missing = [];
+    if (!getAgnesKey()) missing.push(['🔑 Clé Agnes (obligatoire)', 'settings:set-keys']);
+    if (!state.images.length) missing.push(['👤 Photo du personnage (obligatoire)', 'settings:set-brand']);
+    if (!getClaudeKey()) missing.push(['🤖 Clé Claude (recommandée)', 'settings:set-keys']);
+    setup.innerHTML = missing.length ? '<div class="hcard"><div class="t">Pour commencer</div>' + missing.map(([l, t]) => '<button type="button" class="btn-secondary" data-open="' + t + '">' + l + '</button>').join('') + '</div>' : '';
+    // En cours
+    const cards = [];
+    const bg = document.getElementById('bg-panel');
+    if (bg && !bg.classList.contains('hidden')) {
+        const ready = !document.getElementById('bg-finish-btn').classList.contains('hidden');
+        cards.push('<div class="hcard"><div class="row"><div class="grow t">' + esc(document.getElementById('bg-title').textContent) + '</div>' + (ready ? '<span class="pill ok">Scènes prêtes</span>' : '') + '</div>' +
+            '<div class="hmuted">' + esc(document.getElementById('bg-text').textContent) + '</div>' +
+            (ready ? '<button type="button" class="btn-primary" id="home-finish-btn">🎞️ Terminer la vidéo</button>' : '<button type="button" class="btn-secondary" data-wizard="3">Voir l\'avancement</button>') + '</div>');
+    } else if (state.isRunning) {
+        cards.push('<div class="hcard"><div class="t">⏳ Génération en cours sur le téléphone</div><div class="hmuted">' + state.completed + '/' + state.queue.length + ' scènes prêtes · garde l\'appli ouverte</div><button type="button" class="btn-secondary" data-wizard="3">Voir l\'avancement</button></div>');
+    } else {
+        const done = state.queue.filter(q => q.status === 'done').length;
+        if (done && !state.finalBlob) cards.push('<div class="hcard"><div class="row"><div class="grow t">' + esc(state.theme || 'Projet en cours') + '</div><span class="pill ok">' + done + ' scènes prêtes</span></div><div class="hmuted">Il ne reste que le montage (1 à 2 min, appli ouverte).</div><button type="button" class="btn-primary" data-wizard="4">🎞️ Terminer la vidéo</button></div>');
+    }
+    live.innerHTML = cards.length ? '<p class="label">En cours</p>' + cards.join('') : '';
+    // Dernière vidéo
+    const h = getJSON(STORAGE.HISTORY, [])[0];
+    last.innerHTML = state.finalBlob
+        ? '<p class="label">Dernière vidéo</p><button type="button" class="list-item hcard" data-open="videos:video" style="flex-direction:row"><span class="ico">🎬</span><span class="grow"><b>' + esc(state.theme || 'Ma vidéo') + '</b><small>Prête · formats, versions et publication</small></span><span class="chev">›</span></button>'
+        : h ? '<p class="label">Dernière vidéo</p><button type="button" class="list-item hcard" data-open="videos:videos" style="flex-direction:row"><span class="ico">🎬</span><span class="grow"><b>' + esc(h.theme || 'Sans titre') + '</b><small>' + new Date(h.date).toLocaleDateString('fr-FR') + (h.duration ? ' · ' + esc(h.duration) : '') + '</small></span><span class="chev">›</span></button>' : '';
+    const c = getJSON(STORAGE.COSTS, { months: {} }), m = c.months?.[new Date().toISOString().slice(0, 7)] || {};
+    const total = Object.values(m).reduce((a, b) => a + (+b || 0), 0);
+    costs.innerHTML = '<div class="hcard"><div class="row"><div class="grow"><p class="label" style="margin:0 0 2px">Dépenses du mois</p><div class="money">' + total.toFixed(2).replace('.', ',') + ' €</div></div><button type="button" class="btn-secondary" style="width:auto;margin:0;padding:0.6rem 0.9rem" data-open="stats:stats">Détail</button></div></div>';
+}
+// ─────────────── Mes vidéos ───────────────
+function renderVideosTab() {
+    const box = document.getElementById('videos-current'); if (!box) return;
+    box.innerHTML = state.finalBlob
+        ? '<button type="button" class="list-item hcard" data-open="videos:video" style="flex-direction:row"><span class="ico">🎬</span><span class="grow"><b>' + esc(state.theme || 'Ma vidéo') + '</b><small>Vidéo actuelle · enregistrer, formats, versions</small></span><span class="pill ok">Prête</span><span class="chev">›</span></button>'
+        : '<div class="hcard"><div class="hmuted">Aucune vidéo terminée dans cette session. Les vidéos sauvegardées sur ton Cloudflare sont ci-dessous.</div></div>';
+    renderLibrary();
+}
+function syncFicheVideo() {
+    const v = document.getElementById('fiche-video');
+    if (v && state.finalVideoUrl && v.src !== state.finalVideoUrl) v.src = state.finalVideoUrl;
+}
+function onFinalReady() {
+    syncFicheVideo();
+    if (NAV.tab === 'create' && NAV.step < 4) wizardGo(4);
+    else if (NAV.tab === 'create') renderWizard();
+}
+// ─────────────── Réglages ───────────────
+function renderSettingsList() {
+    const k = document.getElementById('keys-pill'), b = document.getElementById('brand-pill');
+    if (k) { const ok = getAgnesKey() && getProxyUrl(); k.textContent = ok ? 'OK' : 'À configurer'; k.className = 'pill ' + (ok ? 'ok' : 'warn'); }
+    if (b) { b.textContent = state.images.length ? '' : 'Photo manquante'; b.className = 'pill warn'; }
+}
+// Photo principale gardée sur le téléphone (plus besoin de la remettre à chaque fois)
+async function saveMainImages() {
+    try { await idbPut('mainImages', state.images.map(i => ({ id: i.id, dataUri: i.dataUri, thumbnail: i.thumbnail }))); } catch (e) {}
+}
+async function loadMainImages() {
+    try {
+        const list = await idbGet('mainImages');
+        if (Array.isArray(list) && list.length && !state.images.length) { state.images = list; renderImages(); updateGenerateBtn(); }
+    } catch (e) {}
+    if (NAV.tab === 'home') renderHome();
+}
+
+document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('button'); if (!b) return;
+    if (b.dataset.tab) { navTab(b.dataset.tab); return; }
+    if (b.id === 'nav-back') { navBack(); return; }
+    if (b.dataset.push) { navPush(b.dataset.push); return; }
+    if (b.dataset.open) { const [t, p] = b.dataset.open.split(':'); navOpen(t, p); return; }
+    if (b.dataset.wizard) { wizardGo(+b.dataset.wizard); return; }
+    if (b.dataset.stepGo) { wizardGo(+b.dataset.stepGo); return; }
+    if (b.id === 'wiz-next') { wizardNext(); return; }
+    if (b.id === 'wiz-prev') { wizardGo(NAV.step - 1); return; }
+    if (b.id === 'home-new-btn') { wizardGo(1); return; }
+    if (b.id === 'home-finish-btn') { wizardGo(4); finishBackgroundJob(); return; }
+    if (b.id === 'goto-fiche-btn') { navOpen('videos', 'video'); return; }
+    if (b.dataset.sheet) { document.getElementById('sheet-wrap').hidden = false; return; }
+    if (b.id === 'sheet-close') { document.getElementById('sheet-wrap').hidden = true; updateEstimate(); return; }
+});
+document.addEventListener('click', e => { if (e.target.id === 'sheet-back') document.getElementById('sheet-wrap').hidden = true; });
+// L'accueil se met à jour tout seul (générations, publications)
+setInterval(() => { if (!document.hidden && NAV.tab === 'home' && NAV.stacks.home.length === 1) renderHome(); }, 4000);
 </script>
 <script>
 // ══════════════════════════════════════════════════════════════════
@@ -6806,7 +7091,9 @@ function showCloudConfigRow(provider) {
     showCloudConfigRow(state.cloudProvider); updateCloudStatus();
     refreshKeyFields();
     testProxy().then(() => { renderLibrary(); renderSeriesJobs(); renderSchedule(); updateTikTokStatus(); checkTikTokCallback(); });
+    try { localStorage.removeItem(STORAGE.SIMPLE_MODE); } catch (e) {}
     loadBank(); applySimpleMode(); updateInsightsLine(); renderCosts();
+    loadMainImages();
     updateMusicStatus(); updateLogoStatus();
     applySettings(getJSON(STORAGE.SETTINGS));
     loadPoses(); updatePushStatus(); updateEstimate();
@@ -6820,7 +7107,8 @@ function showCloudConfigRow(provider) {
     if (bgJob && !bgJob.finished) { bgUI({ title: '☁️ Génération en arrière-plan', text: 'Vérification de l\'avancement…', pct: 3, running: true }); pollBackgroundJob(); }
     else restoreProject();
 
-    log('🎓 Cartoon Instructeur ULTIMATE prêt.');
+    navRender();
+    log('🎓 Cartoon Instructeur prêt.');
 })();
 </script>
 </body>
