@@ -134,8 +134,9 @@ function gradeTowards(stats, target) {
 }
 // Mesure une scène (couleurs + silhouette) à partir de 2 images de son clip
 async function measureClip(item) {
-    if (item.look !== undefined) return item.look;
     const keyed = !!state.greenScreen;
+    if (item.look !== undefined && item.lookKeyed === keyed && item.lookBlob === item.blob) return item.look;
+    item.lookKeyed = keyed; item.lookBlob = item.blob;
     try {
         const frames = await Promise.all([0.35, 0.7].map(f => extractFrameAt(item.blob, f, 320, 0.8).then(loadImageEl)));
         const ss = frames.map(f => sampleStats(f, keyed)).filter(Boolean);

@@ -624,7 +624,10 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
         setStatus(label + ' : harmonisation des couleurs…');
         for (const it of items) if (it.blob) await measureClip(it);
         const target = await lookTarget(items);
-        items.forEach(it => { it.grade = state.colorMatch ? gradeTowards(it.look, target) : null; it.align = keyed ? alignTransform(it.look, target) : null; });
+        // une scène tournée sans fond vert (ancienne scène, fond vert raté) reste telle quelle
+        items.forEach(it => { it.keyed = keyed && !!it.look?.bbox && it.look.bbox.cover < 0.75; it.grade = state.colorMatch ? gradeTowards(it.look, target) : null; it.align = it.keyed ? alignTransform(it.look, target) : null; });
+        const unkeyed = items.filter(it => keyed && it.sceneIndex >= 0 && !it.keyed).length;
+        if (unkeyed) showToast(unkeyed + ' scène(s) sans fond vert : gardées telles quelles (refais-les pour avoir le décor)', 'warn', 6000);
     }
     let presenter = null;   // dernière image du personnage détouré (médaillon sur les plans illustrés)
 
@@ -667,8 +670,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
         for (let si = 0; si < segs.length; si++) {
             const seg = segs[si];
             if (state.stopRequested) throw new Error('Arrêt demandé');
-            if (montagePause.on) await resumeMontage();
-            while (montagePause.on && !state.stopRequested) await new Promise(r => setTimeout(r, 300));
+            while (montagePause.on && !state.stopRequested) { if (!document.hidden) resumeMontage(); await new Promise(r => setTimeout(r, 300)); }
             if (rec && rec.state === 'inactive') throw new Error('le téléphone a coupé l\'enregistrement pendant que l\'appli était en arrière-plan. Relance « Assembler la vidéo finale » en gardant l\'appli ouverte');
             if (T >= maxDuration - 0.05) break;
             setProgress(22 + (si / segs.length) * 75);
@@ -773,7 +775,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
             const fadeSec = transition === 'join' ? JOIN_SEC : FADE_SEC;
             if (transition === 'fade' && prevWasScene) sfx.whoosh();
             const qaInfo = { name: 'scène ' + (item.sceneIndex + 1) };
-            const layerOpts = { proc, grade: item.grade, keyed, align: item.align, framing: framingFor(seg, item.look, wb, !!drawing) };
+            const layerOpts = { proc, grade: item.grade, keyed: !!item.keyed, align: item.align, framing: framingFor(seg, item.look, wb, !!drawing) };
 
             await seekTo(v, cut.tin);
             const buf = usingTts ? item.ttsBuffer : usingFit ? item.fitBuffer : item.audioBuffer;
@@ -844,7 +846,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
             timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played });
             prevSketch = drawing && area ? { drawing, area } : null;
             drawSceneLayer(pg, v, W, H, layerOpts);
-            if (keyed && proc) presenter = presenterFrom(proc.process(v, { grade: item.grade, key: true }), item.look);
+            if (item.keyed && proc) presenter = presenterFrom(proc.process(v, { grade: item.grade, key: true }), item.look);
             if (prevSketch) drawSketch(pg, area, drawing, 1, 1);
             hasPrev = true; prevWasScene = true; prevWasBoard = false;
             disposeStageVideo(v);
