@@ -69,7 +69,13 @@ function claudeMock(route) {
     const body = JSON.parse(route.request().postData());
     const props = body.output_config?.format?.schema?.properties || {};
     let out;
-    if (props.issues) out = { issues: [{ line: 1, problem: 'imprécis', fix: 'Le soleil réchauffe l\'eau des océans.' }] };
+    if (props.videos) out = { videos: [{ title: 'Le cycle de l\'eau', views: 1200, likes: 80, comments: 5, shares: 3, avg_watch_seconds: 11, full_watch_pct: 34, duration_seconds: 30, notes: 'décroche à 4 s' }] };
+    else if (props.script_rules) out = { analysis: 'Bon début.', tips: ['Accroche plus courte'], ideas: ['Les volcans'], script_rules: 'Accroche en moins de 3 secondes.' };
+    else if (props.hooks) out = { hooks: [{ text: 'Savais-tu que l\'eau voyage ?', why: 'question' }, { text: 'Un chiffre fou.', why: 'chiffre' }, { text: 'Tout est faux.', why: 'surprise' }] };
+    else if (props.question) out = { question: 'Et toi, tu bois combien de verres par jour ?' };
+    else if (props.hashtags) out = { caption: 'Le voyage de l\'eau en 30 s', hashtags: ['science', 'eau'] };
+    else if (props.lines) out = { lines: ['Ligne modèle un.', 'Ligne modèle deux.'] };
+    else if (props.issues) out = { issues: [{ line: 1, problem: 'imprécis', fix: 'Le soleil réchauffe l\'eau des océans.' }] };
     else if (props.paths) out = { paths: [
         { d: 'M 90 110 C 90 70 150 70 150 110 C 150 150 90 150 90 110 Z', color: 'orange', word: 'soleil' },
         { d: 'M 60 250 Q 120 230 180 250 Q 240 270 300 250', color: 'blue', word: 'eau' },
@@ -79,7 +85,7 @@ function claudeMock(route) {
         { spoken: 'Le soleil chauffe l\'eau.', action: 'points', camera: 'medium-wide shot', bubble: '', zoom: 'in', emphasis: 'chauffe', section: '', shot: 'board', highlight: '', pose: 'main' },
         { spoken: 'Le soleil chauffe l\'eau.', action: 'waves', camera: 'medium-wide shot', bubble: 'Évaporation', zoom: 'none', emphasis: '', section: 'Les nuages', shot: 'character', highlight: '', pose: 'explique' }] };
     else out = { text: 'EAU MAGIQUE' };
-    return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(out) }], stop_reason: 'end_turn' }) });
+    return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: JSON.stringify({ model: body.model, content: [{ type: 'text', text: JSON.stringify(out) }], stop_reason: 'end_turn', usage: { input_tokens: 1200, output_tokens: 400 } }) });
 }
 function toneWav() {
     const sr = 22050, n = sr * 2, b = Buffer.alloc(44 + n * 2);
@@ -136,9 +142,30 @@ async function testPhoneMontage(browser) {
     const clipBufs = await makeClips(page);
     const counters = { agnes: [], vid: 0, clipFor: n => (n === 1 ? 1 : n % 2 === 0 ? 0 : 2) };
     const { env } = fakeDurableObjects(W);
+    env.TIKTOK_CLIENT_KEY = 'ttkey'; env.TIKTOK_CLIENT_SECRET = 'ttsecret';
+    const tt = { uploaded: 0, inits: [], token: 0 };
+    counters.serverFetch = async (u, o) => {
+        const ok = data => Response.json({ data, error: { code: 'ok' } });
+        if (u.includes('/oauth/token/')) { tt.token++; return Response.json({ access_token: 'tta' + tt.token, refresh_token: 'ttr', expires_in: 86400, refresh_expires_in: 3e7, open_id: 'o1' }); }
+        if (u.includes('/video/list/')) return ok({ videos: [{ id: '71', title: 'Le cycle de l\'eau', view_count: 1500, like_count: 90, comment_count: 7, share_count: 4, duration: 30, create_time: 1790000000 }] });
+        if (u.includes('/creator_info/')) return ok({ privacy_level_options: ['PUBLIC_TO_EVERYONE', 'SELF_ONLY'], creator_nickname: 'Prof Patate' });
+        if (u.includes('/video/init/')) { tt.inits.push(JSON.parse(o.body)); return ok({ publish_id: 'pub1', upload_url: 'https://upload.tiktok.test/u' }); }
+        if (u.startsWith('https://upload.tiktok.test/')) { tt.uploaded += o.body.length; return new Response(null, { status: 201 }); }
+        if (u.includes('/status/fetch/')) return ok({ status: 'PUBLISH_COMPLETE' });
+        throw new Error('appel inattendu ' + u);
+    };
+    const yt = [];
+    await ctx.route('https://www.googleapis.com/upload/youtube/v3/videos**', r => { const b = r.request().postDataBuffer().toString('latin1'); const m = b.match(/\{"snippet".*?\}\}(?=\r\n)/s); yt.push(m ? JSON.parse(m[0]) : null); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'yt' + yt.length }) }); });
+    await ctx.route('https://www.googleapis.com/upload/youtube/v3/captions**', r => { yt.captions = (yt.captions || 0) + 1; r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });
+    await ctx.route('https://www.googleapis.com/upload/youtube/v3/thumbnails/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
     await commonRoutes(ctx, clipBufs, env, W, counters);
     await setup(page, { voiceSource: 'fit', captionFont: 'impact', brandColor: '#00d2ff', genMode: 'phone' });
     check(await page.evaluate(() => state.voiceSource === 'fit' && state.captionFont === 'impact' && state.poses.length === 1), 'réglages et poses retrouvés après rechargement');
+    // Connexion TikTok (retour de TikTok avec ?code=…&state=…) + YouTube connecté
+    await page.evaluate(() => { localStorage.setItem('cartoon_tiktok_oauth_state', 'st1'); localStorage.setItem('youtube_oauth_token', 'ytok'); localStorage.setItem('youtube_oauth_token_exp', String(Date.now() + 3600000)); });
+    await page.goto(ORIGIN + '/index.html?code=abc&state=st1');
+    await page.waitForFunction(() => !!localStorage.getItem('cartoon_tiktok_token'), null, { timeout: 20000 }).catch(() => {});
+    check(await page.evaluate(() => !!getTikTokToken() && location.search === '' && document.getElementById('tiktok-status').textContent.includes('connecté')), 'connexion TikTok réussie (jeton gardé, adresse nettoyée)');
     await fillProject(page);
     await page.click('#generate-btn');
     await page.waitForSelector('#storyboard:not(.hidden) #sb-approve', { timeout: 60000 });
@@ -206,6 +233,55 @@ async function testPhoneMontage(browser) {
     await page.click('#simple-mode-btn');
     check(await page.evaluate(() => document.getElementById('section-style').classList.contains('simple-hidden') && !document.getElementById('generate-btn').classList.contains('simple-hidden')), 'mode simple : réglages avancés masqués');
     await page.click('#simple-mode-btn');
+    // Stats TikTok (API + capture lue par Claude) et conseils
+    await page.click('[data-toggle="section-ytstats"]'); await new Promise(r => setTimeout(r, 600));
+    await page.click('#ttstats-btn');
+    await page.waitForFunction(() => (state.ttStats || []).length === 1, null, { timeout: 20000 });
+    await page.setInputFiles('#tt-shot-input', await photoBuffer(page));
+    await page.waitForFunction(() => state.ttStats?.[0]?.fullPct === 34, null, { timeout: 20000 }).catch(() => {});
+    check(await page.evaluate(() => state.ttStats.length === 1 && state.ttStats[0].views === 1500 && state.ttStats[0].fullPct === 34), 'stats TikTok : API + capture réunies');
+    await page.click('#platform-advice-btn');
+    await page.waitForFunction(() => document.getElementById('platform-advice').textContent.includes('Appliqué'), null, { timeout: 20000 });
+    check(await page.evaluate(() => scriptExtras().includes('moins de 3 secondes') && !document.getElementById('insights-line').classList.contains('hidden')), 'conseils : leçons appliquées aux prochains scripts');
+
+    // Publication programmée (YouTube natif + TikTok via le serveur), puis publication immédiate sur TikTok
+    const when = await page.evaluate(() => { const d = new Date(Date.now() + 2 * 3600000); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); });
+    await page.fill('#pub-at', when); await page.dispatchEvent('#pub-at', 'change');
+    await page.check('#pub-yt'); await page.check('#pub-tt');
+    await page.waitForFunction(() => document.getElementById('tt-caption').value.includes('#science') && document.querySelector('#pub-tt-privacy option[value="PUBLIC_TO_EVERYONE"]'), null, { timeout: 20000 });
+    await page.selectOption('#pub-tt-format', 'final');
+    check(await page.evaluate(() => document.getElementById('publish-btn').textContent.includes('Programmer')), 'bouton « Programmer » quand une date est choisie');
+    await page.click('#publish-btn');
+    await page.waitForFunction(() => (getJSON('cartoon_schedule', []) || []).length === 2 && !document.getElementById('publish-btn').dataset.busy, null, { timeout: 120000 });
+    check(yt[0]?.status?.privacyStatus === 'private' && !!yt[0]?.status?.publishAt, 'YouTube : vidéo programmée (publishAt)');
+    await page.waitForFunction(() => document.querySelectorAll('#schedule-list [data-unschedule]').length === 1, null, { timeout: 20000 });
+    check(tt.uploaded === 0, 'TikTok : rien envoyé avant l\'heure');
+    await page.click('#schedule-list [data-unschedule]');
+    await page.waitForFunction(() => document.getElementById('schedule-list').textContent.includes('Annulée'), null, { timeout: 20000 });
+    check(true, 'TikTok : publication programmée annulée');
+    await page.fill('#pub-at', ''); await page.dispatchEvent('#pub-at', 'change'); await page.uncheck('#pub-yt');
+    await page.click('#publish-btn');
+    await page.waitForFunction(() => (getJSON('cartoon_schedule', []) || []).length === 3 && !document.getElementById('publish-btn').dataset.busy, null, { timeout: 120000 });
+    let pubOk = false;
+    for (let i = 0; i < 20 && !pubOk; i++) { await new Promise(r => setTimeout(r, 1500)); await page.evaluate(() => renderSchedule()); pubOk = await page.evaluate(() => document.getElementById('schedule-list').textContent.includes('Publiée sur TikTok')); }
+    const finalSize = await page.evaluate(() => state.finalBlob.size);
+    check(pubOk && tt.uploaded === finalSize && tt.inits[0]?.post_info?.privacy_level === 'PUBLIC_TO_EVERYONE' && tt.inits[0]?.post_info?.title.includes('#science'), 'TikTok : vidéo publiée par le serveur (' + tt.uploaded + ' octets)' + (pubOk ? '' : ' [liste : ' + await page.evaluate(() => document.getElementById('schedule-list').textContent) + ']') + ' ' + JSON.stringify(tt.inits[0]?.post_info));
+
+    // Sous-titres traduits sur YouTube, découpage, zones TikTok, accroches, question de fin, même structure, dépenses
+    check(await page.evaluate(() => /-->/.test(state.langSrt?.['en-US'] || '')), 'sous-titres anglais prêts');
+    await page.click('#lang-yt-btn');
+    await page.waitForFunction(() => document.getElementById('toast-text').textContent.includes('Sous-titres ajoutés'), null, { timeout: 20000 }).catch(() => {});
+    check((yt.captions || 0) >= 2, 'sous-titres traduits ajoutés à la vidéo YouTube');
+    check(await page.evaluate(() => computeParts(4).length > 1 && computeParts().length === 1 && safeZone(1080, 1920).on && !safeZone(1920, 1080).on), 'découpage en parties et zones TikTok');
+    await page.click('#hooks-btn'); await page.waitForSelector('[data-hook="0"]', { timeout: 20000 }); await page.click('[data-hook="0"]');
+    check((await page.inputValue('#script-input')).startsWith('Savais-tu'), 'accroche choisie appliquée');
+    await page.click('#end-question-btn');
+    await page.waitForFunction(() => document.getElementById('script-input').value.trim().endsWith('par jour ?'), null, { timeout: 20000 }).catch(() => {});
+    check((await page.inputValue('#script-input')).trim().endsWith('par jour ?'), 'question de fin ajoutée');
+    await page.evaluate(() => { document.getElementById('theme-input').value = 'Les volcans'; return sameStructure('Modèle.\nModèle.'); });
+    check((await page.inputValue('#script-input')).startsWith('Ligne modèle un.'), 'nouveau script sur le même modèle');
+    const costs = await page.evaluate(() => { const c = getJSON(STORAGE.COSTS); const m = c.months[new Date().toISOString().slice(0, 7)]; renderCosts(); return m; });
+    check(costs.agnes > 0 && costs.claude > 0 && costs.elevenlabs > 0, 'dépenses suivies (Agnes, Claude, ElevenLabs)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }

@@ -6,7 +6,7 @@ self.addEventListener('push', e => {
     let data = {};
     try { data = e.data ? e.data.json() : {}; } catch (err) {}
     e.waitUntil(self.registration.showNotification(data.title || 'Cartoon Instructeur', {
-        body: data.body || '✅ Ta génération est terminée : ouvre l\'appli pour finir la vidéo.',
+        body: data.body || '✅ C\'est prêt : génération terminée ou vidéo publiée. Ouvre l\'appli pour voir.',
         tag: 'cartoon-job'
     }));
 });

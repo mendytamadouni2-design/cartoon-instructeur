@@ -57,3 +57,23 @@ Pense ensuite à appuyer sur **« 💾 Sauvegarder mes clés »** : l'adresse du
 
 Si des scènes ont déjà été générées, il suffit d'appuyer sur **« 🎞️ Assembler la vidéo finale »** :
 pas besoin de tout régénérer.
+
+## Option — Brancher TikTok (statistiques + publication programmée)
+
+1. Va sur **developers.tiktok.com**, connecte-toi avec ton compte TikTok, puis **Manage apps → Connect an app**.
+2. Dans l'appli créée :
+   - **Products** : ajoute **Login Kit** et **Content Posting API** (active « Direct Post »).
+   - **Scopes** : `user.info.basic`, `video.list`, `video.upload`, `video.publish`.
+   - **Login Kit → Redirect URI (Web)** : `https://mendytamadouni2-design.github.io/cartoon-instructeur/`
+   - **Sandbox** : ajoute ton propre compte TikTok comme « Target user » pour tester tout de suite.
+3. Copie le **Client key** et le **Client secret**.
+4. Dans Cloudflare : **Workers & Pages → cartoon-instructeur → Settings → Variables and Secrets → Add** :
+   - `TIKTOK_CLIENT_KEY` (type *Text*) = le Client key
+   - `TIKTOK_CLIENT_SECRET` (type *Secret*) = le Client secret
+   puis **Deploy**.
+5. Dans l'appli : section **📈 Mes stats YouTube + TikTok → 🎵 Connecter TikTok**.
+
+Tant que TikTok n'a pas validé ton appli (« audit »), les vidéos publiées directement restent **privées** :
+choisis « Envoyer en brouillon », puis termine la publication dans l'appli TikTok, ou demande l'audit
+dans le portail développeur.
+Le Client secret ne va **jamais** dans l'appli ni sur GitHub : il reste uniquement dans Cloudflare.

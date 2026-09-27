@@ -24,6 +24,19 @@
 //      DELETE /media/:clé      → le supprime
 //      GET    /media-list?kind=final → liste des vidéos enregistrées
 //
+// 5. TikTok (optionnel : secrets TIKTOK_CLIENT_KEY et TIKTOK_CLIENT_SECRET dans Cloudflare) :
+//      GET  /tiktok/config     → clé publique de l'appli TikTok
+//      POST /tiktok/token      → échange le code de connexion contre les jetons
+//      POST /tiktok/refresh    → renouvelle le jeton
+//      POST /tiktok/videos     → tes vidéos et leurs statistiques
+//      POST /tiktok/creator    → options de publication de ton compte
+//
+// 6. Publication programmée sur TikTok (la vidéo est prise dans le stockage) :
+//      POST /schedule          → { id }
+//      GET  /schedule/:id      → état
+//      POST /schedule/:id/cancel
+//    Le jeton TikTok n'est gardé que jusqu'à la publication, puis effacé.
+//
 // Sécurité : seul le site de l'appli peut l'utiliser (ALLOWED_ORIGINS).
 
 const ALLOWED_ORIGINS = [
@@ -40,6 +53,9 @@ const TICK_MS = 8000;                    // fréquence de travail
 const CREATE_INTERVAL_MS = 62000;        // limite de débit Agnes entre deux créations
 const SCENE_TIMEOUT_MS = 25 * 60000;     // abandon d'une scène bloquée
 const JOB_MAX_AGE_MS = 3 * 24 * 3600000; // les projets sont effacés au bout de 3 jours
+const TIKTOK_API = 'https://open.tiktokapis.com/v2';
+const TIKTOK_CHUNK = 10 * 1024 * 1024;   // morceaux envoyés à TikTok (5 à 64 Mo)
+const POST_MAX_AHEAD_MS = 60 * 24 * 3600000;
 
 export default {
     async fetch(request, env) {
@@ -57,6 +73,8 @@ export default {
 
         const url = new URL(request.url);
         if (url.pathname.startsWith('/jobs')) return handleJobs(request, env, url, cors);
+        if (url.pathname.startsWith('/tiktok/')) return handleTikTok(request, env, url, cors);
+        if (url.pathname.startsWith('/schedule')) return handleSchedule(request, env, url, cors);
         if (url.pathname.startsWith('/media')) {
             if (!env.JOBS) return json({ error: 'Stockage non activé' }, 501, cors);
             const store = env.JOBS.get(env.JOBS.idFromName('media'));
@@ -77,7 +95,7 @@ export default {
         }
 
         const target = url.searchParams.get('url');
-        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push · media' : 'Relais OK', { status: 200, headers: cors });
+        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push · media · schedule' + (env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET ? ' · tiktok' : '') : 'Relais OK', { status: 200, headers: cors });
         return relay(request, target, cors);
     }
 };
@@ -124,6 +142,59 @@ async function handleJobs(request, env, url, cors) {
     return json({ error: 'Requête inconnue' }, 404, cors);
 }
 
+// ─────────────── TikTok ───────────────
+async function tiktokToken(env, params) {
+    const body = new URLSearchParams({ client_key: env.TIKTOK_CLIENT_KEY, client_secret: env.TIKTOK_CLIENT_SECRET, ...params });
+    const res = await fetch(TIKTOK_API + '/oauth/token/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || d.error || !d.access_token) throw new Error(d.error_description || d.error || ('TikTok ' + res.status));
+    return { accessToken: d.access_token, refreshToken: d.refresh_token, expiresIn: d.expires_in, refreshExpiresIn: d.refresh_expires_in, openId: d.open_id, scope: d.scope };
+}
+async function tiktokCall(path, token, body) {
+    const res = await fetch(TIKTOK_API + path, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify(body || {}) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || (d.error && d.error.code && d.error.code !== 'ok')) throw new Error((d.error && (d.error.message || d.error.code)) || ('TikTok ' + res.status));
+    return d.data || {};
+}
+async function handleTikTok(request, env, url, cors) {
+    const ready = !!(env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET);
+    const action = url.pathname.slice('/tiktok/'.length);
+    if (action === 'config') return json({ clientKey: env.TIKTOK_CLIENT_KEY || '', ready }, 200, cors);
+    if (!ready) return json({ error: 'TikTok n\'est pas encore configuré sur ton serveur Cloudflare' }, 501, cors);
+    if (request.method !== 'POST') return json({ error: 'Requête inconnue' }, 404, cors);
+    let p = {};
+    try { p = JSON.parse(await request.text() || '{}'); } catch (e) { return json({ error: 'Données illisibles' }, 400, cors); }
+    try {
+        if (action === 'token') return json(await tiktokToken(env, { code: p.code, grant_type: 'authorization_code', redirect_uri: p.redirectUri }), 200, cors);
+        if (action === 'refresh') return json(await tiktokToken(env, { grant_type: 'refresh_token', refresh_token: p.refreshToken }), 200, cors);
+        if (action === 'videos') {
+            const fields = 'id,title,video_description,duration,cover_image_url,share_url,view_count,like_count,comment_count,share_count,create_time';
+            return json(await tiktokCall('/video/list/?fields=' + fields, p.accessToken, { max_count: 20, ...(p.cursor ? { cursor: p.cursor } : {}) }), 200, cors);
+        }
+        if (action === 'creator') return json(await tiktokCall('/post/publish/creator_info/query/', p.accessToken, {}), 200, cors);
+    } catch (e) { return json({ error: e.message }, 502, cors); }
+    return json({ error: 'Requête inconnue' }, 404, cors);
+}
+async function handleSchedule(request, env, url, cors) {
+    if (!env.JOBS) return json({ error: 'Programmation non activée sur ce serveur' }, 501, cors);
+    const parts = url.pathname.split('/').filter(Boolean);   // ['schedule', id?, action?]
+    if (parts.length === 1 && request.method === 'POST') {
+        if (!(env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET)) return json({ error: 'TikTok n\'est pas encore configuré sur ton serveur Cloudflare' }, 501, cors);
+        const id = env.JOBS.newUniqueId();
+        const res = await env.JOBS.get(id).fetch('https://job/post-start', { method: 'POST', body: await request.text() });
+        const out = await res.json();
+        return json(res.ok ? { id: id.toString() } : out, res.status, cors);
+    }
+    if (parts.length >= 2) {
+        let id;
+        try { id = env.JOBS.idFromString(parts[1]); } catch (e) { return json({ error: 'Publication introuvable' }, 404, cors); }
+        const action = parts[2] === 'cancel' && request.method === 'POST' ? 'post-cancel' : 'post-status';
+        const res = await env.JOBS.get(id).fetch('https://job/' + action, { method: 'POST' });
+        return json(await res.json(), res.status, cors);
+    }
+    return json({ error: 'Requête inconnue' }, 404, cors);
+}
+
 // ══════════════════════════════════════════════════════════════════
 // Un projet de vidéo = un Durable Object (stockage + réveil périodique)
 // ══════════════════════════════════════════════════════════════════
@@ -135,6 +206,7 @@ export class VideoJob {
         if (action === 'start') return this.start(request);
         if (action === 'vapid') return Response.json({ publicKey: (await getVapid(this.storage)).publicKey });
         if (action.startsWith('media')) return this.media(action, request);
+        if (action.startsWith('post-')) return this.postAction(action, request);
         if (action === 'rate') {
             // une seule création Agnes par minute, tous projets confondus (séries en parallèle)
             const now = Date.now(), next = (await this.storage.get('nextAt')) || 0;
@@ -229,7 +301,106 @@ export class VideoJob {
         return Response.json({ ok: true });
     }
 
+    // ─────────────── Publication programmée (TikTok) ───────────────
+    async postAction(action, request) {
+        if (action === 'post-start') {
+            let p;
+            try { p = await request.json(); } catch (e) { return Response.json({ error: 'Données illisibles' }, { status: 400 }); }
+            if (!p.refreshToken || !p.mediaKey) return Response.json({ error: 'Connexion TikTok ou vidéo manquante' }, { status: 400 });
+            const at = Math.max(Date.now() + 1000, +p.at || 0);
+            if (at > Date.now() + POST_MAX_AHEAD_MS) return Response.json({ error: 'Date trop lointaine (60 jours maximum)' }, { status: 400 });
+            const post = {
+                status: 'scheduled', message: 'Programmée', at, createdAt: Date.now(), attempts: 0, polls: 0,
+                mode: p.mode === 'inbox' ? 'inbox' : 'direct', mediaKey: String(p.mediaKey), title: String(p.title || '').slice(0, 2200),
+                privacy: String(p.privacy || 'SELF_ONLY'), push: p.push && p.push.endpoint ? p.push : null, publishId: null, deleteMedia: p.deleteMedia !== false
+            };
+            await this.storage.put('post', post);
+            await this.storage.put('postSecret', { refreshToken: p.refreshToken });
+            await this.storage.setAlarm(at);
+            return Response.json({ ok: true });
+        }
+        const post = await this.storage.get('post');
+        if (!post) return Response.json({ error: 'Publication introuvable ou expirée' }, { status: 404 });
+        if (action === 'post-cancel' && post.status === 'scheduled') {
+            post.status = 'cancelled'; post.message = 'Annulée';
+            await this.endPost(post);
+        }
+        return Response.json({ status: post.status, message: post.message, at: post.at, mode: post.mode, publishId: post.publishId });
+    }
+    async runPost(post) {
+        if (['done', 'failed', 'cancelled'].includes(post.status)) {
+            if (Date.now() - post.createdAt > POST_MAX_AHEAD_MS + JOB_MAX_AGE_MS) await this.storage.deleteAll();
+            return;
+        }
+        const env = this.env;
+        try {
+            const secret = await this.storage.get('postSecret');
+            const tok = await tiktokToken(env, { grant_type: 'refresh_token', refresh_token: secret.refreshToken });
+            if (tok.refreshToken) await this.storage.put('postSecret', { refreshToken: tok.refreshToken });
+            if (post.status === 'scheduled') {
+                post.status = 'uploading'; post.message = 'Envoi à TikTok…';
+                const store = env.JOBS.get(env.JOBS.idFromName('media'));
+                const media = await store.fetch('https://job/media-get?key=' + encodeURIComponent(post.mediaKey));
+                if (!media.ok) throw new Error('vidéo introuvable dans le stockage');
+                const size = +media.headers.get('Content-Length');
+                const chunk = size < 5 * 1024 * 1024 ? size : TIKTOK_CHUNK;
+                const count = Math.max(1, Math.floor(size / chunk));
+                const source_info = { source: 'FILE_UPLOAD', video_size: size, chunk_size: chunk, total_chunk_count: count };
+                const init = post.mode === 'inbox'
+                    ? await tiktokCall('/post/publish/inbox/video/init/', tok.accessToken, { source_info })
+                    : await tiktokCall('/post/publish/video/init/', tok.accessToken, { post_info: { title: post.title, privacy_level: post.privacy, disable_duet: false, disable_comment: false, disable_stitch: false, video_cover_timestamp_ms: 1000 }, source_info });
+                post.publishId = init.publish_id;
+                // envoi morceau par morceau (le dernier morceau prend le reste)
+                const reader = media.body.getReader();
+                let buf = new Uint8Array(0), sent = 0, index = 0;
+                const flush = async part => {
+                    const res = await fetch(init.upload_url, { method: 'PUT', headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(part.length), 'Content-Range': 'bytes ' + sent + '-' + (sent + part.length - 1) + '/' + size }, body: part });
+                    if (!res.ok) throw new Error('envoi TikTok refusé (' + res.status + ')');
+                    sent += part.length; index++;
+                };
+                for (;;) {
+                    const { done, value } = await reader.read();
+                    if (value) { const n = new Uint8Array(buf.length + value.length); n.set(buf); n.set(value, buf.length); buf = n; }
+                    while (index < count - 1 && buf.length >= chunk) { await flush(buf.slice(0, chunk)); buf = buf.slice(chunk); }
+                    if (done) break;
+                }
+                if (buf.length) await flush(buf);
+                post.status = 'processing'; post.message = 'TikTok traite la vidéo…';
+            }
+            if (post.status === 'processing' || post.status === 'uploading') {
+                const st = await tiktokCall('/post/publish/status/fetch/', tok.accessToken, { publish_id: post.publishId });
+                post.polls++;
+                if (st.status === 'PUBLISH_COMPLETE') { post.status = 'done'; post.message = 'Publiée sur TikTok ✓'; }
+                else if (st.status === 'SEND_TO_USER_INBOX') { post.status = 'done'; post.message = 'Dans ta boîte de réception TikTok : ouvre TikTok pour la publier'; }
+                else if (st.status === 'FAILED') { post.status = 'failed'; post.message = 'TikTok a refusé : ' + (st.fail_reason || 'raison inconnue'); }
+                else if (post.polls > 60) { post.status = 'done'; post.message = 'Envoyée, TikTok la traite encore'; }
+            }
+        } catch (e) {
+            post.attempts++;
+            post.message = 'Erreur : ' + e.message;
+            if (post.attempts >= 4) { post.status = 'failed'; post.message = 'Échec : ' + e.message; }
+            else if (post.status === 'uploading') post.status = 'scheduled';   // on recommence l'envoi
+        }
+        await this.storage.put('post', post);
+        if (['done', 'failed'].includes(post.status)) await this.endPost(post);
+        else await this.storage.setAlarm(Date.now() + (post.status === 'processing' ? 15000 : 60000 * post.attempts));
+    }
+    async endPost(post) {
+        await this.storage.delete('postSecret');
+        if (post.status === 'done' && post.deleteMedia && this.env?.JOBS) {
+            try { await this.env.JOBS.get(this.env.JOBS.idFromName('media')).fetch('https://job/media-del?key=' + encodeURIComponent(post.mediaKey), { method: 'POST' }); } catch (e) {}
+        }
+        if (post.push && !post.pushed && this.env?.JOBS) {
+            post.pushed = true;
+            try { await this.env.JOBS.get(this.env.JOBS.idFromName('vapid')).fetch('https://job/push', { method: 'POST', body: JSON.stringify(post.push) }); } catch (e) {}
+        }
+        await this.storage.put('post', post);
+        await this.storage.setAlarm(post.createdAt + POST_MAX_AHEAD_MS + JOB_MAX_AGE_MS);
+    }
+
     async alarm() {
+        const post = await this.storage.get('post');
+        if (post) return this.runPost(post);
         const job = await this.storage.get('job');
         if (!job) return;
         if (['done', 'failed', 'cancelled'].includes(job.status)) {
