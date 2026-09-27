@@ -32,9 +32,10 @@ function fakeDurableObjects(W) {
                 const storage = {
                     async get(x) { return Array.isArray(x) ? new Map(x.map(y => [y, m.get(y)])) : structuredClone(m.get(x)); },
                     async put(x, v) { m.set(x, structuredClone(v)); }, async delete(x) { (Array.isArray(x) ? x : [x]).forEach(y => m.delete(y)); },
-                    async deleteAll() { m.clear(); }, async setAlarm(t) { clearTimeout(alarm); const d = t - Date.now(); if (d < 60000) alarm = setTimeout(() => o.alarm().catch(e => console.log('ALARME', e)), Math.max(0, d)); }, _m: m
+                    async deleteAll() { m.clear(); },
+                    async list({ prefix = '' } = {}) { return new Map([...m].filter(([x]) => x.startsWith(prefix)).map(([x, v]) => [x, structuredClone(v)])); }, async setAlarm(t) { clearTimeout(alarm); const d = t - Date.now(); if (d < 60000) alarm = setTimeout(() => o.alarm().catch(e => console.log('ALARME', e)), Math.max(0, d)); }, _m: m
                 };
-                const o = new W.VideoJob({ storage }, env);
+                const o = new W.VideoJob({ storage, id: { toString: () => k } }, env);
                 objects.set(k, o);
             }
             const o = objects.get(k);
@@ -68,7 +69,8 @@ function claudeMock(route) {
     const body = JSON.parse(route.request().postData());
     const props = body.output_config?.format?.schema?.properties || {};
     let out;
-    if (props.paths) out = { paths: [
+    if (props.issues) out = { issues: [{ line: 1, problem: 'imprécis', fix: 'Le soleil réchauffe l\'eau des océans.' }] };
+    else if (props.paths) out = { paths: [
         { d: 'M 90 110 C 90 70 150 70 150 110 C 150 150 90 150 90 110 Z', color: 'orange', word: 'soleil' },
         { d: 'M 60 250 Q 120 230 180 250 Q 240 270 300 250', color: 'blue', word: 'eau' },
         { d: 'M 200 230 C 205 200 230 180 250 150', color: 'black', word: '' }] };
@@ -96,7 +98,7 @@ async function commonRoutes(ctx, clipBufs, relayEnv, W, counters) {
         const q = r.request(), target = new URL(q.url()).searchParams.get('url');
         const real = globalThis.fetch;
         globalThis.fetch = async (u, o) => { u = String(u); if (u.startsWith('https://cdn.test/')) { const n = parseInt(u.match(/v(\d+)/)[1], 10); return new Response(clipBufs[counters.clipFor(n)], { headers: { 'Content-Type': 'video/webm' } }); } return counters.serverFetch ? counters.serverFetch(u, o) : real(u, o); };
-        const resp = await W.default.fetch(new Request(q.url(), { method: q.method(), headers: q.headers(), body: ['GET', 'HEAD'].includes(q.method()) ? undefined : q.postData() }), relayEnv);
+        const resp = await W.default.fetch(new Request(q.url(), { method: q.method(), headers: q.headers(), body: ['GET', 'HEAD'].includes(q.method()) ? undefined : q.postDataBuffer() }), relayEnv);
         r.fulfill({ status: resp.status, headers: Object.fromEntries(resp.headers), body: Buffer.from(await resp.arrayBuffer()) });
     });
 }
@@ -133,7 +135,8 @@ async function testPhoneMontage(browser) {
     page.on('pageerror', e => errors.push(e.message)); page.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
     const clipBufs = await makeClips(page);
     const counters = { agnes: [], vid: 0, clipFor: n => (n === 1 ? 1 : n % 2 === 0 ? 0 : 2) };
-    await commonRoutes(ctx, clipBufs, {}, W, counters);
+    const { env } = fakeDurableObjects(W);
+    await commonRoutes(ctx, clipBufs, env, W, counters);
     await setup(page, { voiceSource: 'fit', captionFont: 'impact', brandColor: '#00d2ff', genMode: 'phone' });
     check(await page.evaluate(() => state.voiceSource === 'fit' && state.captionFont === 'impact' && state.poses.length === 1), 'réglages et poses retrouvés après rechargement');
     await fillProject(page);
@@ -162,6 +165,47 @@ async function testPhoneMontage(browser) {
     check(sq[0] === sq[1], 'version carrée ' + sq.join('×'));
     const thumb = await page.evaluate(async () => (await generateThumbnailImage()).size);
     check(thumb > 20000, 'miniature générée');
+
+    // Sauvegarde Cloudflare des scènes + vidéo finale, bibliothèque
+    await page.waitForFunction(() => state.queue.every(q => q.mediaKey), null, { timeout: 60000 }).catch(() => {});
+    check(await page.evaluate(() => state.queue.every(q => q.mediaKey)), 'scènes sauvegardées sur Cloudflare');
+    await page.click('#backup-final-btn');
+    await page.waitForFunction(() => document.getElementById('backup-final-btn').textContent.includes('sauvegardée'), null, { timeout: 60000 });
+    await page.waitForFunction(() => document.querySelectorAll('#library-list [data-lib-get]').length === 1, null, { timeout: 20000 }).catch(() => {});
+    check(await page.evaluate(() => document.querySelectorAll('#library-list [data-lib-get]').length === 1), 'vidéo finale dans la bibliothèque');
+    const restored = await page.evaluate(async () => { const it = state.queue[0]; const size = it.blob.size; delete it.blob; it.videoUrl = 'https://cdn.test/expired-v999.webm'; const b = await fetchClipBlob(it); return b.size === size; });
+    check(restored, 'scène récupérée depuis la sauvegarde (lien Agnes expiré)');
+
+    // Éditeur de montage + banque + aperçu
+    check(await page.evaluate(() => document.querySelectorAll('#montage-editor .me-card').length === 3), 'éditeur de montage affiché (3 scènes)');
+    await page.click('[data-toggle="section-editor"]'); await new Promise(r => setTimeout(r, 600));
+    await page.click('[data-me="skip"][data-i="1"]');
+    await page.click('[data-me="up"][data-i="2"]');
+    await page.fill('[data-me-field="caption"][data-i="0"]', 'Texte corrigé à la main'); await page.dispatchEvent('[data-me-field="caption"][data-i="0"]', 'input');
+    await page.evaluate(async () => { await idbPut('bank:intro', { text: 'Salut !', blob: state.queue[1].blob, date: Date.now() }); await loadBank(); });
+    const order = await page.evaluate(() => montageItems().map(i => i.sceneIndex));
+    check(JSON.stringify(order) === JSON.stringify([-1, 0, 2]) || JSON.stringify(order) === JSON.stringify([-1, 2, 0]), 'ordre du montage : intro + scènes gardées (' + order.join(', ') + ')');
+    check(await page.evaluate(() => segmentsForScene(0)[0].text === 'Texte corrigé à la main'), 'sous-titre corrigé utilisé');
+    await page.click('#preview-btn');
+    await page.waitForSelector('#preview-box canvas', { timeout: 60000 });
+    await page.waitForFunction(() => !assembling, null, { timeout: 300000 });
+    check(await page.evaluate(() => !!document.querySelector('#preview-box canvas') && state.finalBlob.size > 100000), 'aperçu joué sans rien enregistrer');
+
+    // Version dans une autre langue
+    await page.selectOption('#lang-version-select', 'en-US');
+    await page.click('#lang-version-btn');
+    await page.waitForFunction(() => /Prêt|Réessayer/.test(document.getElementById('lang-version-btn').textContent), null, { timeout: 300000 });
+    const lv = await page.evaluate(() => ({ ok: !!state.exportCache['lang:en-US'], lang: state.language, bank: state.bankUse, cap: segmentsForScene(0)[0].text }));
+    check(lv.ok && lv.lang === 'fr-FR' && lv.bank && lv.cap === 'Texte corrigé à la main', 'version anglaise créée, projet français intact');
+
+    // Assistant de script + mode simple
+    await page.click('#factcheck-btn');
+    await page.waitForSelector('#fc-apply', { timeout: 30000 });
+    await page.click('#fc-apply');
+    check((await page.inputValue('#script-input')).startsWith('Le soleil réchauffe'), 'vérification des faits : correction appliquée');
+    await page.click('#simple-mode-btn');
+    check(await page.evaluate(() => document.getElementById('section-style').classList.contains('simple-hidden') && !document.getElementById('generate-btn').classList.contains('simple-hidden')), 'mode simple : réglages avancés masqués');
+    await page.click('#simple-mode-btn');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }
@@ -199,6 +243,19 @@ async function testBackground(browser) {
     await page2.click('#bg-finish-btn');
     await page2.waitForSelector('#video-preview.visible', { timeout: 300000 });
     check(await page2.evaluate(() => state.finalBlob.size > 100000), 'vidéo finale assemblée après la génération en arrière-plan');
+    check(await page2.evaluate(() => state.queue.every(q => q.mediaKey && q.mediaKey.startsWith('job/'))), 'scènes copiées sur Cloudflare par le serveur');
+    // Série entière en arrière-plan
+    await page2.click('[data-toggle="section-series"]'); await new Promise(r => setTimeout(r, 600));
+    await page2.fill('#series-input', 'Épisode A\nLe soleil chauffe l\'eau.\nLe soleil chauffe l\'eau.\n\nÉpisode B\nLe soleil chauffe l\'eau.\nLe soleil chauffe l\'eau.');
+    await page2.dispatchEvent('#series-input', 'input');
+    await page2.setInputFiles('#file-input', await photoBuffer(page2));
+    await page2.waitForFunction(() => state.images.length > 0);
+    await page2.click('#launch-series-btn');
+    await page2.waitForFunction(() => document.querySelectorAll('#series-jobs .series-item').length === 2, null, { timeout: 60000 });
+    check(true, 'série : 2 épisodes envoyés en arrière-plan');
+    let ready = 0;
+    for (let i = 0; i < 40 && ready < 2; i++) { await new Promise(r => setTimeout(r, 1500)); await page2.click('#series-refresh-btn'); await new Promise(r => setTimeout(r, 400)); ready = await page2.evaluate(() => document.querySelectorAll('[data-series-finish]').length); }
+    check(ready === 2, 'série : les 2 épisodes sont prêts à terminer');
     const keys = [...[...objects.values()].find(o => o.storage?._m?.has('job')).storage._m.keys()];
     check(!keys.includes('secrets') && !keys.includes('image'), 'clés et photo effacées du serveur (' + keys.join(', ') + ')');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));

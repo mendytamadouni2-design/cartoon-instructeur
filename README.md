@@ -4,7 +4,7 @@ Application pour faire des vidéos cartoon pédagogiques (iPhone, en ligne sur G
 ## En bref
 - **`index.html`** : toute l'application.
 - **`sw.js`** : service worker, uniquement pour les notifications.
-- **`relais/cloudflare-worker.js`** : le serveur Cloudflare (relais de téléchargement des scènes, génération en arrière-plan, notifications). Il est déployé automatiquement par Cloudflare à partir de `wrangler.jsonc`.
+- **`relais/cloudflare-worker.js`** : le serveur Cloudflare (relais de téléchargement des scènes, génération en arrière-plan, séries, sauvegarde des scènes et vidéos, notifications). Il est déployé automatiquement par Cloudflare à partir de `wrangler.jsonc`.
 - **`tests/`** : tests de bout en bout avec services simulés (voir `tests/README.md`).
 
 ## Fonctionnement

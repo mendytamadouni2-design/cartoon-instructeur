@@ -299,6 +299,26 @@ select:focus { outline: none; border-color: var(--ink); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .hidden { display: none !important; }
+.simple-hidden { display: none !important; }
+.simple-mode-btn { width: 100%; margin: 0 0 0.8rem; padding: 0.6rem; border-radius: 10px; border: 1px dashed var(--border); background: var(--panel); font-family: inherit; font-size: 0.8rem; cursor: pointer; }
+.preview-box { margin-top: 0.6rem; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: #000; }
+.preview-canvas { display: block; width: 100%; height: auto; }
+.me-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem; margin-bottom: 0.5rem; background: var(--panel); }
+.me-card.me-off { opacity: 0.45; }
+.me-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.85rem; }
+.me-head button, .bank-actions button { padding: 0.3rem 0.55rem; margin-left: 0.25rem; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); font-family: inherit; font-size: 0.75rem; cursor: pointer; }
+.me-head button:disabled { opacity: 0.35; }
+.me-sliders label { display: block; font-size: 0.75rem; margin-top: 0.35rem; }
+.me-sliders input[type=range] { width: 100%; }
+.bank-row { border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem; margin-bottom: 0.5rem; font-size: 0.8rem; }
+.bank-row .text-input { margin: 0.35rem 0; }
+.bank-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.3rem; }
+.bank-actions span { margin-right: auto; }
+.factcheck-box { margin-top: 0.5rem; padding: 0.7rem; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); font-size: 0.8rem; }
+.fc-item { margin: 0.45rem 0; line-height: 1.35; }
+.yt-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.yt-table th, .yt-table td { border-bottom: 1px solid var(--border); padding: 0.35rem 0.25rem; text-align: left; }
+.yt-table td:not(:first-child), .yt-table th:not(:first-child) { text-align: right; white-space: nowrap; }
 
 .scene-editor, .subtitle-editor {
     background: var(--panel-2); border-radius: 8px;
@@ -573,6 +593,8 @@ select:focus { outline: none; border-color: var(--ink); }
     <span class="tag req">obligatoire</span> indispensable · <span class="tag rec">recommandé</span> améliore nettement le résultat · <span class="tag opt">optionnel</span> à régler seulement si tu veux.
 </div>
 
+<button type="button" class="simple-mode-btn" id="simple-mode-btn">✨ Passer en mode simple</button>
+
 <div class="essentials-title">① Essentiel</div>
 
 <!-- ═══════════════ APIs ═══════════════ -->
@@ -704,8 +726,19 @@ Merci de m'avoir écouté !"></textarea>
         </div>
         <button type="button" class="btn-secondary" id="edit-scenes-btn" style="margin-top:0.6rem;">✏️ Éditer scène par scène</button>
         <div id="scenes-editor" class="hidden" style="margin-top:0.6rem;"></div>
-        <button type="button" class="btn-secondary" id="generate-script-ai-btn" style="margin-top:0.6rem;">🤖 Écrire le script avec Claude (à partir du thème)</button>
+        <div class="control-row" style="margin-top:0.6rem;">
+            <label class="control-label">Format du script écrit par Claude</label>
+            <select id="script-format-select">
+                <option value="">Classique (10 à 14 lignes)</option>
+                <option value="short">Short / TikTok (30 s) — accroche choc</option>
+                <option value="minute" selected>Vidéo d'1 minute — accroche, 3 points, récap</option>
+                <option value="explainer">Explication de 3 minutes — parties avec relances</option>
+            </select>
+        </div>
+        <button type="button" class="btn-secondary" id="generate-script-ai-btn" style="margin-top:0.2rem;">🤖 Écrire le script avec Claude (à partir du thème)</button>
         <button type="button" class="btn-secondary" id="improve-script-btn" style="margin-top:0.4rem;">🗣️ Rendre le script plus facile à prononcer (Claude)</button>
+        <button type="button" class="btn-secondary" id="factcheck-btn" style="margin-top:0.4rem;">🔍 Vérifier les faits (Claude)</button>
+        <div class="factcheck-box hidden" id="factcheck-box"></div>
         <button type="button" class="btn-secondary" id="translate-script-btn" style="margin-top:0.4rem;">🌍 Traduire le script</button>
     </div></div>
 </div>
@@ -734,6 +767,7 @@ Phrase 2..."></textarea>
         </div>
         <div class="stat-line"><span id="series-stats">0 épisode</span></div>
         <button type="button" class="btn-secondary" id="launch-series-btn" style="margin-top:0.6rem;">🚀 Lancer la génération de la série</button>
+        <div class="prompt-main-hint" style="margin-top:0.4rem;">Avec « En arrière-plan sur Cloudflare », tous les épisodes sont envoyés d'un coup : tu peux éteindre ton téléphone. Chaque épisode aura ensuite son bouton « Terminer ».</div>
     </div></div>
 </div>
 
@@ -1279,6 +1313,46 @@ Phrase 2..."></textarea>
     </div></div>
 </div>
 
+<!-- ═══════════════ Banque de plans ═══════════════ -->
+<div class="section" id="section-bank">
+    <div class="section-header" data-toggle="section-bank">
+        <span class="section-title">🎬 Intro et fin parlées <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Ton personnage dit une phrase d'accueil et une phrase de fin. Elles sont créées une seule fois (1 scène Agnes chacune) puis ajoutées à toutes tes vidéos, sans rien payer de plus.</div>
+        <div id="bank-list"></div>
+        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="bank-use-toggle" checked> Ajouter l'intro et la fin à mes vidéos</label>
+    </div></div>
+</div>
+
+<!-- ═══════════════ Bibliothèque Cloudflare ═══════════════ -->
+<div class="section" id="section-library">
+    <div class="section-header" data-toggle="section-library">
+        <span class="section-title">☁️ Mes vidéos sauvegardées <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Tes scènes et tes vidéos finales sont gardées sur ton serveur Cloudflare : plus de liens Agnes expirés, et tu les retrouves sur n'importe quel appareil.</div>
+        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="backup-toggle" checked> Sauvegarder automatiquement les scènes</label>
+        <div id="library-list"></div>
+        <button type="button" class="btn-secondary" id="library-refresh-btn" style="margin-top:0.4rem;">🔄 Actualiser</button>
+    </div></div>
+</div>
+
+<!-- ═══════════════ Stats YouTube ═══════════════ -->
+<div class="section" id="section-ytstats">
+    <div class="section-header" data-toggle="section-ytstats">
+        <span class="section-title">📈 Mes stats YouTube + conseils <span class="tag opt">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Vues, likes et pourcentage regardé des vidéos publiées depuis l'appli, puis Claude te dit ce qui marche et quoi faire ensuite.</div>
+        <button type="button" class="btn-secondary" id="ytstats-btn">📈 Voir mes statistiques</button>
+        <div id="ytstats-box" style="margin-top:0.5rem;"></div>
+    </div></div>
+</div>
+
 <!-- ═══════════════ Firebase ═══════════════ -->
 <div class="section" id="section-firebase">
     <div class="section-header" data-toggle="section-firebase">
@@ -1424,10 +1498,24 @@ Phrase 2..."></textarea>
     <button type="button" class="btn-secondary hidden" id="bg-dismiss-btn">Fermer</button>
 </div>
 
+<div class="bg-panel hidden" id="series-jobs"></div>
+
 <button type="button" class="btn-primary" id="generate-btn" disabled>🎬 Générer la vidéo pédagogique</button>
 <div class="estimate-line" id="estimate-line"></div>
 <button type="button" class="btn-stop" id="stop-btn">⏹ Arrêter</button>
 <button type="button" class="btn-secondary hidden" id="assemble-btn" style="margin-top:0.6rem;">🎞️ Assembler la vidéo finale</button>
+<button type="button" class="btn-secondary hidden" id="preview-btn" style="margin-top:0.4rem;">▶️ Aperçu rapide (sans enregistrer)</button>
+<div class="preview-box hidden" id="preview-box"></div>
+
+<div class="section hidden" id="section-editor" style="margin-top:0.6rem;">
+    <div class="section-header" data-toggle="section-editor">
+        <span class="section-title">✂️ Retoucher le montage</span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body"><div class="section-content">
+        <div id="montage-editor"></div>
+    </div></div>
+</div>
 
 <div class="progress-bar-wrap hidden" id="progress-bar-wrap">
     <div class="progress-bar" id="progress-bar"></div>
@@ -1459,6 +1547,20 @@ Phrase 2..."></textarea>
 <button type="button" class="btn-secondary hidden" id="download-seo-btn" style="margin-top:0.4rem;">⬇️ Télécharger SEO</button>
 <button type="button" class="btn-secondary hidden" id="download-chapters-btn" style="margin-top:0.4rem;">⬇️ Télécharger chapitres</button>
 <button type="button" class="btn-secondary hidden" id="download-quiz-btn" style="margin-top:0.4rem;">⬇️ Télécharger quiz</button>
+<button type="button" class="btn-secondary hidden" id="backup-final-btn" style="margin-top:0.4rem;">☁️ Sauvegarder la vidéo sur mon Cloudflare</button>
+<div class="control-row hidden" id="lang-version-row" style="margin-top:0.6rem;">
+    <label class="control-label">Même vidéo dans une autre langue (voix ElevenLabs + sous-titres traduits, aucune scène refaite)</label>
+    <select id="lang-version-select">
+        <option value="en-US" selected>🇬🇧 Anglais</option>
+        <option value="es-ES">🇪🇸 Espagnol</option>
+        <option value="de-DE">🇩🇪 Allemand</option>
+        <option value="it-IT">🇮🇹 Italien</option>
+        <option value="pt-BR">🇧🇷 Portugais</option>
+        <option value="ar-SA">🇸🇦 Arabe</option>
+        <option value="fr-FR">🇫🇷 Français</option>
+    </select>
+    <button type="button" class="btn-secondary" id="lang-version-btn" style="margin-top:0.4rem;">🌍 Créer la version traduite</button>
+</div>
 
 <div class="install-banner" id="install-banner">
     <span>📲 Installer l'application ?</span>
@@ -1528,6 +1630,11 @@ const STORAGE = {
     YOUTUBE_TOKEN_EXP: 'youtube_oauth_token_exp',
     ANALYTICS: 'cartoon_analytics',
     LAST_PROJECT: 'cartoon_last_project',
+    SIMPLE_MODE: 'cartoon_simple_mode',
+    BANK_USE: 'cartoon_bank_use',
+    BACKUP_ON: 'cartoon_backup_on',
+    BG_SERIES: 'cartoon_background_series',
+    YT_PUBLISHED: 'cartoon_youtube_published',
     BG_JOB: 'cartoon_background_job',
     GEN_MODE: 'cartoon_generation_mode',
     MUSIC_NAME: 'cartoon_music_name',
@@ -1567,7 +1674,8 @@ const state = {
     cloudProvider: 'local',
     isLoadingImages: false, creationAttemptsSinceLastError: 0,
     scenePlan: null, timeline: null, drawings: [], drawingsPromise: null,
-    genMode: 'background', proxyJobs: false,
+    genMode: 'background', proxyJobs: false, proxyMedia: false,
+    bankItems: [], bankUse: true, backupOn: true, projectId: null, factIssues: null, ytStats: null,
     finalVideoUrl: null, finalBlob: null, finalExt: 'mp4',
     finalAudioBlob: null, exportCache: {},
     isSeriesMode: false, seriesAbort: false, seriesEpisodes: [], seriesResults: [],
@@ -1964,6 +2072,7 @@ async function testProxy() {
         const body = await res.text();
         if (res.ok && body.includes('Relais OK')) {
             state.proxyJobs = body.includes('jobs');
+            state.proxyMedia = body.includes('media');
             setProxyStatus('✅ Relais opérationnel' + (state.proxyJobs ? ' · arrière-plan disponible' : ''), true);
             updateGenModeHint();
             return true;
@@ -2520,6 +2629,7 @@ function fallbackScenePlan(scenes) {
     };
 }
 function scenePlanFor(i) {
+    if (i < 0) { const b = (state.bankItems || []).find(x => x.sceneIndex === i); return { spoken: b?.sceneText || '', action: '', camera: 'medium shot', bubble: '' }; }
     const p = state.scenePlan?.scenes?.[i];
     return p || fallbackScenePlan(state.scenes).scenes[i] || { spoken: state.scenes[i] || '', action: '', camera: 'medium shot', bubble: '' };
 }
@@ -2711,6 +2821,8 @@ function formatSRTTime(seconds) {
 }
 // Texte(s) de sous-titre d'une scène : segments édités s'il y en a, sinon la phrase du script.
 function segmentsForScene(sceneIndex) {
+    const over = typeof getSceneItem === 'function' ? getSceneItem(sceneIndex)?.edit?.caption : null;
+    if (over != null && String(over).trim()) return [{ text: String(over).trim(), weight: 1 }];
     const segs = subtitleSegments.filter(sg => sg.sceneIndex === sceneIndex && String(sg.text || '').trim());
     if (segs.length) return segs.map(sg => ({ text: sg.text, weight: Math.max(0.1, sg.end - sg.start) }));
     const text = state.queue.find(q => q.sceneIndex === sceneIndex)?.sceneText || state.scenes[sceneIndex] || '';
@@ -2804,7 +2916,12 @@ async function generateScriptAI(theme) {
     try {
         const out = await callClaude({
             system: 'Tu écris des scripts de vidéos pédagogiques animées. Chaque ligne est dite par un personnage cartoon face caméra et devient une scène de 6 secondes. ' + SPEECH_RULES,
-            prompt: claudeContext() + '\nÉcris un script de 10 à 14 lignes sur le sujet : « ' + theme + ' ». Première ligne : accroche et salutation. Dernière ligne : conclusion chaleureuse. Chaque ligne doit pouvoir être dite en 6 secondes environ.',
+            prompt: (() => {
+                const f = typeof SCRIPT_FORMATS !== 'undefined' ? SCRIPT_FORMATS[document.getElementById('script-format-select')?.value] : null;
+                return f
+                    ? claudeContext() + '\nÉcris un script de ' + f.lines + ' lignes sur le sujet : « ' + theme + ' ». Format : ' + f.label + '. Règles pour que les gens regardent jusqu\'au bout : ' + f.rules + '. Chaque ligne doit pouvoir être dite en 6 secondes environ.'
+                    : claudeContext() + '\nÉcris un script de 10 à 14 lignes sur le sujet : « ' + theme + ' ». Première ligne : accroche et salutation. Dernière ligne : conclusion chaleureuse. Chaque ligne doit pouvoir être dite en 6 secondes environ.';
+            })(),
             schema: LINES_SCHEMA
         });
         const lines = (out.lines || []).map(l => String(l).trim()).filter(Boolean);
@@ -3419,6 +3536,13 @@ async function seekTo(v, t) {
 async function fetchClipBlob(item) {
     if (item.blob) return item.blob;
     const viaProxy = !!getProxyUrl();
+    // copie sauvegardée sur ton Cloudflare (ne périme pas, contrairement aux liens d'Agnes)
+    if (item.mediaKey && viaProxy) {
+        try {
+            const res = await withTimeout(fetch(getProxyUrl() + '/media/' + encodeURIComponent(item.mediaKey)), 90000, 'téléchargement trop long');
+            if (res.ok) { const blob = await res.blob(); if (blob.size) { item.blob = blob; return blob; } }
+        } catch (e) { log('Copie sauvegardée indisponible : ' + e.message); }
+    }
     let lastErr = null;
     for (let a = 0; a < 3; a++) {
         try {
@@ -3491,9 +3615,9 @@ function saveProject() {
     if (!state.queue.length) return;
     setJSON(STORAGE.LAST_PROJECT, {
         date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle,
-        scenePlan: state.scenePlan, photo: state.photoSmall,
+        scenePlan: state.scenePlan, photo: state.photoSmall, projectId: state.projectId,
         drawings: state.scenes.map((_, i) => state.drawings[i]?.raw || null),
-        queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null }))
+        queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null, edit: q.edit || undefined, mediaKey: q.mediaKey || undefined }))
     });
 }
 function restoreProject() {
@@ -3507,6 +3631,7 @@ function restoreProject() {
     updateScriptStats();
     state.scenePlan = p.scenePlan || null;
     state.photoSmall = p.photo || null;
+    state.projectId = p.projectId || null;
     state.drawings = (p.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
     state.queue = p.queue.map(q => ({ ...q, image: null, progress: q.status === 'done' ? 'Terminé' : 'Échec', videoId: null, prompt: null, startTime: null }));
     state.completed = state.queue.filter(q => q.status === 'done').length;
@@ -3515,6 +3640,7 @@ function restoreProject() {
     renderQueue(); setProgress(0);
     state.queue.filter(q => q.status === 'done').forEach(q => addToGallery(q.videoUrl, 'Scène ' + (q.sceneIndex + 1)));
     updateAssembleBtn();
+    renderMontageEditor();
     showToast('Dernier projet restauré (' + state.completed + ' scènes) : appuie sur « Assembler la vidéo finale »', 'success', 6000);
 }
 
@@ -3550,13 +3676,12 @@ function bgUI({ title, text, pct, ready, error, running }) {
 }
 function hideBgPanel() { document.getElementById('bg-panel')?.classList.add('hidden'); }
 
-async function startBackgroundGeneration() {
-    const existing = getJSON(STORAGE.BG_JOB);
-    if (existing && !existing.finished && !confirm('Une génération est déjà en cours en arrière-plan. La remplacer par celle-ci ?')) return;
-    if (existing && !existing.finished) cancelBackgroundJob(true);
-    const scenes = state.scenes.slice(), n = scenes.length;
-    const withClaude = !!getClaudeKey();
-    bgUI({ title: '☁️ Envoi du projet…', text: 'Préparation de la photo et des scènes.', pct: 2, running: false });
+// Envoie un projet au serveur ; renvoie l'identifiant du travail.
+async function sendBackgroundJob(scenes, theme, script, useStoryboard) {
+    const n = scenes.length, withClaude = !!getClaudeKey();
+    const sb = useStoryboard && storyboardValid();
+    const savedTheme = state.theme;
+    state.theme = theme || state.theme;
     try {
         const templates = scenes.map((t, i) => buildScenePrompt({ sceneIndex: i, sceneText: t }, {
             total: n, setting: '{{SETTING}}',
@@ -3567,19 +3692,31 @@ async function startBackgroundGeneration() {
             image: await downscaleImage(state.images[0].dataUri),
             frames: state.durationFrames, frameRate: FRAME_RATE,
             templates, fallbackPlan: fallbackScenePlan(scenes),
-            planRequest: withClaude && !storyboardValid() ? planRequestFor(scenes) : null,
-            plan: storyboardValid() ? state.scenePlan : undefined,
-            drawings: storyboardValid() ? scenes.map((_, i) => state.drawings[i]?.raw || null) : undefined,
+            planRequest: withClaude && !sb ? planRequestFor(scenes) : null,
+            plan: sb ? state.scenePlan : undefined,
+            drawings: sb ? scenes.map((_, i) => state.drawings[i]?.raw || null) : undefined,
             drawingRequests: withClaude && isWhiteboard() ? scenes.map((t, i) => ({ ...drawingRequestFor('{{SPOKEN}}', i, n), fallbackText: t })) : [],
             poses: await Promise.all(state.poses.map(async p => ({ id: p.id, image: await downscaleImage(p.image, 1024, 0.85) }))),
-            push: getJSON(STORAGE.PUSH_SUB) || null
+            push: getJSON(STORAGE.PUSH_SUB) || null,
+            backup: state.backupOn
         };
         const res = await withTimeout(fetch(getProxyUrl() + '/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }), 60000, 'le serveur ne répond pas');
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.jobId) throw new Error(data.error || ('HTTP ' + res.status));
+        return data.jobId;
+    } finally { state.theme = savedTheme; }
+}
+async function startBackgroundGeneration() {
+    const existing = getJSON(STORAGE.BG_JOB);
+    if (existing && !existing.finished && !confirm('Une génération est déjà en cours en arrière-plan. La remplacer par celle-ci ?')) return;
+    if (existing && !existing.finished) cancelBackgroundJob(true);
+    const scenes = state.scenes.slice(), n = scenes.length;
+    bgUI({ title: '☁️ Envoi du projet…', text: 'Préparation de la photo et des scènes.', pct: 2, running: false });
+    try {
+        const jobId = await sendBackgroundJob(scenes, state.theme, state.script, true);
         state.photoSmall = await downscaleImage(state.images[0].dataUri, 1024, 0.85);
-        setJSON(STORAGE.BG_JOB, { id: data.jobId, date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle, n, photo: state.photoSmall });
-        state.queue = []; renderQueue();
+        setJSON(STORAGE.BG_JOB, { id: jobId, date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle, n, photo: state.photoSmall });
+        state.queue = []; renderQueue(); renderMontageEditor();
         document.getElementById('gallery-grid').innerHTML = ''; document.getElementById('gallery').style.display = 'none';
         document.getElementById('video-preview').classList.remove('visible'); hideResultButtons(); updateAssembleBtn();
         bgUI({ title: '☁️ Génération en arrière-plan', text: 'C\'est parti ! Tu peux fermer l\'appli et éteindre ton téléphone. Reviens dans ' + Math.max(10, Math.round(n * 1.5)) + ' minutes environ.', pct: 4, running: true });
@@ -3634,14 +3771,15 @@ function loadBackgroundResults(saved, job) {
     state.scenePlan = job.plan || fallbackScenePlan(lines);
     if (saved.photo) state.photoSmall = saved.photo;
     state.drawings = (job.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
-    state.queue = job.scenes.map(sc => ({ sceneIndex: sc.index, sceneText: lines[sc.index] || '', image: null, status: sc.status === 'done' ? 'done' : 'failed', progress: sc.status === 'done' ? 'Terminé' : 'Échec', error: sc.error, videoUrl: sc.videoUrl, videoId: null, prompt: null, startTime: null }));
+    state.queue = job.scenes.map(sc => ({ sceneIndex: sc.index, sceneText: lines[sc.index] || '', image: null, status: sc.status === 'done' ? 'done' : 'failed', progress: sc.status === 'done' ? 'Terminé' : 'Échec', error: sc.error, videoUrl: sc.videoUrl, mediaKey: sc.mediaKey || undefined, videoId: null, prompt: null, startTime: null }));
     state.completed = state.queue.filter(q => q.status === 'done').length;
     state.failed = state.queue.length - state.completed;
     initSubtitleSegmentsFromScript();
     renderQueue(); setProgress(0);
     document.getElementById('gallery-grid').innerHTML = '';
     state.queue.filter(q => q.status === 'done').forEach(q => addToGallery(q.videoUrl, 'Scène ' + (q.sceneIndex + 1)));
-    saveProject(); updateAssembleBtn();
+    state.projectId = null; state.exportCache = {};
+    saveProject(); updateAssembleBtn(); renderMontageEditor();
 }
 async function finishBackgroundJob() {
     unlockAudio();
@@ -3725,7 +3863,7 @@ async function regenerateScene(item) {
     if (!getAgnesKey()) throw new Error('clé Agnes manquante');
     if (item.status === 'done') state.completed = Math.max(0, state.completed - 1);
     else if (item.status === 'failed') state.failed = Math.max(0, state.failed - 1);
-    ['blob', 'audioBuffer', 'speech', 'sttWords', 'ttsBlob', 'ttsBuffer', 'ttsSpeech', 'error'].forEach(k => delete item[k]);
+    ['blob', 'audioBuffer', 'speech', 'sttWords', 'ttsBlob', 'ttsBuffer', 'ttsSpeech', 'error', 'mediaKey'].forEach(k => delete item[k]);
     item.image = photo; item.chained = false; item.videoUrl = null;
     state.exportCache = {};
     try { await createTaskOnly(item); }
@@ -3890,7 +4028,13 @@ function analyzeSpeech(buf) {
     return { silent: false, start: first * 0.02, end: (last + 1) * 0.02, level: Math.sqrt(sum / Math.max(1, cnt)), coverage: cnt / n };
 }
 // Découpe de la scène : on garde la parole, sans les blancs (comme un monteur qui coupe « sur la respiration »).
-function sceneCut(item, vDur, index) {
+function applyTrims(item, cut, vDur) {
+    const e = item.edit; if (!e || (!e.trimIn && !e.trimOut)) return cut;
+    const tin = Math.min(vDur - 0.5, cut.tin + (e.trimIn || 0)), tout = Math.max(tin + 0.5, cut.tout - (e.trimOut || 0));
+    return { tin: Math.max(0, tin), tout: Math.min(vDur, tout) };
+}
+function sceneCut(item, vDur, index) { return applyTrims(item, sceneCutAuto(item, vDur, index), vDur); }
+function sceneCutAuto(item, vDur, index) {
     if (state.trimMode === 'none') return { tin: 0, tout: vDur };
     const a = item.speech;
     if (state.trimMode === 'auto' && a && !a.silent && a.coverage < 0.93) {
@@ -4357,10 +4501,10 @@ function runFrames(dur, render, shouldEnd) {
     });
 }
 
-async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format = null } = {}) {
-    const items = state.queue.filter(q => q.status === 'done' && q.videoUrl);
-    if (!items.length) throw new Error('aucune scène terminée à assembler');
-    const mime = pickRecorderMime();
+async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format = null, preview = null } = {}) {
+    const items = montageItems();
+    if (!items.some(it => it.sceneIndex >= 0)) throw new Error('aucune scène terminée à assembler');
+    const mime = preview ? '' : pickRecorderMime();
     if (mime === null) throw new Error('ce navigateur ne sait pas enregistrer de vidéo');
     const actx = getAudioCtx();
     try { await actx.resume(); } catch (e) {}
@@ -4380,8 +4524,10 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     const prevCanvas = document.createElement('canvas'); prevCanvas.width = W; prevCanvas.height = H;
     const pg = prevCanvas.getContext('2d');
     drawFrame(g, pending, W, H);
-    const vStream = canvas.captureStream(30);
-    const dest = actx.createMediaStreamDestination();
+    // Aperçu : on affiche directement le canvas et on joue le son, sans rien enregistrer
+    if (preview) { preview.innerHTML = ''; canvas.className = 'preview-canvas'; preview.appendChild(canvas); preview.classList.remove('hidden'); }
+    const vStream = preview ? null : canvas.captureStream(30);
+    const dest = preview ? actx.destination : actx.createMediaStreamDestination();
     // Voix : compresseur « studio » puis gain de rattrapage
     const comp = actx.createDynamicsCompressor();
     comp.threshold.value = -22; comp.knee.value = 12; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
@@ -4392,14 +4538,15 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     const musicGain = actx.createGain(); musicGain.gain.value = 0.0001; musicGain.connect(dest);
     const musicHigh = state.musicVolume, musicLow = state.musicVolume * 0.32;
     const duckTo = level => musicGain.gain.setTargetAtTime(Math.max(0.0001, level), actx.currentTime, 0.18);
-    const stream = new MediaStream([...vStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
-    const rec = mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: state.exportQuality === '720' ? 5000000 : 10000000 }) : new MediaRecorder(stream);
+    const stream = preview ? null : new MediaStream([...vStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+    const rec = preview ? null : mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: state.exportQuality === '720' ? 5000000 : 10000000 }) : new MediaRecorder(stream);
     const chunks = [];
-    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-    const stopped = new Promise(res => { rec.onstop = res; });
+    if (rec) rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const stopped = rec ? new Promise(res => { rec.onstop = res; }) : Promise.resolve();
+    const sceneTotal = items.length;
     const timeline = [];
     let T = 0, hasPrev = false, prevSketch = null, prevWasScene = false, musicSrc = null;
-    rec.start(1000);
+    if (rec) rec.start(1000);
     if (musicBuf) { musicSrc = actx.createBufferSource(); musicSrc.buffer = musicBuf; musicSrc.loop = true; musicSrc.connect(musicGain); musicSrc.start(); duckTo(musicHigh); }
 
     try {
@@ -4429,13 +4576,13 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
 
             // Scène
             const item = seg.item;
-            setStatus(label + ' : scène ' + (seg.index + 1) + '/' + items.length + ' — garde l\'appli ouverte');
+            setStatus(label + ' : scène ' + (seg.index + 1) + '/' + sceneTotal + ' — garde l\'appli ouverte');
             const v = pending || await createStageVideo(urls.get(item));
             pending = null;
             const vDur = isFinite(v.duration) && v.duration > 0 ? v.duration : 6;
             const usingTts = !!(premium && item.ttsBuffer);
             const usingFit = !usingTts && state.voiceSource === 'fit' && !!item.fitBuffer;
-            let cut = usingTts ? { tin: seg.index > 0 ? Math.min(0.4, vDur / 3) : 0, tout: vDur } : sceneCut(item, vDur, seg.index);
+            let cut = usingTts ? applyTrims(item, { tin: seg.index > 0 ? Math.min(0.4, vDur / 3) : 0, tout: vDur }, vDur) : sceneCut(item, vDur, seg.index);
             let dur = cut.tout - cut.tin;
             if (usingTts) dur = Math.max(dur, item.ttsBuffer.duration + 0.25);
             dur = Math.min(dur, maxDuration - T);
@@ -4446,6 +4593,8 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
             const plan = scenePlanFor(item.sceneIndex);
             const drawing = wb ? state.drawings[item.sceneIndex] : null;
             const sched = drawing ? drawingSchedule(drawing, words, dur) : null;
+            const shift = item.edit?.drawShift || 0;
+            if (sched && shift) sched.forEach(x => { x.start = Math.max(0, Math.min(dur - 0.2, x.start + shift)); x.end = Math.max(x.start + 0.05, Math.min(dur, x.end + shift)); });
             const boardShot = !!(wb && drawing && plan.shot === 'board');
             const area = wb ? (boardShot ? { x: W * 0.08, y: H * 0.06, w: W * 0.84, h: H * 0.62 } : drawingArea(v, W, H)) : null;
             let highlightAt = null;
@@ -4541,11 +4690,13 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
         if (pending) disposeStageVideo(pending);
         sfx.stop();
         if (musicSrc) { try { musicSrc.stop(); } catch (e) {} }
-        try { if (rec.state !== 'inactive') rec.stop(); } catch (e) {}
+        try { if (rec && rec.state !== 'inactive') rec.stop(); } catch (e) {}
         await withTimeout(stopped, 15000, 'fin d\'enregistrement').catch(() => {});
-        stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+        if (stream) stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+        [comp, makeup, sfxBus, musicGain].forEach(n => { try { n.disconnect(); } catch (e) {} });
         urls.forEach(u => URL.revokeObjectURL(u));
     }
+    if (preview) return null;
     const type = (mime || rec.mimeType || 'video/webm').split(';')[0];
     const blob = new Blob(chunks, { type });
     if (!blob.size) throw new Error('la vidéo enregistrée est vide');
@@ -4557,9 +4708,14 @@ function updateAssembleBtn() {
     const btn = document.getElementById('assemble-btn'); if (!btn) return;
     const hasDone = state.queue.some(q => q.status === 'done');
     btn.classList.toggle('hidden', !hasDone || state.isRunning || assembling || state.regenerating);
+    document.getElementById('preview-btn')?.classList.toggle('hidden', !hasDone || state.isRunning || assembling || state.regenerating);
+    document.getElementById('section-editor')?.classList.toggle('hidden', !hasDone);
+    const sig = state.queue.filter(q => q.status === 'done').map(q => q.sceneIndex + '@' + q.videoUrl).join('|');
+    if (sig !== lastEditorSig) { lastEditorSig = sig; renderMontageEditor(); }
 }
+var lastEditorSig = '';
 function hideResultButtons() {
-    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-audio-btn', 'download-zip-btn', 'download-shorts-btn', 'download-thumbnail-btn', 'download-seo-btn', 'download-chapters-btn', 'download-quiz-btn', 'youtube-upload-btn'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-audio-btn', 'download-zip-btn', 'download-shorts-btn', 'download-thumbnail-btn', 'download-seo-btn', 'download-chapters-btn', 'download-quiz-btn', 'youtube-upload-btn', 'backup-final-btn', 'lang-version-row'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 function resetExportButtons() {
     state.exportCache = {};
@@ -4568,7 +4724,8 @@ function resetExportButtons() {
 }
 function showResultButtons() {
     resetExportButtons();
-    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-chapters-btn'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-chapters-btn', 'lang-version-row'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+    const lvb = document.getElementById('lang-version-btn'); if (lvb) lvb.textContent = '🌍 Créer la version traduite';
     if (state.finalAudioBlob) document.getElementById('download-audio-btn')?.classList.remove('hidden');
     if (state.extraExports.includes('zip')) document.getElementById('download-zip-btn')?.classList.remove('hidden');
     if (state.extraExports.includes('shorts')) document.getElementById('download-shorts-btn')?.classList.remove('hidden');
@@ -4588,7 +4745,7 @@ async function runAssembly() {
     if (state.drawingsPromise) { setStatus('Finalisation des dessins…'); await state.drawingsPromise; }
     try {
         // Contrôle qualité : on repère les prises ratées et on propose de les refaire
-        let items = state.queue.filter(q => q.status === 'done' && q.videoUrl);
+        let items = montageItems().filter(q => q.sceneIndex >= 0);
         await prepareAssets(items, 'Vérification');
         const bad = items.filter(sceneProblem);
         if (bad.length && getAgnesKey() && (state.images[0] || state.photoSmall) &&
@@ -4608,6 +4765,9 @@ async function runAssembly() {
         document.getElementById('final-video').src = result.url;
         document.getElementById('video-preview').classList.add('visible');
         showResultButtons();
+        const bfb = document.getElementById('backup-final-btn');
+        if (bfb) { bfb.textContent = '☁️ Sauvegarder la vidéo sur mon Cloudflare'; bfb.classList.toggle('hidden', !mediaAvailable()); }
+        backupScenes().catch(e => log('Sauvegarde : ' + e.message));
         addToHistory({ date: Date.now(), theme: state.theme || document.getElementById('theme-input').value || 'Sans titre', script: state.script, scenes: state.queue.length, duration: formatEta(result.timeline.reduce((a, t) => a + t.duration, 0)) });
         trackAnalytics('generations');
         trackAnalytics('byStyle', state.selectedStyle);
@@ -4843,6 +5003,7 @@ async function launchSeries() {
     if (!state.seriesEpisodes.length) { showToast('Ajoute des épisodes (titre puis phrases, séparés par une ligne vide)', 'warn', 4000); return; }
     if (state.isRunning) return;
     unlockAudio();
+    if (state.genMode === 'background' && state.proxyJobs && getProxyUrl()) return launchSeriesBackground();
     state.isSeriesMode = true; state.seriesAbort = false;
     try {
         for (let i = 0; i < state.seriesEpisodes.length; i++) {
@@ -4936,6 +5097,7 @@ async function startGeneration() {
     createIntervalMs = CREATE_INTERVAL_MIN;
     if (subtitleScriptSignature !== currentScriptSignature()) initSubtitleSegmentsFromScript();
     const photo = state.images[0].dataUri;
+    state.projectId = null;
     state.queue = state.scenes.map((sceneText, i) => ({ sceneIndex: i, sceneText, image: photo, status: 'pending', progress: null, videoId: null, videoUrl: null, prompt: null, startTime: null }));
 
     document.getElementById('gallery-grid').innerHTML = '';
@@ -5046,6 +5208,388 @@ function downloadQuiz() {
         return quiz ? { blob: new Blob([quiz], { type: 'text/plain' }), name: 'quiz-' + Date.now() + '.txt' } : null;
     });
 }
+
+// ══════════════════════════════════════════════════════════════════
+// ÉDITEUR DE MONTAGE (ordre, scènes retirées, coupes, sous-titres, décalage des dessins)
+// ══════════════════════════════════════════════════════════════════
+function sceneEdit(item) { if (!item.edit) item.edit = {}; return item.edit; }
+// Scènes montées : terminées, non retirées, dans l'ordre choisi ; + plans de la banque (intro / fin parlées)
+function montageItems() {
+    const scenes = state.queue.filter(q => q.status === 'done' && q.videoUrl && !q.edit?.skip)
+        .sort((a, b) => (a.edit?.order ?? a.sceneIndex) - (b.edit?.order ?? b.sceneIndex));
+    const bank = state.bankUse ? state.bankItems : [];
+    return [...bank.filter(b => b.bankSlot === 'intro'), ...scenes, ...bank.filter(b => b.bankSlot === 'outro')];
+}
+function getSceneItem(i) { return state.queue.find(q => q.sceneIndex === i) || state.bankItems.find(b => b.sceneIndex === i) || null; }
+function renderMontageEditor() {
+    const box = document.getElementById('montage-editor'); if (!box) return;
+    const items = state.queue.filter(q => q.status === 'done' && q.videoUrl)
+        .sort((a, b) => (a.edit?.order ?? a.sceneIndex) - (b.edit?.order ?? b.sceneIndex));
+    if (!items.length) { box.innerHTML = '<div class="prompt-main-hint">Aucune scène terminée pour l\'instant.</div>'; return; }
+    box.innerHTML = '<div class="prompt-main-hint" style="margin-bottom:0.6rem;">Réordonne, retire, raccourcis ou corrige chaque scène, puis appuie sur « ▶️ Aperçu » pour vérifier. Rien n\'est régénéré.</div>' +
+        items.map((it, pos) => {
+            const e = it.edit || {};
+            const txt = e.caption ?? (segmentsForScene(it.sceneIndex).map(s => s.text).join(' '));
+            return '<div class="me-card' + (e.skip ? ' me-off' : '') + '">' +
+                '<div class="me-head"><b>Scène ' + (it.sceneIndex + 1) + '</b>' +
+                '<span><button type="button" data-me="up" data-i="' + it.sceneIndex + '"' + (pos === 0 ? ' disabled' : '') + '>↑</button>' +
+                '<button type="button" data-me="down" data-i="' + it.sceneIndex + '"' + (pos === items.length - 1 ? ' disabled' : '') + '>↓</button>' +
+                '<button type="button" data-me="skip" data-i="' + it.sceneIndex + '">' + (e.skip ? '↩️ Remettre' : '🗑️ Retirer') + '</button></span></div>' +
+                '<label class="control-label">Sous-titre</label><textarea class="sb-text" data-me-field="caption" data-i="' + it.sceneIndex + '">' + esc(txt) + '</textarea>' +
+                '<div class="me-sliders">' +
+                '<label>Couper au début <b data-me-val="trimIn" data-i="' + it.sceneIndex + '">' + (e.trimIn || 0).toFixed(1) + ' s</b><input type="range" min="0" max="2" step="0.1" value="' + (e.trimIn || 0) + '" data-me-field="trimIn" data-i="' + it.sceneIndex + '"></label>' +
+                '<label>Couper à la fin <b data-me-val="trimOut" data-i="' + it.sceneIndex + '">' + (e.trimOut || 0).toFixed(1) + ' s</b><input type="range" min="0" max="2" step="0.1" value="' + (e.trimOut || 0) + '" data-me-field="trimOut" data-i="' + it.sceneIndex + '"></label>' +
+                (isWhiteboard() ? '<label>Décaler le dessin <b data-me-val="drawShift" data-i="' + it.sceneIndex + '">' + (e.drawShift || 0).toFixed(1) + ' s</b><input type="range" min="-1.5" max="1.5" step="0.1" value="' + (e.drawShift || 0) + '" data-me-field="drawShift" data-i="' + it.sceneIndex + '"></label>' : '') +
+                '</div></div>';
+        }).join('');
+}
+function normalizeOrders() {
+    state.queue.filter(q => q.status === 'done').sort((a, b) => (a.edit?.order ?? a.sceneIndex) - (b.edit?.order ?? b.sceneIndex)).forEach((q, i) => { sceneEdit(q).order = i; });
+}
+document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-me]'); if (!b) return;
+    const item = state.queue.find(q => q.sceneIndex === parseInt(b.dataset.i, 10)); if (!item) return;
+    normalizeOrders();
+    const list = state.queue.filter(q => q.status === 'done').sort((a, c) => a.edit.order - c.edit.order);
+    const pos = list.indexOf(item);
+    if (b.dataset.me === 'up' && pos > 0) { const o = list[pos - 1]; [o.edit.order, item.edit.order] = [item.edit.order, o.edit.order]; }
+    else if (b.dataset.me === 'down' && pos < list.length - 1) { const o = list[pos + 1]; [o.edit.order, item.edit.order] = [item.edit.order, o.edit.order]; }
+    else if (b.dataset.me === 'skip') item.edit.skip = !item.edit.skip;
+    state.exportCache = {}; saveProject(); renderMontageEditor();
+});
+document.addEventListener('input', e => {
+    const f = e.target.dataset?.meField; if (!f) return;
+    const item = state.queue.find(q => q.sceneIndex === parseInt(e.target.dataset.i, 10)); if (!item) return;
+    sceneEdit(item)[f] = f === 'caption' ? e.target.value : parseFloat(e.target.value) || 0;
+    const lbl = document.querySelector('[data-me-val="' + f + '"][data-i="' + item.sceneIndex + '"]');
+    if (lbl) lbl.textContent = (parseFloat(e.target.value) || 0).toFixed(1) + ' s';
+    state.exportCache = {}; saveProject();
+});
+
+// ══════════════════════════════════════════════════════════════════
+// APERÇU INSTANTANÉ (lecture directe, sans enregistrer de fichier)
+// ══════════════════════════════════════════════════════════════════
+async function runPreview() {
+    if (assembling || state.isRunning) return;
+    unlockAudio();
+    const box = document.getElementById('preview-box');
+    assembling = true; state.stopRequested = false; updateAssembleBtn();
+    document.getElementById('stop-btn').classList.add('visible');
+    await ensureWakeLockActive();
+    try {
+        if (state.drawingsPromise) await state.drawingsPromise;
+        await assembleVideo({ label: 'Aperçu', preview: box });
+    } catch (e) { if (e.message !== 'Arrêt demandé') showToast('Aperçu impossible : ' + e.message, 'error', 6000); }
+    finally { assembling = false; state.stopRequested = false; setStatus(null); setProgress(0); document.getElementById('stop-btn').classList.remove('visible'); updateAssembleBtn(); }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MODE SIMPLE
+// ══════════════════════════════════════════════════════════════════
+const ADVANCED_IDS = ['section-series', 'section-language', 'section-style', 'section-staging', 'section-pedago', 'section-music', 'section-tts', 'section-avatar', 'section-subtitles', 'section-whisper', 'section-export', 'section-firebase', 'section-cloud', 'section-kit', 'section-analytics', 'section-history', 'section-bank', 'section-ytstats', 'keys-panel', 'proxy-panel', 'gen-mode-row', 'options-title'];
+function applySimpleMode() {
+    const simple = getLS(STORAGE.SIMPLE_MODE) === '1';
+    ADVANCED_IDS.forEach(id => document.getElementById(id)?.classList.toggle('simple-hidden', simple));
+    document.querySelectorAll('.options-title').forEach(el => el.classList.toggle('simple-hidden', simple));
+    const b = document.getElementById('simple-mode-btn');
+    if (b) b.textContent = simple ? '⚙️ Afficher tous les réglages (mode expert)' : '✨ Passer en mode simple';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BANQUE DE PLANS : intro et fin parlées, générées une fois, réutilisées partout
+// ══════════════════════════════════════════════════════════════════
+const BANK_SLOTS = { intro: { idx: -1, label: 'Intro parlée', def: 'Salut, c\'est Prof Patate !' }, outro: { idx: -2, label: 'Fin parlée', def: 'Abonne-toi pour ne rien rater !' } };
+async function loadBank() {
+    state.bankItems = [];
+    for (const [slot, cfg] of Object.entries(BANK_SLOTS)) {
+        try {
+            const rec = await idbGet('bank:' + slot);
+            if (rec && rec.blob) state.bankItems.push({ sceneIndex: cfg.idx, bankSlot: slot, sceneText: rec.text, status: 'done', videoUrl: 'bank:' + slot, blob: rec.blob, edit: { caption: rec.text } });
+        } catch (e) {}
+    }
+    renderBank();
+}
+function renderBank() {
+    const box = document.getElementById('bank-list'); if (!box) return;
+    box.innerHTML = Object.entries(BANK_SLOTS).map(([slot, cfg]) => {
+        const it = state.bankItems.find(b => b.bankSlot === slot);
+        return '<div class="bank-row"><b>' + cfg.label + '</b>' +
+            '<input class="text-input" id="bank-text-' + slot + '" value="' + esc(it?.sceneText || cfg.def) + '">' +
+            '<div class="bank-actions">' + (it ? '<span>✅ Prête</span>' : '<span class="prompt-main-hint">Pas encore créée</span>') +
+            '<button type="button" data-bank-gen="' + slot + '">' + (it ? '🔄 Refaire' : '🎬 Créer') + '</button>' +
+            (it ? '<button type="button" data-bank-del="' + slot + '">🗑️</button>' : '') + '</div></div>';
+    }).join('');
+}
+async function generateBankClip(slot) {
+    const cfg = BANK_SLOTS[slot];
+    const text = (document.getElementById('bank-text-' + slot)?.value || cfg.def).trim();
+    const photo = (state.poses.find(p => p.id === 'salue') || state.poses.find(p => p.id === 'explique') || {}).image || state.images[0]?.dataUri || state.photoSmall;
+    if (!photo) { showToast('Ajoute d\'abord la photo du personnage', 'error'); return; }
+    if (!getAgnesKey()) { showToast('Clé Agnes manquante', 'error'); return; }
+    if (state.isRunning || assembling || state.regenerating) return;
+    unlockAudio();
+    state.regenerating = true; state.stopRequested = false;
+    await ensureWakeLockActive();
+    const item = { sceneIndex: cfg.idx, sceneText: text, image: photo, status: 'pending', bankSlot: slot };
+    try {
+        showToast(cfg.label + ' : génération (1 à 2 min, garde l\'appli ouverte)', 'success', 4000);
+        item.prompt = buildScenePrompt({ sceneIndex: 0, sceneText: text }, { total: 1, setting: '', plan: { spoken: text, action: slot === 'intro' ? 'waves hello at the viewer with a big smile' : 'points at the viewer and gives a thumbs up', camera: 'medium shot' } });
+        item.videoId = await createVideoTask(photo, item.prompt);
+        const url = await pollVideo(item.videoId, p => setStatus(cfg.label + ' : ' + p));
+        item.videoUrl = url;
+        const blob = await fetchClipBlob(item);
+        await idbPut('bank:' + slot, { text, blob, date: Date.now() });
+        await loadBank();
+        showToast(cfg.label + ' prête ✓ Elle sera ajoutée à toutes tes vidéos', 'success', 5000);
+    } catch (e) { showToast(cfg.label + ' impossible : ' + e.message, 'error', 6000); }
+    finally { state.regenerating = false; state.stopRequested = false; setStatus(null); }
+}
+document.addEventListener('click', async e => {
+    const g = e.target.closest && e.target.closest('[data-bank-gen]'); if (g) { generateBankClip(g.dataset.bankGen); return; }
+    const d = e.target.closest && e.target.closest('[data-bank-del]'); if (d) { try { await idbDel('bank:' + d.dataset.bankDel); } catch (err) {} loadBank(); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// SAUVEGARDE SUR TON CLOUDFLARE (scènes et vidéos finales) + BIBLIOTHÈQUE
+// ══════════════════════════════════════════════════════════════════
+function mediaAvailable() { return !!getProxyUrl() && state.proxyMedia; }
+async function uploadMedia(key, blob, kind, title) {
+    const res = await withTimeout(fetch(getProxyUrl() + '/media/' + encodeURIComponent(key) + '?kind=' + kind + '&title=' + encodeURIComponent(title || ''), { method: 'PUT', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob }), 300000, 'envoi trop long');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    return key;
+}
+async function backupScenes() {
+    if (!mediaAvailable() || !state.backupOn) return;
+    const pid = state.projectId || (state.projectId = 'p' + Date.now().toString(36));
+    for (const it of state.queue.filter(q => q.status === 'done' && !q.mediaKey)) {
+        try { await fetchClipBlob(it); it.mediaKey = await uploadMedia('phone/' + pid + '/' + it.sceneIndex, it.blob, 'clip'); }
+        catch (e) { log('Sauvegarde scène ' + (it.sceneIndex + 1) + ' : ' + e.message); break; }
+    }
+    saveProject();
+}
+async function backupFinal() {
+    if (!state.finalBlob) return;
+    if (!mediaAvailable()) { showToast('Serveur Cloudflare pas à jour : sauvegarde indisponible', 'warn'); return; }
+    const btn = document.getElementById('backup-final-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi sur ton Cloudflare…'; }
+    try {
+        await uploadMedia('final/' + Date.now().toString(36), state.finalBlob, 'final', (state.theme || 'Vidéo') + ' · ' + new Date().toLocaleDateString('fr-FR'));
+        showToast('Vidéo sauvegardée sur ton Cloudflare ✓', 'success');
+        if (btn) btn.textContent = '✅ Vidéo sauvegardée';
+        renderLibrary();
+    } catch (e) { showToast('Sauvegarde impossible : ' + e.message, 'error', 6000); if (btn) btn.textContent = '☁️ Sauvegarder la vidéo sur mon Cloudflare'; }
+    finally { if (btn) btn.disabled = false; }
+}
+async function renderLibrary() {
+    const box = document.getElementById('library-list'); if (!box) return;
+    if (!mediaAvailable()) { box.innerHTML = '<div class="prompt-main-hint">Disponible quand ton serveur Cloudflare est à jour.</div>'; return; }
+    try {
+        const res = await fetch(getProxyUrl() + '/media-list?kind=final');
+        const { items = [] } = await res.json();
+        box.innerHTML = items.length ? items.map(m => '<div class="series-item"><span>🎬 ' + esc(m.title || m.key) + ' · ' + Math.round(m.size / 1048576) + ' Mo</span><span><button type="button" data-lib-get="' + esc(m.key) + '">⬇️</button> <button type="button" data-lib-del="' + esc(m.key) + '">🗑️</button></span></div>').join('')
+            : '<div class="prompt-main-hint">Aucune vidéo sauvegardée pour l\'instant.</div>';
+    } catch (e) { box.innerHTML = '<div class="prompt-main-hint">Bibliothèque injoignable.</div>'; }
+}
+document.addEventListener('click', async e => {
+    const g = e.target.closest && e.target.closest('[data-lib-get]');
+    if (g) {
+        const key = g.dataset.libGet;
+        if (state.exportCache['lib:' + key]) { saveBlob(state.exportCache['lib:' + key].blob, state.exportCache['lib:' + key].name); return; }
+        g.textContent = '⏳';
+        try { const r = await fetch(getProxyUrl() + '/media/' + encodeURIComponent(key)); const b = await r.blob(); state.exportCache['lib:' + key] = { blob: b, name: key.replace(/\W+/g, '-') + (b.type.includes('mp4') ? '.mp4' : '.webm') }; g.textContent = '✅'; showToast('Prêt : appuie à nouveau pour enregistrer', 'success'); }
+        catch (err) { g.textContent = '⬇️'; showToast('Téléchargement impossible', 'error'); }
+        return;
+    }
+    const d = e.target.closest && e.target.closest('[data-lib-del]');
+    if (d && confirm('Supprimer cette vidéo de ton Cloudflare ?')) { await fetch(getProxyUrl() + '/media/' + encodeURIComponent(d.dataset.libDel), { method: 'DELETE' }); renderLibrary(); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// SÉRIE EN ARRIÈRE-PLAN (plusieurs épisodes, téléphone éteint)
+// ══════════════════════════════════════════════════════════════════
+async function launchSeriesBackground() {
+    const eps = state.seriesEpisodes;
+    if (!state.images.length) { showToast('Ajoute la photo du personnage', 'error'); return; }
+    if (!getAgnesKey()) { showToast('Ajoute la clé Agnes', 'error'); return; }
+    const btn = document.getElementById('launch-series-btn'); if (btn) btn.disabled = true;
+    const list = [];
+    try {
+        state.photoSmall = await downscaleImage(state.images[0].dataUri, 1024, 0.85);
+        for (let i = 0; i < eps.length; i++) {
+            setStatus('Envoi de l\'épisode ' + (i + 1) + '/' + eps.length + '…');
+            const scenes = splitScriptIntoScenes(eps[i].script);
+            const id = await sendBackgroundJob(scenes, eps[i].title, eps[i].script, false);
+            list.push({ id, title: eps[i].title, script: eps[i].script, n: scenes.length, style: state.selectedStyle, finished: false });
+        }
+        setJSON(STORAGE.BG_SERIES, { date: Date.now(), photo: state.photoSmall, episodes: list });
+        showToast(list.length + ' épisodes envoyés ✓ Tu peux éteindre ton téléphone', 'success', 6000);
+        renderSeriesJobs();
+    } catch (e) { showToast('Envoi de la série impossible : ' + e.message, 'error', 6000); }
+    finally { if (btn) btn.disabled = false; setStatus(null); }
+}
+async function renderSeriesJobs() {
+    const box = document.getElementById('series-jobs'); if (!box) return;
+    const s = getJSON(STORAGE.BG_SERIES);
+    if (!s || !s.episodes?.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const rows = await Promise.all(s.episodes.map(async (ep, i) => {
+        if (ep.finished) return { ep, i, label: '✅ Vidéo terminée', ready: false };
+        try {
+            const r = await fetch(getProxyUrl() + '/jobs/' + ep.id); const job = await r.json();
+            if (!r.ok) return { ep, i, label: '⌛ ' + (job.error || 'expiré'), ready: false };
+            const done = (job.scenes || []).filter(x => x.status === 'done').length;
+            return { ep, i, job, label: job.status === 'done' ? '✅ Scènes prêtes (' + done + '/' + job.scenes.length + ')' : job.status === 'failed' ? '❌ ' + job.message : '⏳ ' + (job.message || 'En cours'), ready: job.status === 'done' || (job.status === 'failed' && done > 0) };
+        } catch (e) { return { ep, i, label: '… serveur injoignable', ready: false }; }
+    }));
+    box.innerHTML = '<div class="section-title" style="margin-bottom:0.5rem;">📺 Série en arrière-plan</div>' + rows.map(r =>
+        '<div class="series-item"><span>' + esc(r.ep.title) + '<br><small>' + esc(r.label) + '</small></span>' + (r.ready ? '<button type="button" data-series-finish="' + r.i + '">🎞️ Terminer</button>' : '') + '</div>').join('') +
+        '<button type="button" class="btn-secondary" id="series-refresh-btn" style="margin-top:0.4rem;">🔄 Actualiser</button><button type="button" class="btn-secondary" id="series-clear-btn" style="margin-top:0.4rem;">Effacer cette liste</button>';
+    state._seriesRows = rows;
+}
+document.addEventListener('click', async e => {
+    if (e.target.id === 'series-refresh-btn') { renderSeriesJobs(); return; }
+    if (e.target.id === 'series-clear-btn') { localStorage.removeItem(STORAGE.BG_SERIES); renderSeriesJobs(); return; }
+    const b = e.target.closest && e.target.closest('[data-series-finish]'); if (!b) return;
+    const s = getJSON(STORAGE.BG_SERIES), row = state._seriesRows?.[parseInt(b.dataset.seriesFinish, 10)];
+    if (!s || !row?.job) return;
+    unlockAudio();
+    loadBackgroundResults({ ...row.ep, theme: row.ep.title, photo: s.photo }, row.job);
+    state.isSeriesMode = true;
+    const ok = await runAssembly();
+    state.isSeriesMode = false;
+    if (ok) { row.ep.finished = true; s.episodes[row.i].finished = true; setJSON(STORAGE.BG_SERIES, s); renderSeriesJobs(); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// VERSIONS DANS D'AUTRES LANGUES (mêmes images, voix et textes traduits)
+// ══════════════════════════════════════════════════════════════════
+async function buildLanguageVersion(lang) {
+    const items = state.queue.filter(q => q.status === 'done' && q.videoUrl);
+    if (!items.length) throw new Error('aucune scène');
+    if (!getClaudeKey()) throw new Error('la traduction utilise la clé Claude');
+    if (!getElevenLabsKey() || !(elevenlabsSelectedVoiceId || getLS(STORAGE.ELEVENLABS_VOICE))) throw new Error('choisis une voix ElevenLabs (section Voix)');
+    setStatus('Claude traduit la vidéo…');
+    const scenes = state.scenes.map((_, i) => scenePlanFor(i));
+    const out = await callClaude({
+        system: 'Tu traduis des vidéos pédagogiques en gardant le ton, le niveau et des phrases faciles à prononcer par une voix de synthèse.',
+        prompt: 'Traduis en ' + (LANG_NAMES_FR[lang] || lang) + '. Garde exactement ' + scenes.length + ' scènes, dans le même ordre. Pour chaque scène : "spoken" (la réplique), "bubble", "highlight" et "section" (vides si vides dans l\'original). Donne aussi "title" (le titre de la vidéo).\n\nTitre : ' + (state.theme || '') + '\n' +
+            JSON.stringify(scenes.map(p => ({ spoken: p.spoken, bubble: p.bubble || '', highlight: p.highlight || '', section: p.section || '' }))),
+        schema: { type: 'object', properties: { title: { type: 'string' }, scenes: { type: 'array', items: { type: 'object', properties: { spoken: { type: 'string' }, bubble: { type: 'string' }, highlight: { type: 'string' }, section: { type: 'string' } }, required: ['spoken', 'bubble', 'highlight', 'section'], additionalProperties: false } } }, required: ['title', 'scenes'], additionalProperties: false }
+    });
+    if (!out.scenes || out.scenes.length !== scenes.length) throw new Error('traduction incomplète');
+    // on échange temporairement textes, voix et langue, puis on remet tout en place
+    const saved = { plan: state.scenePlan, theme: state.theme, language: state.language, voice: state.voiceSource, segs: subtitleSegments, sig: subtitleScriptSignature, bank: state.bankUse,
+        items: items.map(it => ({ it, fitBuffer: it.fitBuffer, fitSpeech: it.fitSpeech, stt: it.sttWords, edit: it.edit })) };
+    try {
+        state.scenePlan = { ...state.scenePlan, scenes: scenes.map((p, i) => ({ ...p, ...out.scenes[i], section: i > 0 ? out.scenes[i].section : '' })) };
+        state.theme = out.title || state.theme; state.language = lang; state.voiceSource = 'fit'; state.bankUse = false;
+        subtitleSegments = [];
+        items.forEach((it, i) => {
+            const cache = it.langCache?.[lang];
+            it.fitBuffer = cache?.fitBuffer; it.fitSpeech = cache?.fitSpeech;
+            it.sttWords = null; it.edit = { ...(it.edit || {}), caption: out.scenes[it.sceneIndex]?.spoken };
+        });
+        const r = await assembleVideo({ label: 'Version ' + (LANG_NAMES_FR[lang] || lang) });
+        items.forEach(it => { it.langCache = it.langCache || {}; it.langCache[lang] = { fitBuffer: it.fitBuffer, fitSpeech: it.fitSpeech }; });
+        return { blob: r.blob, name: 'video-' + lang.split('-')[0] + '-' + Date.now() + '.' + r.ext };
+    } finally {
+        state.scenePlan = saved.plan; state.theme = saved.theme; state.language = saved.language; state.voiceSource = saved.voice; state.bankUse = saved.bank;
+        subtitleSegments = saved.segs; subtitleScriptSignature = saved.sig;
+        saved.items.forEach(s => { s.it.fitBuffer = s.fitBuffer; s.it.fitSpeech = s.fitSpeech; s.it.sttWords = s.stt; s.it.edit = s.edit; });
+    }
+}
+function downloadLanguageVersion() {
+    const lang = document.getElementById('lang-version-select')?.value || 'en-US';
+    return prepareThenSave('lang-version-btn', 'lang:' + lang, async () => {
+        if (assembling || state.isRunning) throw new Error('attends la fin du montage en cours');
+        unlockAudio();
+        assembling = true; state.stopRequested = false;
+        document.getElementById('stop-btn').classList.add('visible');
+        await ensureWakeLockActive();
+        try { return await buildLanguageVersion(lang); }
+        finally { assembling = false; state.stopRequested = false; setStatus(null); setProgress(0); document.getElementById('stop-btn').classList.remove('visible'); }
+    });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ASSISTANT DE SCRIPT : formats qui retiennent + vérification des faits
+// ══════════════════════════════════════════════════════════════════
+const SCRIPT_FORMATS = {
+    short: { label: 'Short / TikTok (30 s)', lines: '5 à 6', rules: 'accroche choc dès la 1re ligne, une seule idée, chute surprenante, pas de salutation' },
+    minute: { label: 'Vidéo d\'1 minute', lines: '9 à 11', rules: 'accroche en question ou chiffre étonnant, promesse de ce qu\'on va apprendre, 3 points clés, récapitulatif, appel à s\'abonner' },
+    explainer: { label: 'Explication de 3 minutes', lines: '24 à 28', rules: 'accroche, promesse, 3 à 4 parties avec une relance de curiosité à la fin de chaque partie, un exemple concret par partie, récapitulatif, appel à s\'abonner' }
+};
+async function checkFacts() {
+    if (!state.scenes.length) { showToast('Écris d\'abord un script', 'warn'); return; }
+    if (!getClaudeKey()) { showToast('Ajoute ta clé Claude', 'error'); return; }
+    const box = document.getElementById('factcheck-box');
+    setStatus('Claude vérifie les faits…');
+    try {
+        const out = await callClaude({
+            system: 'Tu es un vérificateur de faits rigoureux pour des vidéos pédagogiques. Tu ne signales que les erreurs réelles ou les formulations trompeuses, pas les simplifications acceptables pour le public visé.',
+            prompt: claudeContext() + '\nVérifie chaque ligne de ce script. Pour chaque problème, donne le numéro de ligne, le problème et la ligne corrigée (même longueur, facile à prononcer).\n\n' + state.scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
+            schema: { type: 'object', properties: { issues: { type: 'array', items: { type: 'object', properties: { line: { type: 'integer' }, problem: { type: 'string' }, fix: { type: 'string' } }, required: ['line', 'problem', 'fix'], additionalProperties: false } } }, required: ['issues'], additionalProperties: false }
+        });
+        state.factIssues = (out.issues || []).filter(x => x.line >= 1 && x.line <= state.scenes.length);
+        if (!box) return;
+        box.classList.remove('hidden');
+        box.innerHTML = state.factIssues.length
+            ? '<b>🔍 ' + state.factIssues.length + ' point' + (state.factIssues.length > 1 ? 's' : '') + ' à corriger</b>' + state.factIssues.map(x => '<div class="fc-item"><b>Ligne ' + x.line + '</b> : ' + esc(x.problem) + '<br>➡️ <i>' + esc(x.fix) + '</i></div>').join('') + '<button type="button" class="btn-secondary" id="fc-apply">✅ Appliquer les corrections</button>'
+            : '<b>✅ Aucune erreur trouvée.</b>';
+    } catch (e) { showToast('Vérification impossible : ' + e.message, 'error', 5000); }
+    finally { setStatus(null); }
+}
+document.addEventListener('click', e => {
+    if (e.target.id !== 'fc-apply' || !state.factIssues) return;
+    const lines = state.scenes.slice();
+    state.factIssues.forEach(x => { lines[x.line - 1] = x.fix; });
+    document.getElementById('script-input').value = lines.join('\n');
+    updateScriptStats(); renderScenesEditor();
+    document.getElementById('factcheck-box').classList.add('hidden');
+    showToast('Corrections appliquées ✓', 'success');
+});
+
+// ══════════════════════════════════════════════════════════════════
+// STATISTIQUES YOUTUBE + CONSEILS DE CLAUDE
+// ══════════════════════════════════════════════════════════════════
+function publishedVideos() { return getJSON(STORAGE.YT_PUBLISHED, []); }
+async function loadYouTubeStats() {
+    const box = document.getElementById('ytstats-box'); if (!box) return;
+    const vids = publishedVideos();
+    if (!vids.length) { box.innerHTML = '<div class="prompt-main-hint">Publie une vidéo depuis l\'appli pour voir ses statistiques ici.</div>'; return; }
+    const token = getYouTubeToken();
+    if (!token) { box.innerHTML = '<div class="prompt-main-hint">Reconnecte-toi à YouTube (section Publication) pour voir les statistiques.</div>'; return; }
+    box.innerHTML = '⏳ Chargement…';
+    try {
+        const ids = vids.slice(0, 50).map(v => v.id).join(',');
+        const r = await fetch('https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=' + ids, { headers: { Authorization: 'Bearer ' + token } });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error?.message || r.status);
+        let retention = {};
+        try {
+            const end = new Date().toISOString().slice(0, 10);
+            const a = await fetch('https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=2020-01-01&endDate=' + end + '&metrics=views,averageViewDuration,averageViewPercentage&dimensions=video&filters=video==' + ids, { headers: { Authorization: 'Bearer ' + token } });
+            const ad = await a.json();
+            (ad.rows || []).forEach(row => { retention[row[0]] = { avgDur: row[2], avgPct: row[3] }; });
+        } catch (e) {}
+        state.ytStats = (data.items || []).map(it => ({ id: it.id, title: it.snippet.title, views: +it.statistics.viewCount || 0, likes: +it.statistics.likeCount || 0, comments: +it.statistics.commentCount || 0, ...(retention[it.id] || {}), script: vids.find(v => v.id === it.id)?.script || '' }));
+        box.innerHTML = '<table class="yt-table"><tr><th>Vidéo</th><th>Vues</th><th>👍</th><th>Regardé</th></tr>' + state.ytStats.map(s => '<tr><td>' + esc(s.title) + '</td><td>' + s.views + '</td><td>' + s.likes + '</td><td>' + (s.avgPct ? Math.round(s.avgPct) + ' %' : '—') + '</td></tr>').join('') + '</table>' +
+            '<button type="button" class="btn-secondary" id="yt-advice-btn" style="margin-top:0.5rem;">🤖 Conseils de Claude pour mes prochaines vidéos</button><div id="yt-advice" class="prompt-main-hint" style="white-space:pre-wrap;margin-top:0.5rem;"></div>';
+    } catch (e) { box.innerHTML = '<div class="prompt-main-hint">Statistiques indisponibles : ' + esc(e.message) + '. Reconnecte-toi à YouTube pour autoriser la lecture des statistiques.</div>'; }
+}
+async function youtubeAdvice() {
+    const out = document.getElementById('yt-advice'); if (!out || !state.ytStats) return;
+    if (!getClaudeKey()) { showToast('Ajoute ta clé Claude', 'error'); return; }
+    out.textContent = '⏳ Claude analyse tes vidéos…';
+    try {
+        out.textContent = await callClaude({
+            system: 'Tu es un coach YouTube spécialisé dans les vidéos pédagogiques courtes. Tu donnes des conseils concrets, en français, sans jargon.',
+            prompt: 'Voici mes vidéos publiées avec leurs statistiques (vues, likes, commentaires, pourcentage moyen regardé) et leur script. Explique en quelques points ce qui marche le mieux, ce qui fait décrocher les gens, et donne 5 conseils précis et 3 idées de sujets pour mes prochaines vidéos.\n\n' + JSON.stringify(state.ytStats.map(s => ({ titre: s.title, vues: s.views, likes: s.likes, commentaires: s.comments, regardé_pct: s.avgPct ? Math.round(s.avgPct) : null, script: s.script.slice(0, 1500) })))
+        });
+    } catch (e) { out.textContent = 'Conseils impossibles : ' + e.message; }
+}
+document.addEventListener('click', e => { if (e.target.id === 'yt-advice-btn') youtubeAdvice(); });
 </script>
 <script>
 // ══════════════════════════════════════════════════════════════════
@@ -5253,7 +5797,7 @@ function connectYouTube() {
     const cid = getYouTubeClientId();
     if (!cid) { showToast('Renseignez le Client ID Google', 'error'); return; }
     const redirect = window.location.href.split('#')[0];
-    const scope = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl';
+    const scope = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/yt-analytics.readonly';
     const url = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + encodeURIComponent(cid) +
         '&redirect_uri=' + encodeURIComponent(redirect) +
         '&response_type=token&scope=' + encodeURIComponent(scope) +
@@ -5325,6 +5869,9 @@ async function uploadToYouTube() {
             const tr = await fetch('https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=' + encodeURIComponent(data.id), { method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'image/jpeg' }, body: thumb });
             extras.push(tr.ok ? 'miniature ✓' : 'miniature ✕ (chaîne à valider sur YouTube)');
         } catch (e) { extras.push('miniature ✕'); }
+        const pub = getJSON(STORAGE.YT_PUBLISHED, []);
+        pub.unshift({ id: data.id, title: state.theme || 'Vidéo', date: Date.now(), script: state.script || '' });
+        setJSON(STORAGE.YT_PUBLISHED, pub.slice(0, 50));
         showToast('Vidéo publiée : https://youtu.be/' + data.id + ' · ' + extras.join(' · '), 'success', 10000);
         log('YouTube : ' + data.id + ' ' + extras.join(', '));
     } catch (e) { showToast('Upload échoué : ' + e.message, 'error'); }
@@ -5646,6 +6193,19 @@ function showCloudConfigRow(provider) {
     document.getElementById('generate-btn')?.addEventListener('click', startGeneration);
     document.getElementById('stop-btn')?.addEventListener('click', stopGeneration);
     document.getElementById('assemble-btn')?.addEventListener('click', () => { unlockAudio(); runAssembly(); });
+    document.getElementById('preview-btn')?.addEventListener('click', runPreview);
+    document.getElementById('simple-mode-btn')?.addEventListener('click', () => { setLS(STORAGE.SIMPLE_MODE, getLS(STORAGE.SIMPLE_MODE) === '1' ? '0' : '1'); applySimpleMode(); });
+    document.getElementById('factcheck-btn')?.addEventListener('click', checkFacts);
+    document.getElementById('backup-final-btn')?.addEventListener('click', backupFinal);
+    document.getElementById('library-refresh-btn')?.addEventListener('click', renderLibrary);
+    document.getElementById('ytstats-btn')?.addEventListener('click', loadYouTubeStats);
+    document.getElementById('lang-version-btn')?.addEventListener('click', downloadLanguageVersion);
+    document.getElementById('lang-version-select')?.addEventListener('change', () => { const b = document.getElementById('lang-version-btn'); if (b) b.textContent = state.exportCache['lang:' + document.getElementById('lang-version-select').value] ? '💾 Enregistrer la version traduite' : '🌍 Créer la version traduite'; });
+    state.bankUse = getLS(STORAGE.BANK_USE) !== '0';
+    state.backupOn = getLS(STORAGE.BACKUP_ON) !== '0';
+    const bankToggle = document.getElementById('bank-use-toggle'), backupToggle = document.getElementById('backup-toggle');
+    if (bankToggle) { bankToggle.checked = state.bankUse; bankToggle.addEventListener('change', () => { state.bankUse = bankToggle.checked; setLS(STORAGE.BANK_USE, state.bankUse ? '1' : '0'); state.exportCache = {}; }); }
+    if (backupToggle) { backupToggle.checked = state.backupOn; backupToggle.addEventListener('change', () => { state.backupOn = backupToggle.checked; setLS(STORAGE.BACKUP_ON, state.backupOn ? '1' : '0'); }); }
     document.getElementById('download-final-btn')?.addEventListener('click', downloadFinal);
     document.getElementById('download-srt-btn')?.addEventListener('click', downloadSRT);
     document.getElementById('download-scenes-btn')?.addEventListener('click', downloadScenes);
@@ -5675,7 +6235,8 @@ function showCloudConfigRow(provider) {
     updateScriptStats(); updateSeriesStats(); showTTSPanel(state.ttsEngine);
     showCloudConfigRow(state.cloudProvider); updateCloudStatus();
     refreshKeyFields();
-    testProxy();
+    testProxy().then(() => { renderLibrary(); renderSeriesJobs(); });
+    loadBank(); applySimpleMode();
     updateMusicStatus(); updateLogoStatus();
     applySettings(getJSON(STORAGE.SETTINGS));
     loadPoses(); updatePushStatus(); updateEstimate();

@@ -18,6 +18,12 @@
 //    « Tes scènes sont prêtes » (Web Push, clés VAPID créées et gardées ici).
 //      GET /push/key           → clé publique à donner au téléphone
 //
+// 4. Stockage de tes scènes et vidéos (les liens Agnes expirent) :
+//      PUT    /media/:clé      → enregistre un fichier (découpé en morceaux de 1,5 Mo)
+//      GET    /media/:clé      → le récupère
+//      DELETE /media/:clé      → le supprime
+//      GET    /media-list?kind=final → liste des vidéos enregistrées
+//
 // Sécurité : seul le site de l'appli peut l'utiliser (ALLOWED_ORIGINS).
 
 const ALLOWED_ORIGINS = [
@@ -41,7 +47,7 @@ export default {
         const allowed = ALLOWED_ORIGINS.includes(origin);
         const cors = {
             'Access-Control-Allow-Origin': allowed ? origin : ALLOWED_ORIGINS[0],
-            'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+            'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
             'Access-Control-Allow-Headers': 'Range, Content-Type',
             'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Content-Type',
             'Vary': 'Origin'
@@ -51,6 +57,19 @@ export default {
 
         const url = new URL(request.url);
         if (url.pathname.startsWith('/jobs')) return handleJobs(request, env, url, cors);
+        if (url.pathname.startsWith('/media')) {
+            if (!env.JOBS) return json({ error: 'Stockage non activé' }, 501, cors);
+            const store = env.JOBS.get(env.JOBS.idFromName('media'));
+            if (url.pathname === '/media-list') { const r = await store.fetch('https://job/media-list?kind=' + encodeURIComponent(url.searchParams.get('kind') || '')); return json(await r.json(), r.status, cors); }
+            const key = decodeURIComponent(url.pathname.slice('/media/'.length));
+            if (!/^[\w\-\/.]{3,120}$/.test(key)) return json({ error: 'Clé invalide' }, 400, cors);
+            const q = '?key=' + encodeURIComponent(key) + '&kind=' + encodeURIComponent(url.searchParams.get('kind') || 'clip') + '&title=' + encodeURIComponent(url.searchParams.get('title') || '');
+            if (request.method === 'PUT') { const r = await store.fetch('https://job/media-put' + q, { method: 'POST', body: await request.arrayBuffer(), headers: { 'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream' } }); return json(await r.json(), r.status, cors); }
+            if (request.method === 'DELETE') { const r = await store.fetch('https://job/media-del' + q, { method: 'POST' }); return json(await r.json(), r.status, cors); }
+            const r = await store.fetch('https://job/media-get' + q);
+            const h = new Headers(cors); ['Content-Type', 'Content-Length'].forEach(n => { const v = r.headers.get(n); if (v) h.set(n, v); });
+            return new Response(r.body, { status: r.status, headers: h });
+        }
         if (url.pathname === '/push/key') {
             if (!env.JOBS) return json({ error: 'Notifications non activées' }, 501, cors);
             const res = await env.JOBS.get(env.JOBS.idFromName('vapid')).fetch('https://job/vapid', { method: 'POST' });
@@ -58,7 +77,7 @@ export default {
         }
 
         const target = url.searchParams.get('url');
-        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push' : 'Relais OK', { status: 200, headers: cors });
+        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push · media' : 'Relais OK', { status: 200, headers: cors });
         return relay(request, target, cors);
     }
 };
@@ -115,6 +134,15 @@ export class VideoJob {
         const action = new URL(request.url).pathname.slice(1);
         if (action === 'start') return this.start(request);
         if (action === 'vapid') return Response.json({ publicKey: (await getVapid(this.storage)).publicKey });
+        if (action.startsWith('media')) return this.media(action, request);
+        if (action === 'rate') {
+            // une seule création Agnes par minute, tous projets confondus (séries en parallèle)
+            const now = Date.now(), next = (await this.storage.get('nextAt')) || 0;
+            if (now < next) return Response.json({ ok: false, waitUntil: next });
+            await this.storage.put('nextAt', now + CREATE_INTERVAL_MS);
+            return Response.json({ ok: true });
+        }
+        if (action === 'rate-delay') { await this.storage.put('nextAt', Date.now() + 90000); return Response.json({ ok: true }); }
         if (action === 'push') {
             try { await sendPush(await request.json(), await getVapid(this.storage)); return Response.json({ ok: true }); }
             catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
@@ -129,6 +157,40 @@ export class VideoJob {
             return Response.json(publicView(job, await this.storage.get('drawings')));
         }
         return Response.json(publicView(job, await this.storage.get('drawings')));
+    }
+
+    async media(action, request) {
+        const u = new URL(request.url), key = u.searchParams.get('key') || '';
+        if (action === 'media-list') {
+            const kind = u.searchParams.get('kind') || '';
+            const metas = await this.storage.list({ prefix: 'meta:' });
+            const items = [...metas.values()].filter(m => !kind || m.kind === kind).sort((a, b) => b.date - a.date);
+            return Response.json({ items });
+        }
+        if (action === 'media-put') {
+            const buf = new Uint8Array(await request.arrayBuffer());
+            if (!buf.length) return Response.json({ error: 'Fichier vide' }, { status: 400 });
+            if (buf.length > 95 * 1024 * 1024) return Response.json({ error: 'Fichier trop lourd (95 Mo max)' }, { status: 413 });
+            await this.deleteMedia(key);
+            const CH = 1500000, n = Math.ceil(buf.length / CH);
+            for (let i = 0; i < n; i++) await this.storage.put('chunk:' + key + ':' + i, buf.slice(i * CH, (i + 1) * CH));
+            await this.storage.put('meta:' + key, { key, kind: u.searchParams.get('kind') || 'clip', title: u.searchParams.get('title') || '', type: request.headers.get('Content-Type') || 'application/octet-stream', size: buf.length, chunks: n, date: Date.now() });
+            return Response.json({ ok: true, key, size: buf.length });
+        }
+        if (action === 'media-del') { await this.deleteMedia(key); return Response.json({ ok: true }); }
+        const meta = await this.storage.get('meta:' + key);
+        if (!meta) return new Response('Introuvable', { status: 404 });
+        const storage = this.storage;
+        const body = new ReadableStream({
+            async start(ctrl) { for (let i = 0; i < meta.chunks; i++) ctrl.enqueue(new Uint8Array(await storage.get('chunk:' + key + ':' + i))); ctrl.close(); }
+        });
+        return new Response(body, { headers: { 'Content-Type': meta.type, 'Content-Length': String(meta.size) } });
+    }
+    async deleteMedia(key) {
+        const meta = await this.storage.get('meta:' + key);
+        if (!meta) return;
+        const keys = ['meta:' + key]; for (let i = 0; i < meta.chunks; i++) keys.push('chunk:' + key + ':' + i);
+        for (let i = 0; i < keys.length; i += 100) await this.storage.delete(keys.slice(i, i + 100));
     }
 
     async start(request) {
@@ -147,7 +209,7 @@ export class VideoJob {
             drawingRequests: Array.isArray(p.drawingRequests) ? p.drawingRequests : [],
             drawingsDone: 0, nextCreateAt: 0,
             push: p.push && p.push.endpoint ? p.push : null,
-            poseIds: [],
+            poseIds: [], backup: p.backup !== false,
             scenes: Array.from({ length: n }, (_, i) => ({ index: i, status: 'pending', videoId: null, videoUrl: null, error: null, startedAt: null, attempts: 0 }))
         };
         await this.storage.put('job', job);
@@ -231,14 +293,28 @@ export class VideoJob {
                 sc.progress = d.progress || 0;
                 if (['completed', 'succeeded', 'done'].includes(status)) {
                     const u = (d.metadata && d.metadata.url) || d.url || (d.output && d.output.url);
-                    if (u) { sc.status = 'done'; sc.videoUrl = u; } else { sc.status = 'failed'; sc.error = 'terminé sans vidéo'; }
+                    if (u) {
+                        sc.status = 'done'; sc.videoUrl = u;
+                        try {
+                            const v = await fetch(u);
+                            if (v.ok && job.backup !== false && this.env?.JOBS) {
+                                const key = 'job/' + this.ctx.id.toString().slice(0, 24) + '/' + sc.index;
+                                const r = await this.env.JOBS.get(this.env.JOBS.idFromName('media')).fetch('https://job/media-put?kind=clip&key=' + encodeURIComponent(key), { method: 'POST', body: await v.arrayBuffer(), headers: { 'Content-Type': v.headers.get('Content-Type') || 'video/mp4' } });
+                                if (r.ok) sc.mediaKey = key;
+                            }
+                        } catch (e) { /* la scène reste disponible via le lien Agnes */ }
+                    } else { sc.status = 'failed'; sc.error = 'terminé sans vidéo'; }
                 } else if (['failed', 'error', 'cancelled'].includes(status)) { sc.status = 'failed'; sc.error = 'échec Agnes (' + status + ')'; }
             } catch (e) { /* réseau : on réessaiera au prochain réveil */ }
         }
 
         // 3. Création de la scène suivante (une à la fois, limite de débit Agnes)
         const next = job.scenes.find(s => s.status === 'pending');
-        if (next && now >= job.nextCreateAt) {
+        let slot = true;
+        if (next && now >= job.nextCreateAt && this.env?.JOBS) {
+            try { const r = await (await this.env.JOBS.get(this.env.JOBS.idFromName('rate')).fetch('https://job/rate', { method: 'POST' })).json(); slot = r.ok; if (!r.ok) job.nextCreateAt = r.waitUntil; } catch (e) {}
+        }
+        if (next && now >= job.nextCreateAt && slot) {
             const templates = await this.storage.get('templates');
             const poseId = job.plan?.scenes?.[next.index]?.pose;
             const image = (poseId && poseId !== 'main' && job.poseIds.includes(poseId) ? await this.storage.get('pose:' + poseId) : null) || await this.storage.get('image');
@@ -251,6 +327,7 @@ export class VideoJob {
                 });
                 if (res.status === 429 || res.status === 503) {
                     job.nextCreateAt = now + 90000;
+                    try { await this.env.JOBS.get(this.env.JOBS.idFromName('rate')).fetch('https://job/rate-delay', { method: 'POST' }); } catch (e) {}
                 } else if (!res.ok) {
                     const err = (await res.text()).slice(0, 150);
                     next.attempts++;
@@ -296,7 +373,7 @@ function publicView(job, drawings) {
         status: job.status, message: job.message, createdAt: job.createdAt, updatedAt: job.updatedAt,
         plan: job.plan, planError: job.planError || null,
         drawings: drawings || [],
-        scenes: job.scenes.map(s => ({ index: s.index, status: s.status, videoUrl: s.videoUrl, error: s.error, progress: s.progress || 0 }))
+        scenes: job.scenes.map(s => ({ index: s.index, status: s.status, videoUrl: s.videoUrl, mediaKey: s.mediaKey || null, error: s.error, progress: s.progress || 0 }))
     };
 }
 
