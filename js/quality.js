@@ -17,7 +17,7 @@ function referencePrompt() {
         'Reference shot for an educational cartoon series.',
         'The character from the input image MUST stay IDENTICAL: same face, hairstyle, body shape, clothing and colors.',
         style ? 'Visual style: ' + stylePromptFor(style) : '',
-        state.greenScreen ? 'Background: flat, evenly lit pure chroma-key green (#00B140) backdrop filling the whole frame: no shadows on it, no gradient, no floor, no objects. The character has no green on its body or clothes.' + (wb ? ' The character stands on the LEFT third of the frame.' : '')
+        state.greenScreen ? 'Background: flat, evenly lit pure chroma-key green (#00B140) backdrop filling the whole frame: no shadows on it, no gradient, no floor, no objects. The character keeps its own colors exactly (including any green or teal accessory); the backdrop never tints the character.' + (wb ? ' The character stands on the LEFT third of the frame.' : '')
             : wb ? 'Background: pure plain white (#FFFFFF), completely empty. The character stands on the LEFT third of the frame; the rest of the frame is empty white space.'
             : 'Background: a simple, softly colored, uncluttered studio backdrop matching the visual style, with no objects and no text.',
         'Action: the character calmly settles into a neutral pose facing the camera, arms relaxed, friendly closed-mouth smile, then stays still until the end.',
@@ -67,14 +67,39 @@ function renderReference() {
     const ref = referenceImage(), outdated = state.reference && !ref;
     const box = document.getElementById('reference-box');
     if (box) box.innerHTML = (ref ? '<img class="ref-img" src="' + ref + '" alt="Image de référence">' : '<div class="hmuted">' + (outdated ? '⚠️ L\'image de référence ne correspond plus (photo ou style changé) : refais-la.' : 'Pas encore d\'image de référence pour le style « ' + esc(style) + ' ».') + '</div>') +
-        '<button type="button" class="btn-secondary" id="ref-create-btn"' + (state.regenerating ? ' disabled' : '') + '>' + (state.regenerating ? '⏳ Création…' : ref ? '🔄 Refaire l\'image de référence' : '🎯 Créer l\'image de référence (1 à 2 min, une seule fois)') + '</button>';
+        '<button type="button" class="btn-secondary" id="ref-create-btn"' + (state.regenerating ? ' disabled' : '') + '>' + (state.regenerating ? '⏳ Création…' : ref ? '🔄 Refaire l\'image de référence' : '🎯 Créer l\'image de référence (1 à 2 min, une seule fois)') + '</button>' +
+        '<button type="button" class="btn-secondary" id="ref-import-btn"' + (state.regenerating ? ' disabled' : '') + '>📥 Utiliser ma propre image de référence</button>' +
+        '<input type="file" id="ref-import-input" accept="image/*" style="display:none">';
     const hint = document.getElementById('ref-hint');
     if (hint) {
         hint.innerHTML = ref ? '<div class="char-chip"><img src="' + ref + '" alt=""><div class="grow"><b>Image de référence</b><br><span class="hmuted">Toutes les scènes partent de cette image</span></div></div>'
             : '<div class="char-chip missing"><div class="grow"><b>Pas d\'image de référence' + (outdated ? ' à jour' : '') + '</b><br><span class="hmuted">Sans elle, le personnage peut changer d\'une scène à l\'autre. À faire une fois par style.</span></div><button type="button" data-ref-create="1">Créer</button></div>';
     }
 }
+// Image de référence fournie (déjà prête, par ex. le personnage sur fond vert) : gratuit et immédiat
+async function importReference(file) {
+    if (!file) return;
+    if (!state.images[0]?.dataUri) { showToast('Ajoute d\'abord la photo du personnage', 'error'); return; }
+    try {
+        const raw = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('fichier illisible')); r.readAsDataURL(file); });
+        const image = await downscaleImage(raw, 1280, 0.92);
+        if (state.greenScreen) {
+            // contrôle : le fond doit être vert (coins de l'image)
+            const img = await loadImageEl(image), c = document.createElement('canvas'); c.width = 64; c.height = 64;
+            const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, 64, 64);
+            const corners = [[1, 1], [62, 1], [1, 62], [62, 62]].filter(([x, y]) => { const d = g.getImageData(x, y, 1, 1).data; return isKeyGreen(d[0], d[1], d[2]); }).length;
+            if (corners < 3) showToast('⚠️ Le fond de cette image ne semble pas vert : le décor ne pourra pas le remplacer', 'warn', 7000);
+        }
+        state.reference = { image, sig: photoSig(), style: state.selectedStyle, green: !!state.greenScreen, date: Date.now(), imported: true };
+        await idbPut(refStorageKey(), state.reference);
+        state.storyboardApproved = false;
+        showToast('Image de référence enregistrée ✓ Toutes tes scènes partiront de cette image', 'success', 5000);
+    } catch (e) { showToast('Image impossible à utiliser : ' + e.message, 'error', 6000); }
+    renderReference();
+}
+document.addEventListener('change', e => { if (e.target.id === 'ref-import-input') { importReference(e.target.files[0]); e.target.value = ''; } });
 document.addEventListener('click', e => {
+    if (e.target.id === 'ref-import-btn') document.getElementById('ref-import-input')?.click();
     if (e.target.id === 'ref-create-btn' || (e.target.closest && e.target.closest('[data-ref-create]'))) createReference();
 });
 

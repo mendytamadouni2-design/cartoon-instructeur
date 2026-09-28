@@ -507,6 +507,26 @@ async function testCompositor(browser) {
         Object.assign(montagePause, { on: false, actx: null });
         return { keyed, bbox: st.bbox, gr, al, bad, ng, none: none.type, played, wall };
     });
+    // image de référence fournie (personnage sur fond vert) : importée, détourée, le nœud papillon vert garde sa couleur
+    await page.evaluate(() => { state.greenScreen = true; state.images = [{ dataUri: 'data:image/png;base64,iVBORw0KGgo=' }]; navOpen('set-brand'); renderReference(); });
+    await page.setInputFiles('#ref-import-input', path.join(__dirname, 'fixtures', 'ref-vert.png'));
+    await page.waitForFunction(() => !!referenceImage(), null, { timeout: 10000 });
+    const ri = await page.evaluate(async () => {
+        const img = await loadImageEl(referenceImage()), proc = createVideoProcessor();
+        const out = proc.process(img, { key: true });
+        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(out, 0, 0);
+        const px = (fx, fy) => Array.from(g.getImageData(Math.round(fx * img.width), Math.round(fy * img.height), 1, 1).data);
+        const stored = await idbGet(refStorageKey());
+        proc.dispose(); state.greenScreen = false;
+        // nœud papillon : premier pixel turquoise de l'image d'origine
+        const s = document.createElement('canvas'); s.width = img.width; s.height = img.height; const sg = s.getContext('2d', { willReadFrequently: true }); sg.drawImage(img, 0, 0);
+        const d = sg.getImageData(0, 0, img.width, img.height).data; let bow = null;
+        for (let i = 0; i < d.length && !bow; i += 4) if (d[i] < 30 && d[i + 1] > 160 && d[i + 2] > 110 && d[i + 2] < 180) bow = [(i / 4) % img.width, Math.floor(i / 4 / img.width)];
+        const bo = bow ? Array.from(g.getImageData(bow[0], bow[1], 1, 1).data) : null, bi = bow ? Array.from(sg.getImageData(bow[0], bow[1], 1, 1).data) : null;
+        return { corner: px(0.02, 0.02), bo, bi, green: stored && stored.green && stored.imported };
+    });
+    check(ri.green && ri.corner[3] < 20, 'image de référence fond vert importée et détourée');
+    check(ri.bo && ri.bo[3] > 240 && Math.abs(ri.bo[1] - ri.bi[1]) < 12, 'accessoire vert du personnage conservé (' + JSON.stringify([ri.bi, ri.bo]) + ')');
     check(r.keyed.bg < 20 && r.keyed.fg > 235, 'fond vert retiré, personnage conservé (' + JSON.stringify(r.keyed) + ')');
     check(r.bbox && Math.abs(r.bbox.x - 60 / 320) < 0.03 && Math.abs(r.bbox.w - 60 / 320) < 0.03, 'silhouette du personnage repérée');
     check(r.gr && r.gr.off[0] < 0 && r.gr.off[2] > 0, 'couleurs d\'une scène trop chaude ramenées vers la référence');

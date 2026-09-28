@@ -17,7 +17,7 @@ const VP_FRAG = [
     '    float d = distance(cbcr(c), cbcr(keyCol));',
     '    a = smoothstep(sim, sim + smoothv, d);',
     '    float s = max(0.0, c.g - max(c.r, c.b));',   // débordement de vert sur les contours
-    '    c.g -= s * spill;',
+    '    c.g -= s * spill * (1.0 - smoothstep(sim + smoothv * 0.5, sim + smoothv * 1.2, d));',   // seulement près du fond : un accessoire vert garde sa couleur
     '  }',
     '  c = clamp(c * gain + off, 0.0, 1.0);',
     '  gl_FragColor = vec4(c, a);',
@@ -83,7 +83,7 @@ function createVideoProcessor() {
                 if (opts.key) {
                     const cc = cbcrOf(r, g, b), dist = Math.hypot(cc[0] - kc[0], cc[1] - kc[1]);
                     a = smoothstep(0.085, 0.145, dist);
-                    g -= Math.max(0, g - Math.max(r, b)) * 0.85;
+                    g -= Math.max(0, g - Math.max(r, b)) * 0.85 * (1 - smoothstep(0.115, 0.157, dist));
                 }
                 d[i] = clampByte((r * gain[0] + off[0]) * 255); d[i + 1] = clampByte((g * gain[1] + off[1]) * 255); d[i + 2] = clampByte((b * gain[2] + off[2]) * 255); d[i + 3] = a * 255;
             }

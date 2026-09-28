@@ -191,7 +191,7 @@ function buildScenePrompt(item, override) {
     } else {
     if (style) parts.push('Visual style: ' + stylePromptFor(style));
     if (state.greenScreen) {
-        parts.push('Background: flat, evenly lit pure chroma-key green (#00B140) backdrop filling the whole frame: no shadows on it, no gradient, no floor, no objects. The character has no green on its body or clothes.');
+        parts.push('Background: flat, evenly lit pure chroma-key green (#00B140) backdrop filling the whole frame: no shadows on it, no gradient, no floor, no objects. The character keeps its own colors exactly (including any green or teal accessory); the backdrop never tints the character.');
         if (wb) parts.push('Composition: the character stays on the LEFT side of the frame (left third).');
     } else if (wb) {
         parts.push('Background: pure plain white (#FFFFFF), completely empty in every shot: no floor, no furniture, no objects, no decoration, no scenery. Replace the background of the input image with pure white.');
