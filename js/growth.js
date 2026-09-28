@@ -17,6 +17,7 @@ async function checkFacts() {
     try {
         const out = await callClaude({
             system: 'Tu es un vérificateur de faits rigoureux pour des vidéos pédagogiques. Tu ne signales que les erreurs réelles ou les formulations trompeuses, pas les simplifications acceptables pour le public visé.',
+            effort: 'high',
             prompt: claudeContext() + '\nVérifie chaque ligne de ce script. Pour chaque problème, donne le numéro de ligne, le problème et la ligne corrigée (même longueur, facile à prononcer).\n\n' + state.scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
             schema: { type: 'object', properties: { issues: { type: 'array', items: { type: 'object', properties: { line: { type: 'integer' }, problem: { type: 'string' }, fix: { type: 'string' } }, required: ['line', 'problem', 'fix'], additionalProperties: false } } }, required: ['issues'], additionalProperties: false }
         });
@@ -270,6 +271,7 @@ async function addEndQuestion() {
     try {
         const out = await callClaude({
             system: 'Tu écris la dernière réplique de vidéos pédagogiques pour faire réagir en commentaire. ' + SPEECH_RULES,
+            effort: 'low',
             prompt: claudeContext() + '\nVoici le script. Écris UNE question courte, amusante et facile à répondre en commentaire, en lien avec le sujet (moins de 15 mots).\n\n' + state.scenes.join('\n'),
             schema: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'], additionalProperties: false }
         });
@@ -293,6 +295,7 @@ async function proposeHooks() {
         const ins = getJSON(STORAGE.INSIGHTS);
         const out = await callClaude({
             system: 'Tu écris des accroches de vidéos courtes qui retiennent le spectateur dans les 3 premières secondes. ' + SPEECH_RULES,
+            effort: 'low',
             prompt: claudeContext() + (ins ? '\nLeçons de mes statistiques : ' + ins.rules : '') + '\nPropose 3 accroches très différentes (question intrigante, chiffre étonnant, affirmation surprenante) pour remplacer la première ligne de ce script. Chacune se dit en moins de 5 secondes. Pour chacune, dis en quelques mots pourquoi elle retient.\n\n' + state.scenes.join('\n'),
             schema: { type: 'object', properties: { hooks: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' }, why: { type: 'string' } }, required: ['text', 'why'], additionalProperties: false } } }, required: ['hooks'], additionalProperties: false }
         });
@@ -320,6 +323,7 @@ async function sameStructure(script) {
     try {
         const out = await callClaude({
             system: 'Tu écris des scripts de vidéos pédagogiques animées. Chaque ligne est dite par un personnage cartoon et devient une scène de 6 secondes. ' + SPEECH_RULES,
+            effort: 'high',
             prompt: claudeContext() + '\n' + scriptExtras() + 'Cette vidéo a très bien marché. Écris un script sur un NOUVEAU sujet, « ' + theme + ' », en reprenant exactement sa structure : même nombre de lignes, même type d\'accroche, même rythme, mêmes relances et même type de fin.\n\nSCRIPT MODÈLE :\n' + script,
             schema: LINES_SCHEMA
         });
@@ -387,6 +391,7 @@ async function writeTikTokCaption() {
     try {
         const out = await callClaude({
             system: 'Tu écris les textes de publication TikTok de vidéos pédagogiques : une phrase qui donne envie de regarder jusqu\'au bout, puis des hashtags pertinents (mélange de populaires et de précis). Pas d\'emoji en excès.',
+            effort: 'low',
             prompt: claudeContext() + '\nSujet : ' + (state.theme || '') + '\nScript :\n' + state.scenes.join('\n') + '\n\nDonne "caption" (moins de 150 caractères) et "hashtags" (5 à 8, sans le #).',
             schema: { type: 'object', properties: { caption: { type: 'string' }, hashtags: { type: 'array', items: { type: 'string' } } }, required: ['caption', 'hashtags'], additionalProperties: false }
         });

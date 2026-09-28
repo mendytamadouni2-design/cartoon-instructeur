@@ -7,9 +7,14 @@
 const CLAUDE_API = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_FALLBACK_MODELS = ['claude-opus-5'];   // modèles qui acceptent fallbacks: "default"
 function getClaudeKey() { return getLS(STORAGE.CLAUDE_KEY).trim(); }
-function getClaudeModel() { return getLS(STORAGE.CLAUDE_MODEL) || 'claude-opus-5'; }
+const CLAUDE_DEFAULT_MODEL = 'claude-opus-5-5';   // plus récent et ~20 % moins cher qu'Opus 5
+function getClaudeModel() { return getLS(STORAGE.CLAUDE_MODEL) || CLAUDE_DEFAULT_MODEL; }
+// une fois : l'ancien choix par défaut (Opus 5) passe à Opus 5.5
+try { if (!localStorage.getItem('claude_model_v55') && localStorage.getItem(STORAGE.CLAUDE_MODEL) === 'claude-opus-5') localStorage.setItem(STORAGE.CLAUDE_MODEL, CLAUDE_DEFAULT_MODEL); localStorage.setItem('claude_model_v55', '1'); } catch (e) {}
+// Effort (réflexion) : « low » pour les petits textes, « medium » pour le courant, « high » pour ce qui compte le plus
+const claudeSupportsEffort = model => !/haiku/.test(model);
 
-async function callClaude({ system, prompt, schema = null, maxTokens = 16000, images = null }) {
+async function callClaude({ system, prompt, schema = null, maxTokens = 16000, images = null, effort = 'medium' }) {
     const key = getClaudeKey();
     if (!key) throw new Error('clé Claude manquante');
     const model = getClaudeModel();
@@ -22,6 +27,7 @@ async function callClaude({ system, prompt, schema = null, maxTokens = 16000, im
     const body = { model, max_tokens: maxTokens, messages: [{ role: 'user', content }] };
     if (system) body.system = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
     if (schema) body.output_config = { format: { type: 'json_schema', schema } };
+    if (effort && claudeSupportsEffort(model)) body.output_config = { ...(body.output_config || {}), effort };
     const headers = {
         'x-api-key': key,
         'anthropic-version': '2023-06-01',
@@ -40,11 +46,12 @@ async function callClaude({ system, prompt, schema = null, maxTokens = 16000, im
         throw new Error(data?.error?.message || ('erreur HTTP ' + res.status));
     }
     if (data.usage && typeof trackCost === 'function') {
-        const [pi, po] = CLAUDE_PRICES[data.model] || CLAUDE_PRICES[model] || CLAUDE_PRICES['claude-opus-5'];
+        const [pi, po] = CLAUDE_PRICES[data.model] || CLAUDE_PRICES[model] || CLAUDE_PRICES['claude-opus-5-5'];
         const u = data.usage, cw = u.cache_creation_input_tokens || 0, cr = u.cache_read_input_tokens || 0;
         // écriture en cache : 1,25 × le prix ; relecture : 0,1 ×
-        trackCost('claude', ((u.input_tokens || 0) * pi + cw * pi * 1.25 + cr * pi * 0.1 + (u.output_tokens || 0) * po) / 1e6);
-        if (cr) { state.claudeCacheSaved = (state.claudeCacheSaved || 0) + cr * pi * 0.9 / 1e6; log('Claude : ' + cr + ' jetons relus depuis le cache'); }
+        const rf = CLAUDE_CACHE_READ[data.model] || CLAUDE_CACHE_READ[model] || 0.1;
+        trackCost('claude', ((u.input_tokens || 0) * pi + cw * pi * 1.25 + cr * pi * rf + (u.output_tokens || 0) * po) / 1e6);
+        if (cr) { state.claudeCacheSaved = (state.claudeCacheSaved || 0) + cr * pi * (1 - rf) / 1e6; log('Claude : ' + cr + ' jetons relus depuis le cache'); }
     }
     if (data.stop_reason === 'refusal') throw new Error('Claude a refusé cette demande');
     if (data.stop_reason === 'max_tokens') throw new Error('réponse trop longue, coupée');
@@ -70,6 +77,7 @@ async function generateScriptAI(theme) {
     try {
         const out = await callClaude({
             system: 'Tu écris des scripts de vidéos pédagogiques animées. Chaque ligne est dite par un personnage cartoon face caméra et devient une scène de 6 secondes. ' + SPEECH_RULES,
+            effort: 'high',
             prompt: (() => {
                 const f = typeof SCRIPT_FORMATS !== 'undefined' ? SCRIPT_FORMATS[document.getElementById('script-format-select')?.value] : null;
                 return (typeof scriptExtras === 'function' ? scriptExtras() : '') + (f
@@ -153,6 +161,7 @@ function planRequestFor(scenes) {
         ? '\nMODE TABLEAU BLANC : le décor est un fond blanc vide ; "setting" doit valoir "". Le personnage reste à gauche de l\'image ; ses actions consistent à dessiner avec un feutre, montrer ou expliquer vers l\'espace vide à sa droite (où apparaîtront les dessins). "camera" vaut toujours "medium-wide shot".'
         : '';
     return {
+        effort: 'high',
         system: 'Tu es réalisateur de dessins animés pédagogiques. Tu prépares la mise en scène d\'une vidéo générée scène par scène par une IA vidéo à partir de la photo d\'un personnage. Toutes les scènes doivent donner l\'impression d\'un seul plan-séquence continu : même décor, même lumière, gestes qui s\'enchaînent logiquement d\'une scène à l\'autre.',
         prompt: claudeContext() + '\nStyle visuel : ' + (style ? style.name : 'cartoon') + '.\n' +
             'Pour la vidéo entière, donne "setting" : une description en anglais (1 à 2 phrases) d\'un décor unique, SIMPLE et épuré (peu d\'objets, fond calme qui ne détourne pas l\'attention du personnage), lié au sujet, qui restera identique dans toutes les scènes. Aucun texte, panneau écrit ou lettre dans le décor.\n' +

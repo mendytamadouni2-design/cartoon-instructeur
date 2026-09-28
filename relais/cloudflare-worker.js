@@ -366,7 +366,7 @@ export class VideoJob {
         await this.storage.put('job', job);
         await this.storage.put('templates', p.templates);
         await this.storage.put('image', p.image);
-        await this.storage.put('secrets', { agnesKey: p.agnesKey, claudeKey: p.claudeKey || '', claudeModel: p.claudeModel || 'claude-opus-5', eleven: p.eleven && p.eleven.key && p.eleven.voice ? p.eleven : null });
+        await this.storage.put('secrets', { agnesKey: p.agnesKey, claudeKey: p.claudeKey || '', claudeModel: p.claudeModel || 'claude-opus-5-5', eleven: p.eleven && p.eleven.key && p.eleven.voice ? p.eleven : null });
         await this.storage.put('drawings', given);
         // les dessins déjà fournis (storyboard validé) ne sont pas refaits
         job.drawingRequests = job.drawingRequests.map((r, i) => given[i] ? null : r);
@@ -717,11 +717,14 @@ function mergePlan(out, fallback) {
 }
 
 async function callClaude(secrets, req) {
-    const model = secrets.claudeModel || 'claude-opus-5';
+    const model = secrets.claudeModel || 'claude-opus-5-5';
     const body = { model, max_tokens: req.maxTokens || 16000, messages: [{ role: 'user', content: req.prompt }] };
     // consignes mises en cache 5 min : les appels suivants (dessins scène par scène…) les relisent à ~10 % du prix
     if (req.system) body.system = [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }];
     if (req.schema) body.output_config = { format: { type: 'json_schema', schema: req.schema } };
+    // effort de réflexion : « medium » par défaut (moins de jetons facturés), sauf Haiku qui ne le gère pas
+    const effort = ['low', 'medium', 'high'].includes(req.effort) ? req.effort : 'medium';
+    if (!/haiku/.test(model)) body.output_config = { ...(body.output_config || {}), effort };
     const headers = { 'x-api-key': secrets.claudeKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
     if (CLAUDE_FALLBACK_MODELS.includes(model)) { body.fallbacks = 'default'; headers['anthropic-beta'] = 'server-side-fallback-2026-07-01'; }
     const res = await fetch(CLAUDE_API, { method: 'POST', headers, body: JSON.stringify(body) });

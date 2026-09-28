@@ -475,7 +475,7 @@ function updateClaudePanel() {
     const sel = document.getElementById('claude-model-select');
     if (!panel || !input || !line || !txt) return;
     const key = getLS(STORAGE.CLAUDE_KEY).trim();
-    const model = getLS(STORAGE.CLAUDE_MODEL) || 'claude-opus-5';
+    const model = getClaudeModel();
     if (sel) sel.value = model;
     const modelName = sel?.selectedOptions?.[0]?.textContent.split(' (')[0] || model;
     if (key) { panel.classList.add('ok'); line.classList.add('ok'); txt.textContent = 'Clé active · ' + key.slice(0, 10) + '…' + key.slice(-4) + ' · ' + modelName; input.value = key; }

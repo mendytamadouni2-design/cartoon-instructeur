@@ -125,7 +125,8 @@ async function enablePush() {
 // ══════════════════════════════════════════════════════════════════
 // ESTIMATION DU COÛT ET DE LA DURÉE
 // ══════════════════════════════════════════════════════════════════
-const CLAUDE_PRICES = { 'claude-opus-5': [5, 25], 'claude-sonnet-5': [2, 10], 'claude-haiku-4-5': [1, 5] };
+const CLAUDE_CACHE_READ = { 'claude-opus-5-5': 0.05 };   // relecture du cache : part du prix normal
+const CLAUDE_PRICES = { 'claude-opus-5-5': [4, 20], 'claude-opus-5': [5, 25], 'claude-sonnet-5': [2, 10], 'claude-haiku-4-5': [1, 5] };
 function updateEstimate() {
     const el = document.getElementById('estimate-line'); if (!el) return;
     const n = state.scenes.length;
@@ -135,7 +136,7 @@ function updateEstimate() {
     const montageMin = Math.max(1, Math.ceil((n * 6 + 12) / 60 + n * 0.1));
     let claude = 0;
     if (getClaudeKey()) {
-        const [pi, po] = CLAUDE_PRICES[getClaudeModel()] || CLAUDE_PRICES['claude-opus-5'];
+        const [pi, po] = CLAUDE_PRICES[getClaudeModel()] || CLAUDE_PRICES['claude-opus-5-5'];
         claude += ((2500 + 80 * n) * pi + (2000 + 180 * n) * po) / 1e6;
         if (isWhiteboard()) claude += n * (900 * pi + 2200 * po) / 1e6;
         claude *= 0.92;

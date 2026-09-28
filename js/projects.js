@@ -295,6 +295,7 @@ async function captionFor(theme, lines) {
     try {
         const out = await callClaude({
             system: 'Tu écris les textes de publication TikTok / Instagram de vidéos pédagogiques : une phrase qui donne envie de regarder jusqu\'au bout, puis des hashtags pertinents.',
+            effort: 'low',
             prompt: claudeContext() + '\nSujet : ' + theme + '\nScript :\n' + lines.join('\n') + '\n\nDonne "caption" (moins de 150 caractères) et "hashtags" (5 à 8, sans le #).',
             schema: { type: 'object', properties: { caption: { type: 'string' }, hashtags: { type: 'array', items: { type: 'string' } } }, required: ['caption', 'hashtags'], additionalProperties: false }
         });
@@ -521,6 +522,7 @@ async function draftReplies() {
         const titles = Object.fromEntries(getJSON(STORAGE.YT_PUBLISHED, []).map(v => [v.id, v.title]));
         const out = await callClaude({
             system: 'Tu réponds aux commentaires YouTube d\'une chaîne de vidéos pédagogiques animées, au nom du personnage de la chaîne : ton chaleureux, drôle et bienveillant, réponses courtes (1 à 2 phrases), dans la langue du commentaire. Tu remercies, tu réponds précisément aux questions (sans inventer), et tu invites parfois à voir une autre vidéo ou à s\'abonner. Jamais de réponse pour un commentaire haineux : réponds alors "".',
+            effort: 'low',
             prompt: JSON.stringify(list.map((c, i) => ({ i, video: titles[c.videoId] || '', comment: c.text }))) + '\n\nDonne "replies" : pour chaque commentaire, { "i", "reply" }.',
             schema: { type: 'object', properties: { replies: { type: 'array', items: { type: 'object', properties: { i: { type: 'integer' }, reply: { type: 'string' } }, required: ['i', 'reply'], additionalProperties: false } } }, required: ['replies'], additionalProperties: false }
         });
@@ -557,6 +559,7 @@ async function buildPedagoSheet() {
     setStatus('Claude rédige la fiche pédagogique…');
     const out = await callClaude({
         system: 'Tu es enseignant. Tu rédiges des fiches pédagogiques claires et justes à partir du script d\'une vidéo éducative, pour les élèves et leurs parents ou professeurs.',
+        effort: 'high',
         prompt: claudeContext() + '\nSujet : ' + (state.theme || '') + '\nScript de la vidéo :\n' + state.scenes.join('\n') +
             '\n\nDonne : "title", "objectives" (3 objectifs « Je sais… »), "summary" (résumé de 5 à 8 phrases), "vocabulary" (4 à 6 mots importants avec une définition simple), "quiz" (5 questions à 3 choix, "answer" = numéro du bon choix, de 0 à 2, et "explanation" en une phrase), "activity" (une petite activité ou expérience à faire à la maison ou en classe).',
         schema: { type: 'object', properties: {

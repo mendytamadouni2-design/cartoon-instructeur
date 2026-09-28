@@ -15,6 +15,7 @@ async function thumbnailText() {
         try {
             const out = await callClaude({
                 system: 'Tu écris les textes de miniatures YouTube pour des vidéos pédagogiques : très courts, intrigants, lisibles en un coup d\'œil.',
+                effort: 'low',
                 prompt: claudeContext() + '\nThème : ' + (state.theme || '') + '\nScript :\n' + state.script + '\n\nDonne le texte de la miniature : 2 à 4 mots maximum, percutants (question, chiffre ou promesse).',
                 schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false },
                 maxTokens: 2000
@@ -90,6 +91,7 @@ async function generateSEO() {
     try {
         const out = await callClaude({
             system: 'Tu es expert en référencement YouTube pour des vidéos pédagogiques.',
+            effort: 'low',
             prompt: claudeContext() + '\nThème : ' + (state.theme || 'non précisé') + '\nScript :\n' + state.script + '\n\nPropose un titre accrocheur (moins de 70 caractères), une description (3 à 5 phrases, avec un appel à s\'abonner), 10 à 15 tags, et le texte de la miniature (2 à 4 mots percutants).',
             schema: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } }, thumbnail: { type: 'string' } }, required: ['title', 'description', 'tags', 'thumbnail'], additionalProperties: false }
         });
