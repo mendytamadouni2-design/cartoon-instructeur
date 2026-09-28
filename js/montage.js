@@ -526,7 +526,7 @@ function createSfx(actx, out) {
             gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(0.18, t + 0.15); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
             s.connect(f).connect(gn).connect(out); s.start(t); s.stop(t + 0.55);
         },
-        stop() { try { src.stop(); lfo.stop(); } catch (e) {} }
+        stop() { try { src.stop(actx.currentTime); lfo.stop(actx.currentTime); } catch (e) {} }
     };
 }
 
@@ -623,17 +623,32 @@ function runFrames(dur, render, shouldEnd) {
     });
 }
 
-async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format = null, preview = null, items: only = null } = {}) {
+// Montage : image par image (WebCodecs) quand l'appareil le permet, sinon enregistrement en temps réel
+async function assembleVideo(opts = {}) {
+    if (!opts.preview && state.fastExport !== false && webcodecsAvailable()) {
+        try { return await assembleVideoCore({ ...opts, offline: true }); }
+        catch (e) {
+            if (state.stopRequested || /Arrêt demandé/.test(e.message)) throw e;
+            log('Montage accéléré indisponible (' + e.message + ') : montage classique');
+            showToast('Montage accéléré indisponible sur cet appareil : montage classique (garde l\'appli ouverte)', 'warn', 5000);
+        }
+    }
+    return assembleVideoCore({ ...opts, offline: false });
+}
+async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', format = null, preview = null, items: only = null, offline = false } = {}) {
     const items = only || montageItems();
     if (!items.some(it => it.sceneIndex >= 0)) throw new Error('aucune scène terminée à assembler');
-    const mime = preview ? '' : pickRecorderMime();
+    const mime = preview || offline ? '' : pickRecorderMime();
     if (mime === null) throw new Error('ce navigateur ne sait pas enregistrer de vidéo');
-    const actx = getAudioCtx();
-    try { await actx.resume(); } catch (e) {}
-    Object.assign(montagePause, { on: false, since: 0, total: 0, rec: null, actx, resuming: null });
+    const rtCtx = getAudioCtx();
+    if (!offline) { try { await rtCtx.resume(); } catch (e) {} }
+    Object.assign(montagePause, { on: false, since: 0, total: 0, rec: null, actx: offline ? null : rtCtx, resuming: null });
     await loadIcons();   // icônes des illustrations et des graphiques
     const { premium } = await prepareAssets(items, label);
     const segs = buildSegments(items, maxDuration);
+    // horloge du montage : en image par image, le son est programmé sur l'instant de l'image calculée
+    const clock = { t: 0 };
+    const actx = offline ? createOfflineAudio(estimateTimeline(segs, maxDuration), clock) : rtCtx;
     const musicBuf = await loadMusicBuffer();
     const logoImg = await loadLogoImage();
     const wb = isWhiteboard();
@@ -662,8 +677,9 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     drawFrame(g, pending, W, H);
     // Aperçu : on affiche directement le canvas et on joue le son, sans rien enregistrer
     if (preview) { preview.innerHTML = ''; canvas.className = 'preview-canvas'; preview.appendChild(canvas); preview.classList.remove('hidden'); }
-    const vStream = preview ? null : canvas.captureStream(30);
-    const dest = preview ? actx.destination : actx.createMediaStreamDestination();
+    const vStream = preview || offline ? null : canvas.captureStream(30);
+    const dest = preview || offline ? actx.destination : actx.createMediaStreamDestination();
+    const session = offline ? await createOfflineSession({ W, H, bitrate: state.exportQuality === '720' ? 5000000 : 10000000, sampleRate: actx.sampleRate }) : null;
     // Voix : compresseur « studio » puis gain de rattrapage
     const comp = actx.createDynamicsCompressor();
     comp.threshold.value = -22; comp.knee.value = 12; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
@@ -674,8 +690,8 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     const musicGain = actx.createGain(); musicGain.gain.value = 0.0001; musicGain.connect(dest);
     const musicHigh = state.musicVolume, musicLow = state.musicVolume * 0.32;
     const duckTo = level => musicGain.gain.setTargetAtTime(Math.max(0.0001, level), actx.currentTime, 0.18);
-    const stream = preview ? null : new MediaStream([...vStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
-    const rec = preview ? null : mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: state.exportQuality === '720' ? 5000000 : 10000000 }) : new MediaRecorder(stream);
+    const stream = preview || offline ? null : new MediaStream([...vStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+    const rec = preview || offline ? null : mime ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: state.exportQuality === '720' ? 5000000 : 10000000 }) : new MediaRecorder(stream);
     const chunks = [];
     if (rec) rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
     const stopped = rec ? new Promise(res => { rec.onstop = res; }) : Promise.resolve();
@@ -684,11 +700,32 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     const timeline = [];
     let T = 0, hasPrev = false, prevSketch = null, prevWasScene = false, prevWasBoard = false, prevWasCard = false, musicSrc = null;
     if (rec) { rec.start(1000); montagePause.rec = rec; }
-    if (musicBuf) { musicSrc = actx.createBufferSource(); musicSrc.buffer = musicBuf; musicSrc.loop = true; musicSrc.connect(musicGain); musicSrc.start(); duckTo(musicHigh); }
+    if (musicBuf) { musicSrc = actx.createBufferSource(); musicSrc.buffer = musicBuf; musicSrc.loop = true; musicSrc.connect(musicGain); musicSrc.start(offline ? 0 : undefined); duckTo(musicHigh); }
 
+    // Joue un segment : en temps réel (runFrames) ou image par image (chaque image encodée, horloge exacte)
+    let frameCount = 0;
+    const playSegment = async (dur, render, shouldEnd, before) => {
+        if (!offline) return runFrames(dur, render, shouldEnd);
+        const step = 1 / session.fps;
+        let f = 0;
+        for (;;) {
+            const t = f * step;
+            if (t >= dur - 1e-6 || state.stopRequested || (shouldEnd && shouldEnd(t))) break;
+            clock.t = T + t;
+            if (before) await before(t);
+            render(t);
+            await session.frame(canvas, T + t);
+            f++; frameCount++;
+            if (frameCount % 20 === 0) { setStatus(label + ' : image ' + frameCount + ' (' + Math.round(T + t) + ' s calculées)'); await new Promise(r => setTimeout(r, 0)); }
+        }
+        clock.t = T + f * step;
+        return f * step;
+    };
+    let done = false;
     try {
         for (let si = 0; si < segs.length; si++) {
             const seg = segs[si];
+            clock.t = T;
             if (state.stopRequested) throw new Error('Arrêt demandé');
             while (montagePause.on && !state.stopRequested) { if (!document.hidden) resumeMontage(); await new Promise(r => setTimeout(r, 300)); }
             if (rec && rec.state === 'inactive') throw new Error('le téléphone a coupé l\'enregistrement pendant que l\'appli était en arrière-plan. Relance « Assembler la vidéo finale » en gardant l\'appli ouverte');
@@ -719,7 +756,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 // jamais de plan vide : sans dessin ni graphique, les mots-clés s'affichent en liste animée
                 let boardGraphic = normalizeGraphic(plan.graphic);
                 if (boardGraphic.type === 'none' && !drawing && plan.keywords?.length) boardGraphic = normalizeGraphic({ type: 'list', title: '', unit: '', items: plan.keywords.map(k => ({ label: k, value: 0 })) });
-                const played = await runFrames(dur, t => {
+                const played = await playSegment(dur, t => {
                     const active = drawBoardShot(g, W, H, t, dur, { backdrop, drawing, sched, title: plan.bubble || '', presenter, graphic: boardGraphic, words, keywords: plan.keywords });
                     sfx.scribble(active);
                     if (plan.highlight && t > dur * 0.55) drawHighlight(g, W, H, plan.highlight, t - dur * 0.55, dur - t);
@@ -732,7 +769,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                     if (qa) qa.tick(canvas, T + t, t, dur, info);
                 });
                 sfx.scribble(false);
-                try { src.stop(); } catch (e) {}
+                try { src.stop(actx.currentTime); } catch (e) {}
                 timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played, narration: true });
                 // image de fin propre (sans sous-titres ni logo) pour la transition suivante
                 drawBoardShot(pg, W, H, played, dur, { backdrop, drawing, sched, title: plan.bubble || '', presenter, graphic: boardGraphic, words, keywords: plan.keywords });
@@ -746,7 +783,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 if (musicBuf) duckTo(musicHigh);
                 if (seg.type === 'intro') sfx.pop(); else if (seg.type === 'card') sfx.whoosh();
                 const fadeFromPrev = hasPrev;
-                const played = await runFrames(dur, t => {
+                const played = await playSegment(dur, t => {
                     // le titre descend et recouvre l'image précédente (pas de fondu qui assombrit le personnage)
                     const drop = fadeFromPrev && t < 0.45 ? 1 - easeOut(t / 0.45) : 0;
                     if (drop > 0) { g.drawImage(prevCanvas, 0, 0); g.save(); g.translate(0, -H * drop); }
@@ -823,7 +860,9 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 src.connect(vg).connect(comp);
             }
             if (musicBuf) duckTo(musicLow);
-            try { await v.play(); } catch (e) {}
+            // image par image : la scène est décodée/positionnée à l'instant exact de chaque image
+            const fsrc = offline ? await openFrameSource(item, v) : null, sv = fsrc ? fsrc.canvas : v;
+            if (fsrc) await fsrc.at(cut.tin); else { try { await v.play(); } catch (e) {} }
             if (src) {
                 try {
                     if (usingFit) src.start(actx.currentTime + Math.max(0, fitDelay), Math.max(0, -fitDelay), Math.max(0.1, dur - Math.max(0, fitDelay)));
@@ -831,7 +870,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 } catch (e) {}
             }
             let labelShown = false, bubblePopped = false, highlightPopped = false;
-            const played = await runFrames(dur, t => {
+            const played = await playSegment(dur, t => {
                 // calque « scène » (zoomable)
                 g.save();
                 if (zoomAt !== null) {
@@ -843,7 +882,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                     // plan « tableau seul » : le dessin en plein écran, léger mouvement de caméra
                     g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
                     const z = 1 + 0.04 * clamp01(t / dur); g.translate(W / 2, H * 0.4); g.scale(z, z); g.translate(-W / 2, -H * 0.4);
-                } else drawSceneLayer(g, v, W, H, layerOpts);
+                } else drawSceneLayer(g, sv, W, H, layerOpts);
                 let drawingActive = false;
                 if (wb && area) {
                     if (prevSketch && t < FADE_SEC && transition === 'cut') drawSketch(g, prevSketch.area, prevSketch.drawing, 1, 1 - t / FADE_SEC);
@@ -873,13 +912,14 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 drawCaptions(g, W, H, sc, t);
                 if (logoImg) drawLogo(g, W, H, logoImg);
                 if (qa) qa.tick(canvas, T + t, t, dur, qaInfo);
-            }, t => !usingTts && v.ended && t > 0.3);
+            }, fsrc ? (t => !usingTts && cut.tin + t >= vDur - 0.02) : (t => !usingTts && v.ended && t > 0.3), fsrc ? (t => fsrc.at(cut.tin + t)) : null);
             sfx.scribble(false);
-            if (src) { try { src.stop(); } catch (e) {} }
+            if (src) { try { src.stop(actx.currentTime); } catch (e) {} }
             timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played });
             prevSketch = drawing && area ? { drawing, area } : null;
-            drawSceneLayer(pg, v, W, H, layerOpts);
-            if (item.keyed && proc) presenter = presenterFrom(proc.process(v, { grade: item.grade, key: true }), item.look);
+            drawSceneLayer(pg, sv, W, H, layerOpts);
+            if (item.keyed && proc) presenter = presenterFrom(proc.process(sv, { grade: item.grade, key: true }), item.look);
+            if (fsrc) fsrc.close();
             if (prevSketch) drawSketch(pg, area, drawing, 1, 1);
             hasPrev = true; prevWasScene = true; prevWasBoard = false; prevWasCard = false;
             disposeStageVideo(v);
@@ -888,20 +928,33 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
             const nextScene = segs.slice(si + 1).find(s => s.type === 'scene');
             if (nextScene && T < maxDuration - 0.05) { try { pending = await createStageVideo(urls.get(nextScene.item)); } catch (e) { pending = null; } }
         }
+        done = true;
     } finally {
         if (montagePause.on) { try { await actx.resume(); } catch (e) {} }
         Object.assign(montagePause, { on: false, rec: null, actx: null, resuming: null });
         if (proc) proc.dispose();
         if (pending) disposeStageVideo(pending);
         sfx.stop();
-        if (musicSrc) { try { musicSrc.stop(); } catch (e) {} }
+        if (musicSrc) { try { musicSrc.stop(actx.currentTime); } catch (e) {} }
+        if (session && !done) session.abort();
         try { if (rec && rec.state !== 'inactive') rec.stop(); } catch (e) {}
         await withTimeout(stopped, 15000, 'fin d\'enregistrement').catch(() => {});
         if (stream) stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
-        [comp, makeup, sfxBus, musicGain].forEach(n => { try { n.disconnect(); } catch (e) {} });
+        // (image par image : le mixage se fait après la boucle, les pistes doivent rester branchées)
+        if (!offline) [comp, makeup, sfxBus, musicGain].forEach(n => { try { n.disconnect(); } catch (e) {} });
         urls.forEach(u => URL.revokeObjectURL(u));
     }
     if (preview) return null;
+    if (offline) {
+        // mixage du son (hors temps réel), puis encodage et assemblage du MP4
+        setStatus(label + ' : mixage du son…');
+        const mixed = trimAudio(await actx.startRendering(), T);
+        setStatus(label + ' : finalisation du fichier…');
+        const blob = await session.finish(mixed);
+        if (qa) state.qaFrames = qa.frames;
+        log('Montage image par image : ' + frameCount + ' images, ' + T.toFixed(1) + ' s, ' + session.codec + ' + ' + session.audioCodec);
+        return { blob, url: URL.createObjectURL(blob), timeline, ext: 'mp4', offline: true };
+    }
     const type = (mime || rec.mimeType || 'video/webm').split(';')[0];
     const blob = new Blob(chunks, { type });
     if (!blob.size) throw new Error('la vidéo enregistrée est vide');

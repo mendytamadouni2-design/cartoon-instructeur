@@ -249,6 +249,7 @@ async function testPhoneMontage(browser) {
     check(true, 'contrôle par l\'IA : illustration refaite en un appui');
     check(await page.evaluate(() => /Scènes refaites automatiquement[^\n]*(pas de voix|personnage muet)/.test(journalText())), 'contrôle qualité : scène muette détectée et refaite');
     check(r.size > 100000, 'vidéo finale produite (' + r.type + ', ' + Math.round(r.size / 1024) + ' Ko)');
+    check(await page.evaluate(() => state.finalExt === 'mp4' && /Montage image par image : \d+ images/.test(journalText())), 'montage fait image par image (WebCodecs) : ' + (await page.evaluate(() => (journalText().match(/Montage image par image[^\n]*/) || [''])[0])));
     check(r.tl.every(d => d > 2 && d < 3.2), 'blancs coupés (durées ' + r.tl.join(', ') + ' s)');
     check(r.fit.every(Boolean), 'voix ElevenLabs calée utilisée');
     check(r.stt.every(Boolean), 'sous-titres synchronisés au mot');
@@ -552,6 +553,26 @@ async function testCompositor(browser) {
     check(r.iconDrawing.names.join() === 'crown,droplet' && r.iconDrawing.labels === 'Roi,Peuple,Libre' && r.iconDrawing.paths > 6, 'illustration : icônes de la bibliothèque + dessin libre (commandes relatives acceptées), mots-clés dessous (' + JSON.stringify(r.iconDrawing) + ')');
     check(r.ng.items[0].value === 0 && r.none === 'none', 'graphiques invalides neutralisés');
     check(r.played > 1.1 && r.wall > 2, 'montage en pause quand l\'appli passe en arrière-plan, puis reprise (' + r.played.toFixed(2) + ' s joués en ' + r.wall.toFixed(2) + ' s)');
+    // montage image par image : encodage MP4 puis relecture image par image par le décodeur (chaque image a sa couleur)
+    const wc = await page.evaluate(async () => {
+        if (!webcodecsAvailable()) return { skipped: true };
+        const W = 320, H = 180, se = await createOfflineSession({ W, H, bitrate: 1e6, sampleRate: 48000 });
+        const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+        for (let f = 0; f < 60; f++) { g.fillStyle = 'rgb(' + (f * 4) + ',' + (f * 4) + ',' + (f * 4) + ')'; g.fillRect(0, 0, W, H); await se.frame(c, f / 30); }
+        const ab = new AudioBuffer({ numberOfChannels: 2, length: 96000, sampleRate: 48000 });
+        for (let ch = 0; ch < 2; ch++) { const d = ab.getChannelData(ch); for (let i = 0; i < d.length; i++) d[i] = Math.sin(i / 10) * 0.4; }
+        const blob = await se.finish(ab);
+        const src = await openFrameSource({ blob, sceneIndex: 0 }, null);
+        const red = async t => { await src.at(t); return src.canvas.getContext('2d').getImageData(10, 10, 1, 1).data[0]; };
+        const reds = [await red(0), await red(0.5), await red(1.0), await red(1.9)];
+        src.close();
+        const dec = await new AudioContext().decodeAudioData(await blob.arrayBuffer());
+        let e = 0; const d = dec.getChannelData(0); for (let i = 0; i < d.length; i++) e += d[i] * d[i];
+        return { kind: src.kind, reds, audio: Math.sqrt(e / d.length), dur: dec.duration, codec: se.codec };
+    });
+    check(wc.skipped || (wc.kind === 'decoder' && Math.abs(wc.reds[1] - 60) < 6 && Math.abs(wc.reds[2] - 120) < 6 && Math.abs(wc.reds[3] - 228) < 6 && wc.reds[0] < 6),
+        'montage image par image : MP4 encodé puis relu à l\'image près (' + JSON.stringify(wc.reds) + ', ' + wc.codec + ')');
+    check(wc.skipped || (wc.audio > 0.2 && Math.abs(wc.dur - 2) < 0.1), 'montage image par image : son mixé et encodé (' + (wc.audio || 0).toFixed(2) + ')');
     const cut = await page.evaluate(() => { state.trimMode = 'auto'; return sceneCutAuto({ sttWords: [{ text: 'Bonjour', start: 0.9, end: 1.3 }, { text: 'toi', start: 1.4, end: 2.6 }], speech: { silent: false, start: 0.2, end: 5.8, coverage: 0.99 } }, 6, 1); });
     check(Math.abs(cut.tin - 0.78) < 0.01 && Math.abs(cut.tout - 2.9) < 0.01, 'scène coupée juste avant le premier mot et juste après le dernier (pas de blanc entre les scènes)');
     const ind = await page.evaluate(() => { localStorage.setItem('elevenlabs_api_key', 'sk_x'); elevenlabsSelectedVoiceId = 'v1'; state.voiceSource = 'premium'; state.ttsEngine = 'elevenlabs'; updateVoiceIndicator(); return document.getElementById('voice-indicator')?.textContent || ''; });

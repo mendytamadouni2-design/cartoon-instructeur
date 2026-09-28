@@ -281,7 +281,7 @@ function drawSceneLayer(g, v, W, H, o) {
     if (o.framing) { const f = o.framing; g.translate(f.cx * W, f.cy * H); g.scale(f.z, f.z); g.translate(-f.cx * W, -f.cy * H); }
     if (o.keyed && layer) {
         drawDecor(g, W, H);
-        const vw = v.videoWidth, vh = v.videoHeight, fit = Math.min(W / vw, H / vh);
+        const vw = v.videoWidth || v.width, vh = v.videoHeight || v.height, fit = Math.min(W / vw, H / vh);
         const dw = vw * fit, dh = vh * fit, dx = (W - dw) / 2, dy = (H - dh) / 2;
         const a = o.align || { s: 1, dx: 0, dy: 0 };
         g.drawImage(layer, dx + a.dx * dw, dy + a.dy * dh, dw * a.s, dh * a.s);
