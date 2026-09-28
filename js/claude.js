@@ -17,7 +17,10 @@ async function callClaude({ system, prompt, schema = null, maxTokens = 16000, im
     const content = images && images.length
         ? [...images.map(d => ({ type: 'image', source: { type: 'base64', media_type: d.slice(5, d.indexOf(';')), data: d.slice(d.indexOf(',') + 1) } })), { type: 'text', text: prompt }]
         : prompt;
-    const body = { model, max_tokens: maxTokens, system, messages: [{ role: 'user', content }] };
+    // Cache des consignes : le « system » (identique d'un appel à l'autre) est gardé 5 min par Anthropic ;
+    // les appels suivants le relisent à ~10 % du prix (ignoré s'il est trop court pour être mis en cache)
+    const body = { model, max_tokens: maxTokens, messages: [{ role: 'user', content }] };
+    if (system) body.system = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
     if (schema) body.output_config = { format: { type: 'json_schema', schema } };
     const headers = {
         'x-api-key': key,
@@ -38,7 +41,10 @@ async function callClaude({ system, prompt, schema = null, maxTokens = 16000, im
     }
     if (data.usage && typeof trackCost === 'function') {
         const [pi, po] = CLAUDE_PRICES[data.model] || CLAUDE_PRICES[model] || CLAUDE_PRICES['claude-opus-5'];
-        trackCost('claude', ((data.usage.input_tokens || 0) * pi + (data.usage.output_tokens || 0) * po) / 1e6);
+        const u = data.usage, cw = u.cache_creation_input_tokens || 0, cr = u.cache_read_input_tokens || 0;
+        // écriture en cache : 1,25 × le prix ; relecture : 0,1 ×
+        trackCost('claude', ((u.input_tokens || 0) * pi + cw * pi * 1.25 + cr * pi * 0.1 + (u.output_tokens || 0) * po) / 1e6);
+        if (cr) { state.claudeCacheSaved = (state.claudeCacheSaved || 0) + cr * pi * 0.9 / 1e6; log('Claude : ' + cr + ' jetons relus depuis le cache'); }
     }
     if (data.stop_reason === 'refusal') throw new Error('Claude a refusé cette demande');
     if (data.stop_reason === 'max_tokens') throw new Error('réponse trop longue, coupée');

@@ -77,6 +77,10 @@ const mockStats = { drawChecks: 0, paths: 0, refChecks: 0, qa: 0, images: 0 };
 function claudeMock(route) {
     const body = JSON.parse(route.request().postData());
     const props = body.output_config?.format?.schema?.properties || {};
+    // consignes envoyées en bloc mis en cache
+    const sys = body.system;
+    if (sys !== undefined && !(Array.isArray(sys) && sys.length === 1 && sys[0].cache_control?.type === 'ephemeral' && sys[0].text)) mockStats.badSystem = (mockStats.badSystem || 0) + 1;
+    if (process.env.SYSLEN && Array.isArray(sys)) console.log('SYSLEN', sys[0].text.length, JSON.stringify(body.messages[0].content).length, Object.keys(props).join(','));
     const content = body.messages?.[0]?.content;
     if (Array.isArray(content)) mockStats.images = Math.max(mockStats.images, content.filter(c => c.type === 'image').length);
     let out;
@@ -390,6 +394,7 @@ async function testPhoneMontage(browser) {
     await page.click('[data-comment-send="0"]');
     await page.waitForFunction(() => !state.comments.length, null, { timeout: 20000 });
     check(replies.length === 1 && replies[0].snippet.parentId === 't1' && replies[0].snippet.textOriginal.startsWith('Merci'), 'réponse publiée sur YouTube');
+    check(!mockStats.badSystem, 'consignes de Claude envoyées avec le cache (moins cher)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }

@@ -718,7 +718,9 @@ function mergePlan(out, fallback) {
 
 async function callClaude(secrets, req) {
     const model = secrets.claudeModel || 'claude-opus-5';
-    const body = { model, max_tokens: req.maxTokens || 16000, system: req.system, messages: [{ role: 'user', content: req.prompt }] };
+    const body = { model, max_tokens: req.maxTokens || 16000, messages: [{ role: 'user', content: req.prompt }] };
+    // consignes mises en cache 5 min : les appels suivants (dessins scène par scène…) les relisent à ~10 % du prix
+    if (req.system) body.system = [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }];
     if (req.schema) body.output_config = { format: { type: 'json_schema', schema: req.schema } };
     const headers = { 'x-api-key': secrets.claudeKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
     if (CLAUDE_FALLBACK_MODELS.includes(model)) { body.fallbacks = 'default'; headers['anthropic-beta'] = 'server-side-fallback-2026-07-01'; }
