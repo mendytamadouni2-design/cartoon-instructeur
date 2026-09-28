@@ -325,12 +325,17 @@ function strokeSketch(ctx, area, drawing, fracs, alpha, showTip) {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 4.5;
     drawing.strokes.forEach((st, i) => {
         const f = fracs[i];
-        if (f <= 0) return;
+        if (f <= 0 || st.ghost) return;   // trait fantôme : horloge d'un emoji, jamais dessiné
         ctx.strokeStyle = st.color;
         if (f >= 1) { ctx.setLineDash([]); ctx.stroke(st.path2d); return; }
         const l = st.len * f;
         ctx.setLineDash([l, st.len + 10]); ctx.lineDashOffset = 0; ctx.stroke(st.path2d);
-        try { tip = st.el.getPointAtLength(l); } catch (e) {}
+        if (!st.ghost) { try { tip = st.el.getPointAtLength(l); } catch (e) {} }
+    });
+    // emojis 3D : apparaissent en rebondissant au rythme de leur trait fantôme
+    (drawing.images || []).forEach(im => {
+        const img = emojiImageNow(im.name), f = fracs[im.stroke] ?? 0;
+        if (img && f > 0) { ctx.save(); ctx.globalAlpha = alpha; drawEmoji(ctx, img, im.x, im.y, im.size, f); ctx.restore(); }
     });
     (drawing.labels || []).forEach(lb => {
         const a = clamp01(((fracs[lb.stroke] ?? 0) - 0.5) / 0.5);
@@ -385,6 +390,7 @@ function drawingSchedule(drawing, wordTimes, dur) {
 }
 function drawSketchTimed(ctx, area, drawing, sched, t, alpha) {
     if (!drawing || !sched) return false;
+    GR_NOW = t;
     return strokeSketch(ctx, area, drawing, sched.map(s => clamp01((t - s.start) / Math.max(0.01, s.end - s.start))), alpha, true);
 }
 function drawSketchLabel(ctx, area, text, alpha) {
@@ -643,7 +649,8 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     const rtCtx = getAudioCtx();
     if (!offline) { try { await rtCtx.resume(); } catch (e) {} }
     Object.assign(montagePause, { on: false, since: 0, total: 0, rec: null, actx: offline ? null : rtCtx, resuming: null });
-    await loadIcons();   // icônes des illustrations et des graphiques
+    // icônes des graphiques (emojis 3D pour les styles colorés), chargées avant la première image
+    await preloadVideoIcons(items.flatMap(it => (scenePlanFor(it.sceneIndex).graphic?.items || []).map(x => x.icon)).filter(Boolean));
     const { premium } = await prepareAssets(items, label);
     const segs = buildSegments(items, maxDuration);
     // horloge du montage : en image par image, le son est programmé sur l'instant de l'image calculée

@@ -26,18 +26,49 @@ function iconShape(name, paths) {
     return shape;
 }
 const iconLookupCache = new Map(), morphCache = new Map();
+// Mots-clés → icône : emoji 3D (styles colorés) si son image est prête, sinon pictogramme au trait
 function resolveIcon(keywords) {
     const key = String(keywords || '').trim().toLowerCase();
     if (!key) return null;
-    if (iconLookupCache.has(key)) return iconLookupCache.get(key);
-    const hit = typeof findIcon === 'function' ? findIcon(key.split(/\s*[,;|]\s*/)) : null;
+    const style = iconStyle(), ck = style + '|' + key;
+    if (iconLookupCache.has(ck)) return iconLookupCache.get(ck);
+    const words = key.split(/\s*[,;|]\s*/);
+    if (style === '3d' && EMOJI3D) {
+        const name = findEmoji(words);
+        if (name) {
+            const img = emojiImageNow(name);
+            if (img) { const r = { kind: 'emoji', name, img }; iconLookupCache.set(ck, r); return r; }
+            loadEmojiImage(name);   // pas encore chargée : pictogramme au trait en attendant (non mémorisé)
+            const hit = findIcon(words);
+            return hit ? iconShape(hit.name, hit.paths) : null;
+        }
+    }
+    const hit = typeof findIcon === 'function' ? findIcon(words) : null;
     const shape = hit ? iconShape(hit.name, hit.paths) : null;
-    if (ICONS) iconLookupCache.set(key, shape);   // on ne mémorise qu'une fois la bibliothèque chargée
+    if (ICONS && (style !== '3d' || EMOJI3D)) iconLookupCache.set(ck, shape);   // mémorisé une fois les bibliothèques chargées
     return shape;
+}
+let GR_NOW = 0;   // instant du plan en cours (flottement des emojis)
+// Emoji 3D : entre en rebondissant (échelle + rotation + fondu), puis flotte doucement au-dessus de son ombre
+function drawEmoji(ctx, img, cx, cy, size, prog = 1, { alpha = 1, t = GR_NOW, float = true } = {}) {
+    const p = clamp01m(prog);
+    if (!img || p <= 0 || alpha <= 0) return;
+    const pop = EASE.outBack(p), sc = 0.5 + 0.5 * pop, rot = (1 - EASE.outCubic(p)) * -0.35;
+    const fl = float && p >= 1 ? breathe(t, { amp: size * 0.025, period: 2.6, phase: (cx * 0.013) % 1 }) : 0;
+    ctx.save();
+    ctx.globalAlpha *= alpha * clamp01m(p * 2.5);
+    // ombre portée douce, qui rétrécit quand l'emoji monte
+    const sh = 1 - fl / (size * 0.1);
+    ctx.fillStyle = 'rgba(0,0,0,0.13)';
+    ctx.beginPath(); ctx.ellipse(cx, cy + size * 0.46, size * 0.3 * sc * sh, size * 0.055 * sc, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.translate(cx, cy - fl); ctx.rotate(rot); ctx.scale(sc, sc);
+    ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    ctx.restore();
 }
 // Dessine une icône (grille 24) centrée en (cx, cy), taille en pixels ; prog = part tracée (0 à 1, effet feutre)
 function drawIcon(ctx, shape, cx, cy, size, prog = 1, { color = GR_INK, width = 2, alpha = 1 } = {}) {
     if (!shape || prog <= 0 || alpha <= 0) return;
+    if (shape.kind === 'emoji') { drawEmoji(ctx, shape.img, cx, cy, size * 1.25, prog, { alpha }); return; }   // un emoji plein doit être un peu plus grand qu'un pictogramme au trait
     const s = size / 24;
     ctx.save();
     ctx.globalAlpha *= alpha;
@@ -79,6 +110,7 @@ function drawGraphic(ctx, area, gr, t, dur) {
         span: Math.max(0.8, Math.min(dur * 0.7, dur - 1.2) - 0.3),
         wide: area.w >= area.h * 1.05
     };
+    GR_NOW = t;
     ctx.save(); ctx.textBaseline = 'middle';
     (GRAPHICS[gr.type] || (() => {}))(e);
     ctx.restore();
@@ -122,7 +154,7 @@ const GRAPHICS = {
         const allDone = t > atOf(e, n - 1) + 1.2;
         items.forEach((it, k) => {
             const at = 0.25 + k * Math.min(0.35, e.span / n), y0 = top + rowH * k, ic = resolveIcon(it.icon);
-            const icS = ic ? fs * 1.25 : 0, lx = area.x + (ic ? icS + fs * 0.35 : 0);
+            const icS = ic ? fs * (ic.kind === 'emoji' ? 1.5 : 1.25) : 0, lx = area.x + (ic ? icS + fs * 0.35 : 0);
             if (ic) drawIcon(ctx, ic, area.x + icS / 2, y0 + rowH * 0.28, icS, clamp01m((t - at) / 0.5), { width: 2 });
             drawTextWipe(ctx, wrapLines(ctx, it.label, area.w - (lx - area.x))[0] || '', lx, y0 + rowH * 0.28, (t - at) / 0.4, { font: '700 ' + Math.round(fs) + 'px ' + UI_FONT, color: GR_INK, align: 'left' });
             const g = t - at - 0.15, grow = g > 0 ? spring(g, SPRINGS.smooth) : 0, count = EASE.outCubic(clamp01m(g / 1.0));
@@ -164,8 +196,9 @@ const GRAPHICS = {
             const dim = k < current ? 0.55 + 0.45 * (1 - clamp01m((t - atOf(e, k + 1)) / 0.4)) : 1;
             applyState(ctx, { ...st, alpha: st.alpha * dim }, area.x, y);
             const pop = spring(t - at, SPRINGS.bouncy), r = fs * 0.62 * Math.max(0, pop);
-            ctx.fillStyle = k === current ? acc : GR_SOFT; ctx.beginPath(); ctx.arc(bx, y, Math.max(0, r), 0, Math.PI * 2); ctx.fill();
-            if (ic) drawIcon(ctx, ic, bx, y, fs * 0.9, clamp01m((t - at - 0.1) / 0.45), { color: GR_INK, width: 2.2 });
+            if (!ic || ic.kind !== 'emoji') { ctx.fillStyle = k === current ? acc : GR_SOFT; ctx.beginPath(); ctx.arc(bx, y, Math.max(0, r), 0, Math.PI * 2); ctx.fill(); }
+            if (ic && ic.kind === 'emoji') drawIcon(ctx, ic, bx, y, fs * 1.35, clamp01m((t - at) / 0.5));
+            else if (ic) drawIcon(ctx, ic, bx, y, fs * 0.9, clamp01m((t - at - 0.1) / 0.45), { color: GR_INK, width: 2.2 });
             else {   // coche tracée au feutre
                 const cp = EASE.outCubic(clamp01m((t - at - 0.12) / 0.3));
                 ctx.strokeStyle = GR_INK; ctx.lineWidth = fs * 0.13; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -241,7 +274,7 @@ const GRAPHICS = {
                 const date = dateOf(it), dfs = fitFont(ctx, date || '•', '900', UI_FONT, colW * 0.95, Math.min(H * 0.15, colW * 0.3), 12);
                 if (date) drawTextReveal(ctx, date, x, y - H * 0.16, t - at - 0.05, { font: '900 ' + dfs + 'px ' + UI_FONT, color: k === current ? GR_INK : '#444' });
                 const ic = resolveIcon(it.icon);
-                if (ic) drawIcon(ctx, ic, x, y - H * 0.16 - dfs * 0.6 - H * 0.14, Math.min(H * 0.24, colW * 0.4), clamp01m((t - at) / 0.5), { width: 1.9 });
+                if (ic) drawIcon(ctx, ic, x, y - H * 0.16 - dfs * 0.6 - H * 0.15, Math.min(H * 0.26, colW * 0.42), clamp01m((t - at) / 0.5), { width: 1.9 });
                 const lfs = Math.max(12, Math.min(H * 0.085, colW * 0.14));
                 ctx.font = '700 ' + lfs + 'px ' + UI_FONT;
                 wrap2(ctx, it.label, colW).forEach((l, j) => drawTextWipe(ctx, l, x, y + H * 0.12 + j * lfs * 1.2, (t - at - 0.15 - j * 0.1) / 0.4, { font: '700 ' + lfs + 'px ' + UI_FONT, color: GR_INK }));
@@ -300,7 +333,7 @@ const GRAPHICS = {
     beforeafter(e) {
         const { ctx, area, t, dur, items, acc, base } = e, a = items[0], b = items[1] || items[0];
         const ia = resolveIcon(a.icon), ib = resolveIcon(b.icon);
-        const cx = area.x + area.w / 2, cy = area.y + area.h * 0.47, size = Math.min(area.h * 0.52, area.w * 0.45);
+        const cx = area.x + area.w / 2, cy = area.y + area.h * 0.44, size = Math.min(area.h * 0.5, area.w * 0.45);
         const tm = Math.max(1.4, Math.min(dur * 0.45, dur - 1.6)), mp = clamp01m((t - tm) / 0.9);
         // étiquette « Avant » / « Après » (pastille qui change)
         const tag = mp < 0.5 ? 'Avant' : 'Après', tfs = Math.round(Math.max(12, area.h * 0.075));
@@ -310,7 +343,15 @@ const GRAPHICS = {
         ctx.fillStyle = mp < 0.5 ? GR_MUTED : acc; roundRectPath(ctx, -tw / 2, -tfs * 0.75, tw, tfs * 1.5, tfs * 0.75); ctx.fill();
         ctx.fillStyle = mp < 0.5 ? '#fff' : GR_INK; ctx.textAlign = 'center'; ctx.fillText(tag, 0, 0);
         ctx.restore();
-        if (ia && ib) {
+        if (ia && ib && (ia.kind === 'emoji' || ib.kind === 'emoji')) {
+            if (mp < 0.45) {
+                const out = EASE.inBack(clamp01m(mp / 0.45));
+                ctx.save(); ctx.translate(cx, cy); ctx.rotate(out * 0.6); ctx.scale(1 - out, 1 - out); ctx.translate(-cx, -cy);
+                drawIcon(ctx, ia, cx, cy, size, clamp01m((t - 0.2) / 0.6));
+                ctx.restore();
+            }
+            if (mp > 0.35) drawIcon(ctx, ib, cx, cy, size, (mp - 0.35) / 0.65);
+        } else if (ia && ib) {
             if (mp <= 0) drawIcon(ctx, ia, cx, cy, size, clamp01m((t - 0.2) / 0.9), { width: 1.6 });
             else {
                 const mk = ia.name + '>' + ib.name;
@@ -332,7 +373,7 @@ const GRAPHICS = {
             });
         }
         // libellés : l'ancien sort vite, le nouveau entre par un masque
-        const lfs = fitFont(ctx, (mp < 0.5 ? a.label : b.label) || '', '800', UI_FONT, area.w * 0.9, Math.max(14, area.h * 0.1), 12), ly = Math.min(area.y + area.h - lfs * 0.6, cy + size * 0.62);
+        const lfs = fitFont(ctx, (mp < 0.5 ? a.label : b.label) || '', '800', UI_FONT, area.w * 0.9, Math.max(14, area.h * 0.1), 12), ly = Math.min(area.y + area.h - lfs * 0.6, cy + size * ((ia && ia.kind === 'emoji') ? 0.8 : 0.62));
         if (mp < 0.5) {
             const ex = exitState(t, { at: tm, dur: 0.25 });
             ctx.save(); ctx.globalAlpha = ex.alpha;

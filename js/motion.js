@@ -412,3 +412,99 @@ function findIcon(keywords) {
     });
     return best && bestScore >= 1.2 ? { name: best, paths: ICONS[best].d } : null;
 }
+
+// ══════════════════════════════════════════════════════════════════
+// EMOJIS 3D (Fluent Emoji de Microsoft, licence MIT) : rendu moderne des icônes pour les styles colorés.
+// Index local (data/emoji3d.json) ; images téléchargées à la demande (jsDelivr, secours GitHub) puis gardées en mémoire.
+// ══════════════════════════════════════════════════════════════════
+let EMOJI3D = null, emojiLoading = null, emojiIndex = null, emojiBase = [];
+function loadEmoji3d() {
+    if (EMOJI3D) return Promise.resolve(EMOJI3D);
+    if (!emojiLoading) emojiLoading = fetch('data/emoji3d.json?v=1').then(r => r.ok ? r.json() : null).then(j => {
+        EMOJI3D = j && j.emoji ? j.emoji : {};
+        emojiBase = j ? [j.base, j.fallback].filter(Boolean) : [];
+        emojiIndex = new Map();
+        const add = (w, name, score) => { if (!w) return; const l = emojiIndex.get(w) || []; l.push([name, score]); emojiIndex.set(w, l); };
+        for (const [name, e] of Object.entries(EMOJI3D)) {
+            name.replace(/[():,]/g, ' ').split(/[\s-]+/).filter(Boolean).forEach((w, i) => add(STEM(w), name, i === 0 ? 3 : 2));
+            (e.k || '').split('|').forEach(k => { const ws = k.split(/\s+/); ws.forEach(w => add(STEM(w), name, ws.length === 1 ? 1.6 : 1)); });
+        }
+        return EMOJI3D;
+    }).catch(() => { EMOJI3D = {}; emojiIndex = new Map(); return EMOJI3D; });
+    return emojiLoading;
+}
+const EMOJI_SYNONYMS = {
+    law: 'balance scale', justice: 'balance scale', court: 'balance scale', vote: 'ballot box with ballot', election: 'ballot box with ballot', king: 'crown', queen: 'crown', monarchy: 'crown',
+    people: 'busts in silhouette', crowd: 'busts in silhouette', population: 'busts in silhouette', citizen: 'person', family: 'busts in silhouette', money: 'money bag', coins: 'coin', cash: 'dollar banknote', tax: 'receipt', price: 'label',
+    idea: 'light bulb', bulb: 'light bulb', lightbulb: 'light bulb', memory: 'brain', science: 'test tube', chemistry: 'test tube', experiment: 'test tube', war: 'crossed swords', battle: 'crossed swords', sword: 'crossed swords', swords: 'crossed swords', army: 'military helmet', soldier: 'military helmet',
+    revolution: 'megaphone', protest: 'megaphone', speech: 'megaphone', document: 'page facing up', paper: 'page facing up', 'file-text': 'page facing up', constitution: 'scroll', treaty: 'scroll', book: 'books', 'book-open': 'open book', student: 'graduation cap', learning: 'graduation cap', teacher: 'woman teacher',
+    world: 'globe showing europe-africa', earth: 'globe showing europe-africa', globe: 'globe showing europe-africa', planet: 'ringed planet', map: 'world map', time: 'hourglass done', history: 'hourglass done', hourglass: 'hourglass done', date: 'calendar', year: 'calendar',
+    danger: 'warning', 'triangle-alert': 'warning', death: 'skull', execution: 'skull', guillotine: 'skull', water: 'droplet', rain: 'cloud with rain', 'cloud-rain': 'cloud with rain', flame: 'fire', energy: 'high voltage', electricity: 'high voltage', zap: 'high voltage',
+    heat: 'thermometer', cold: 'snowflake', light: 'sun', night: 'crescent moon', moon: 'crescent moon', industry: 'factory', pollution: 'factory', city: 'cityscape', town: 'houses', village: 'house', home: 'house', religion: 'church', palace: 'castle', landmark: 'classical building', government: 'classical building', parliament: 'classical building', state: 'classical building',
+    food: 'bread', farm: 'sheaf of rice', agriculture: 'sheaf of rice', wheat: 'sheaf of rice', growth: 'chart increasing', increase: 'chart increasing', 'trending-up': 'chart increasing', decrease: 'chart decreasing', decline: 'chart decreasing', 'trending-down': 'chart decreasing', statistics: 'bar chart', 'chart-column': 'bar chart',
+    health: 'stethoscope', doctor: 'stethoscope', medicine: 'pill', virus: 'microbe', bacteria: 'microbe', cell: 'microbe', trade: 'handshake', agreement: 'handshake', work: 'briefcase', job: 'briefcase', worker: 'construction worker',
+    boat: 'sailboat', plane: 'airplane', car: 'automobile', train: 'locomotive', 'train-front': 'locomotive', computer: 'laptop', monitor: 'desktop computer', phone: 'mobile phone', smartphone: 'mobile phone', internet: 'globe with meridians', wifi: 'globe with meridians', data: 'bar chart', database: 'card file box',
+    freedom: 'dove', peace: 'dove', bird: 'dove', love: 'red heart', heart: 'red heart', happy: 'grinning face', sad: 'crying face', angry: 'angry face', question: 'red question mark', yes: 'check mark button', no: 'cross mark',
+    target: 'bullseye', goal: 'bullseye', search: 'magnifying glass tilted left', discovery: 'magnifying glass tilted left', secret: 'key', prison: 'locked', jail: 'locked', lock: 'locked', news: 'newspaper', press: 'newspaper',
+    writing: 'writing hand', 'pen-line': 'writing hand', letter: 'envelope', mail: 'envelope', tree: 'deciduous tree', trees: 'evergreen tree', forest: 'evergreen tree', plant: 'seedling', sprout: 'seedling', leaf: 'leaf fluttering in wind', nature: 'seedling', flower: 'blossom',
+    ocean: 'water wave', sea: 'water wave', river: 'water wave', wave: 'water wave', 'waves-horizontal': 'water wave', wind: 'wind face', weather: 'sun behind cloud', animal: 'paw prints', 'paw-print': 'paw prints', dinosaur: 'sauropod',
+    space: 'rocket', atom: 'atom symbol', robot: 'robot', ai: 'robot', recycling: 'recycling symbol', recycle: 'recycling symbol', winner: 'trophy', victory: 'trophy', music: 'musical note', art: 'artist palette', sport: 'soccer ball', game: 'video game',
+    clock: 'alarm clock', gift: 'wrapped gift', party: 'party popper', celebration: 'party popper', medal: '1st place medal', muscle: 'flexed biceps', strength: 'flexed biceps', thinking: 'thinking face', weapon: 'dagger', flag: 'triangular flag',
+    'flask-conical': 'test tube', 'graduation-cap': 'graduation cap', 'heart-pulse': 'anatomical heart', stethoscope: 'stethoscope', pill: 'pill', users: 'busts in silhouette', user: 'bust in silhouette', scale: 'balance scale', gavel: 'balance scale',
+    banknote: 'dollar banknote', receipt: 'receipt', handshake: 'handshake', shield: 'shield', skull: 'skull', megaphone: 'megaphone', newspaper: 'newspaper', factory: 'factory', castle: 'castle', church: 'church', crown: 'crown'
+};
+// Mots-clés anglais → nom d'emoji 3D (ou null)
+function findEmoji(keywords) {
+    if (!EMOJI3D || !emojiIndex) return null;
+    const list = (Array.isArray(keywords) ? keywords : String(keywords || '').split(/[,;|]/)).map(k => String(k).trim().toLowerCase()).filter(Boolean);
+    let best = null, bestScore = 0;
+    list.forEach((kw, rank) => {
+        const weight = 1 / (1 + rank * 0.35);
+        const direct = EMOJI3D[kw] ? kw : EMOJI3D[kw.replace(/-/g, ' ')] ? kw.replace(/-/g, ' ') : null;
+        if (direct) { const sc = 10 * weight; if (sc > bestScore) { best = direct; bestScore = sc; } return; }
+        const syn = EMOJI_SYNONYMS[kw] || EMOJI_SYNONYMS[STEM(kw)];
+        if (syn && EMOJI3D[syn]) { const sc = 8 * weight; if (sc > bestScore) { best = syn; bestScore = sc; } return; }
+        for (const w of kw.split(/[\s-]+/)) { const sw = EMOJI_SYNONYMS[w] || EMOJI_SYNONYMS[STEM(w)]; if (sw && EMOJI3D[sw]) { const sc = 5 * weight; if (sc > bestScore) { best = sw; bestScore = sc; } } }
+        const words = kw.split(/[\s-]+/).map(STEM).filter(w => w.length > 1), tally = new Map();
+        words.forEach(w => (emojiIndex.get(w) || []).forEach(([name, s]) => tally.set(name, (tally.get(name) || 0) + s)));
+        tally.forEach((s, name) => {
+            const sc = (s / Math.max(1, words.length)) * weight - name.split(/\s+/).length * 0.08 - (/skin tone|:/.test(name) ? 1 : 0);
+            if (sc > bestScore) { best = name; bestScore = sc; }
+        });
+    });
+    return best && bestScore >= 1.4 ? best : null;
+}
+// Image d'un emoji 3D (promesse mémorisée) ; essaie jsDelivr puis GitHub
+const emojiImages = new Map();
+function loadEmojiImage(name) {
+    if (!EMOJI3D || !EMOJI3D[name]) return Promise.resolve(null);
+    if (!emojiImages.has(name)) {
+        const path = EMOJI3D[name].p.split('/').map(encodeURIComponent).join('/');
+        const tryUrl = i => i >= emojiBase.length ? Promise.resolve(null) : new Promise(res => {
+            const img = new Image(); img.crossOrigin = 'anonymous';   // indispensable : sinon le canvas est « souillé » et l'export échoue
+            img.onload = () => res(img); img.onerror = () => res(null);
+            img.src = emojiBase[i] + path;
+        }).then(img => img || tryUrl(i + 1));
+        const p = tryUrl(0).then(img => { const rec = { img, ready: !!img }; emojiImages.set(name, rec); return img; });
+        emojiImages.set(name, { promise: p, ready: false });
+    }
+    const rec = emojiImages.get(name);
+    return rec.promise || Promise.resolve(rec.img || null);
+}
+function emojiImageNow(name) { const r = emojiImages.get(name); return r && r.ready ? r.img : null; }
+// Style des icônes : traits (tableau blanc, tableau noir) ou emojis 3D (styles colorés)
+function iconStyle() {
+    const pref = state.iconStyle || 'auto';
+    if (pref === '3d' || pref === 'line') return pref;
+    return (typeof isWhiteboard === 'function' && isWhiteboard()) || state.selectedStyle === 'chalkboard' ? 'line' : '3d';
+}
+// Précharge les emojis 3D de toute la vidéo avant le montage (mots-clés des graphiques et des illustrations)
+async function preloadVideoIcons(keywordLists) {
+    await loadIcons();
+    if (iconStyle() !== '3d') return 0;
+    await loadEmoji3d();
+    const names = [...new Set(keywordLists.map(k => findEmoji(String(k || '').split(/\s*[,;|]\s*/))).filter(Boolean))];
+    const imgs = await Promise.all(names.map(n => withTimeoutSafe(loadEmojiImage(n), 12000)));
+    return imgs.filter(Boolean).length;
+}
+function withTimeoutSafe(p, ms) { return Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]); }

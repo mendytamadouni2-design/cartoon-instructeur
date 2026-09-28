@@ -9,6 +9,9 @@ const RELAY = 'https://cartoon-instructeur.mendy-tamadouni2.workers.dev';
 let failures = 0;
 // Sert les fichiers de l'appli (index.html, css/, js/, sw.js) comme GitHub Pages
 const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json' };
+// Emojis 3D (jsDelivr / GitHub) : une image locale pour tous, les tests ne dépendent pas d'internet
+const EMOJI_PNG = fs.readFileSync(path.join(__dirname, 'fixtures', 'emoji3d.png'));
+function routeEmoji(ctx) { return ctx.route(/cdn\.jsdelivr\.net|raw\.githubusercontent\.com/, r => { mockStats.emoji = (mockStats.emoji || 0) + 1; return r.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'image/png', body: EMOJI_PNG }); }); }
 function serveApp(route) {
     const rel = decodeURIComponent(new URL(route.request().url()).pathname).replace(/^\/+/, '') || 'index.html';
     const f = path.join(ROOT, rel);
@@ -162,6 +165,7 @@ async function testPhoneMontage(browser) {
     console.log('\n▶ Montage complet sur le téléphone');
     const W = await loadWorker(false);
     const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    await routeEmoji(ctx);
     const page = await ctx.newPage(); const errors = [], dialogs = [];
     page.on('pageerror', e => errors.push(e.message)); page.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
     const clipBufs = await makeClips(page);
@@ -412,6 +416,7 @@ async function testPhoneMontage(browser) {
 async function testStyles(browser) {
     console.log('\n▶ Tous les styles');
     const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    await routeEmoji(ctx);
     await ctx.route(ORIGIN + '/**', serveApp);
     const page = await ctx.newPage(); const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -483,6 +488,7 @@ async function testStyles(browser) {
 async function testCompositor(browser) {
     console.log('\n▶ Image : fond vert, couleurs, graphiques, pause du montage');
     const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    await routeEmoji(ctx);
     await ctx.route(ORIGIN + '/**', serveApp);
     const page = await ctx.newPage(); const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -512,6 +518,18 @@ async function testCompositor(browser) {
         // illustration de Claude : icônes de la bibliothèque + dessin libre, mots-clés dessous
         const laid = layoutDrawing({ link: 'arrow', elements: [{ label: 'Roi', word: '', icon: 'king, crown', paths: [] }, { label: 'Peuple', word: '', icon: 'people', paths: [] }, { label: 'Libre', word: '', icon: '', paths: [{ d: 'm10 10 l 80 80', color: 'red' }] }] });
         const iconDrawing = { names: [findIcon(['king'])?.name, findIcon(['water drop'])?.name], paths: laid.paths.length, labels: laid.labels.map(l => l.text).join(','), arrows: laid.paths.filter(p => p.d.includes('M') && p.color === 'black').length };
+        // emojis 3D pour les styles colorés, traits pour le tableau blanc
+        state.selectedStyle = 'pixar'; state.iconStyle = 'auto';
+        const loaded = await preloadVideoIcons(['crown', 'scale, justice', 'vote']);
+        const e3 = resolveIcon('crown'), rawE = { link: 'arrow', elements: [{ label: 'Roi', word: '', icon: 'crown', paths: [] }, { label: 'Vote', word: '', icon: 'vote', paths: [] }] };
+        await prepareDrawingIcons(rawE);
+        const cE = compileDrawing(layoutDrawing(rawE));
+        const c3 = document.createElement('canvas'); c3.width = 400; c3.height = 300; drawSketch(c3.getContext('2d'), { x: 0, y: 0, w: 400, h: 300 }, cE, 1, 1);
+        let opaque = 0; const px = c3.getContext('2d').getImageData(0, 0, 400, 300).data; for (let i = 3; i < px.length; i += 4) if (px[i] > 200) opaque++;
+        state.selectedStyle = 'whiteboard';
+        const wbIcon = resolveIcon('crown');
+        const emoji = { loaded, kind: e3?.kind, name: e3?.name, images: cE.images.length, ghosts: cE.strokes.filter(x => x.ghost).length, opaque, wb: wbIcon?.kind || 'line' };
+        state.selectedStyle = 'pixar';
         const ng = normalizeGraphic({ type: 'bars', items: [{ label: 'x', value: 'abc' }, { label: 'y', value: 2 }] });
         const none = normalizeGraphic({ type: 'n\'importe', items: [] });
         // pause du montage : le temps passé en arrière-plan n'est pas compté
@@ -523,7 +541,7 @@ async function testCompositor(browser) {
         const played = await runFrames(1.2, () => {});
         const wall = (performance.now() - w0) / 1000;
         Object.assign(montagePause, { on: false, actx: null });
-        return { keyed, bbox: st.bbox, gr, al, bad, ng, none: none.type, played, wall, iconDrawing };
+        return { keyed, bbox: st.bbox, gr, al, bad, ng, none: none.type, played, wall, iconDrawing, emoji };
     });
     // image de référence fournie (personnage sur fond vert) : importée, détourée, le nœud papillon vert garde sa couleur
     await page.evaluate(() => { state.greenScreen = true; state.images = [{ dataUri: 'data:image/png;base64,iVBORw0KGgo=' }]; navOpen('set-brand'); renderReference(); });
@@ -552,6 +570,7 @@ async function testCompositor(browser) {
     check(!r.bad.length, 'graphiques animés (compteur, barres, liste, comparaison, frise, chaîne, avant/après) en paysage et vertical' + (r.bad.length ? ' : ' + r.bad.join(' | ') : ''));
     check(r.iconDrawing.names.join() === 'crown,droplet' && r.iconDrawing.labels === 'Roi,Peuple,Libre' && r.iconDrawing.paths > 6, 'illustration : icônes de la bibliothèque + dessin libre (commandes relatives acceptées), mots-clés dessous (' + JSON.stringify(r.iconDrawing) + ')');
     check(r.ng.items[0].value === 0 && r.none === 'none', 'graphiques invalides neutralisés');
+    check(r.emoji.loaded === 3 && r.emoji.kind === 'emoji' && r.emoji.name === 'crown' && r.emoji.images === 2 && r.emoji.ghosts === 2 && r.emoji.opaque > 2000 && r.emoji.wb === 'line', 'icônes : emojis 3D pour les styles colorés (graphiques et illustrations), traits pour le tableau blanc (' + JSON.stringify(r.emoji) + ')');
     check(r.played > 1.1 && r.wall > 2, 'montage en pause quand l\'appli passe en arrière-plan, puis reprise (' + r.played.toFixed(2) + ' s joués en ' + r.wall.toFixed(2) + ' s)');
     // montage image par image : encodage MP4 puis relecture image par image par le décodeur (chaque image a sa couleur)
     const wc = await page.evaluate(async () => {
@@ -586,6 +605,7 @@ async function testBackground(browser) {
     const W = await loadWorker(true);
     const { env, objects } = fakeDurableObjects(W);
     const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    await routeEmoji(ctx);
     const page = await ctx.newPage(); const errors = [];
     page.on('pageerror', e => errors.push(e.message)); page.on('dialog', d => d.accept());
     const clipBufs = await makeClips(page);

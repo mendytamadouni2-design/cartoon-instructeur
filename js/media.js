@@ -32,16 +32,20 @@ const DRAWING_SCHEMA = {
 function layoutDrawing(out) {
     if (!out || !Array.isArray(out.elements)) return out;   // ancien format : déjà en place
     // icône de la bibliothèque quand Claude en propose une qui existe (trait net, reconnaissable), sinon son dessin
+    const use3d = typeof iconStyle === 'function' && iconStyle() === '3d' && typeof EMOJI3D !== 'undefined' && EMOJI3D;
     const withIcons = out.elements.map(e => {
         if (!e) return e;
+        // emoji 3D (styles colorés) si son image est déjà chargée : un trait invisible sert d'horloge à son apparition
+        const em = use3d && e.icon ? findEmoji(String(e.icon).split(/\s*[,;|]\s*/)) : null;
+        if (em && emojiImageNow(em)) return { ...e, emoji: em, paths: [{ d: 'M 20 100 L 180 100', color: 'ghost' }] };
         const ic = e.icon && typeof findIcon === 'function' ? findIcon(String(e.icon).split(/\s*[,;|]\s*/)) : null;
         const norm = d => typeof normalizePath === 'function' ? normalizePath(d).map(sp => segsToD(sp.segs)).join(' ') : d;
         return ic ? { ...e, paths: ic.paths.map((d, i) => ({ d, color: i === 0 && e.accent ? 'red' : 'black' })), iconName: ic.name }
             : { ...e, paths: (Array.isArray(e.paths) ? e.paths : []).map(p => ({ ...p, d: norm(p.d) })) };
     });
     const els = withIcons.filter(e => e && Array.isArray(e.paths) && e.paths.length).slice(0, 3);
-    const n = els.length, paths = [], labels = [];
-    if (!n) return { paths, labels };
+    const n = els.length, paths = [], labels = [], images = [];
+    if (!n) return { paths, labels, images };
     const link = ['arrow', 'versus'].includes(out.link) && n > 1 ? out.link : 'none';
     const M = 10, gap = link === 'none' ? 14 : 36, top = 8, zoneH = 200, labelY = 250;
     const cellW = (400 - 2 * M - gap * (n - 1)) / n;
@@ -90,13 +94,14 @@ function layoutDrawing(out) {
             const d = walk(x.toks, (px, py) => [r(ox + px * s), r(oy + py * s)]).join(' ');
             paths.push({ d, color: x.p.color || 'black', word: i === 0 ? String(el.word || '') : '' });
         });
+        if (el.emoji) images.push({ name: el.emoji, x: r(cx), y: r(cy), size: r(Math.min(cellW, zoneH) * 0.9), path: paths.length - 1 });
         const label = String(el.label || '').trim().slice(0, 28);
         if (label) labels.push({ text: label, x: r(cx), y: labelY, size: Math.max(16, Math.min(34, (cellW - 4) / (label.length * 0.55))), path: paths.length - 1 });
     });
     // mots-clés d'une même taille (celle du plus long), pour un rendu homogène
     const size = Math.min(...labels.filter(l => !l.accent).map(l => l.size), 34);
     labels.forEach(l => { if (!l.accent) l.size = size; });
-    return { paths, labels };
+    return { paths, labels, images };
 }
 let measureSvgEl = null;
 function measurePath(d) {
@@ -115,9 +120,16 @@ function measurePath(d) {
 }
 // Transforme la réponse de Claude en traits prêts à animer (un trait = un seul tracé continu).
 // Compile une illustration enregistrée (ancien format, format mis en page ou éléments bruts de Claude)
+// Charge les icônes (et les emojis 3D des éléments) avant de mettre en page une illustration
+async function prepareDrawingIcons(raw) {
+    await loadIcons();
+    if (!Array.isArray(raw?.elements) || iconStyle() !== '3d') return;
+    await loadEmoji3d();
+    await Promise.all(raw.elements.filter(e => e?.icon).map(e => { const n = findEmoji(String(e.icon).split(/\s*[,;|]\s*/)); return n ? withTimeoutSafe(loadEmojiImage(n), 12000) : null; }));
+}
 async function compileStoredDrawing(raw) {
     if (!raw) return null;
-    if (Array.isArray(raw.elements)) await loadIcons();
+    if (Array.isArray(raw.elements)) await prepareDrawingIcons(raw);
     const c = compileDrawing(layoutDrawing(raw));
     if (c) c.raw = raw;
     return c;
@@ -134,14 +146,15 @@ function compileDrawing(raw) {
             try { path2d = new Path2D(d); } catch (e) { continue; }
             const { el, len } = measurePath(d);
             if (!len || !isFinite(len)) continue;
-            strokes.push({ d, path2d, el, len, color: INK[p.color] || INK.black, word: first ? String(p.word || '') : '' });
+            strokes.push({ d, path2d, el, len, color: INK[p.color] || INK.black, ghost: p.color === 'ghost', word: first ? String(p.word || '') : '' });
             first = false;
         }
         lastStroke[lastStroke.length - 1] = strokes.length - 1;
     }
     // mots-clés : affichés quand le dernier trait de leur élément est tracé
     const labels = (raw?.labels || []).map(l => ({ text: String(l.text || '').slice(0, 28), x: +l.x || 0, y: +l.y || 0, size: +l.size || 20, accent: !!l.accent, stroke: lastStroke[l.path] ?? -1 })).filter(l => l.text && l.stroke >= 0);
-    return strokes.length ? { strokes, labels, total: strokes.reduce((a, b) => a + b.len, 0) } : null;
+    const images = (raw?.images || []).map(im => ({ name: im.name, x: +im.x || 0, y: +im.y || 0, size: +im.size || 100, stroke: lastStroke[im.path] ?? -1 })).filter(im => im.stroke >= 0);
+    return strokes.length ? { strokes, labels, images, total: strokes.reduce((a, b) => a + b.len, 0) } : null;
 }
 function drawingRequestFor(sceneText, index, total, feedback, visual) {
     const v = visual !== undefined ? visual : (scenePlanFor(index).visual || '');
@@ -163,7 +176,7 @@ function drawingRequestFor(sceneText, index, total, feedback, visual) {
 async function generateDrawing(sceneText, index, total, feedback) {
     const p = scenePlanFor(index);
     const out = await callClaude(drawingRequestFor([sceneText, p.narration].filter(Boolean).join(' '), index, total, feedback));
-    await loadIcons();
+    await prepareDrawingIcons(out);
     const compiled = compileDrawing(layoutDrawing(out));
     if (compiled) compiled.raw = out;   // on garde la réponse brute : la mise en page est refaite à chaque ouverture
     return compiled;
