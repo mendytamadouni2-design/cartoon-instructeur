@@ -297,9 +297,12 @@ async function extractLastFrame(item) {
 }
 
 let audioCtx = null;
-function getAudioCtx() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+function getAudioCtx() { if (!audioCtx) { playThroughSilentSwitch(); } if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
 // À appeler directement dans un clic : iOS n'autorise le son qu'après un geste de l'utilisateur.
+// iPhone : sans cela, le son de l'appli (aperçu, essais de voix) est coupé quand le bouton silencieux est activé
+function playThroughSilentSwitch() { try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) {} }
 function unlockAudio() {
+    playThroughSilentSwitch();
     try {
         const c = getAudioCtx();
         if (c.state !== 'running') c.resume().catch(() => {});
