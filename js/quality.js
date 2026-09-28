@@ -175,9 +175,10 @@ function drawBoardShot(ctx, W, H, t, dur, o) {
         ctx.fillStyle = 'rgba(15, 18, 26, 0.28)'; ctx.fillRect(0, 0, W, H);
     }
     const pres = o.presenter && state.greenScreen ? o.presenter : null;
-    const z = 1 + 0.03 * clamp01(t / dur);
+    // la carte entre sur un ressort doux (échelle + montée), puis la caméra avance très lentement
+    const z = (0.94 + 0.06 * spring(t, SPRINGS.gentle)) * (1 + 0.03 * clamp01(t / dur)), rise = (1 - spring(t, SPRINGS.gentle)) * H * 0.03;
     ctx.save();
-    ctx.translate(W / 2, H * 0.42); ctx.scale(z, z); ctx.translate(-W / 2, -H * 0.42);
+    ctx.translate(W / 2, H * 0.42 + rise); ctx.scale(z, z); ctx.translate(-W / 2, -H * 0.42);
     let card = portrait ? { x: W * 0.06, y: H * 0.12, w: W * 0.8, h: H * 0.5 } : { x: W * 0.06, y: H * 0.06, w: W * 0.88, h: H * 0.68 };
     if (pres && !portrait) card = { x: W * 0.33, y: H * 0.07, w: W * 0.63, h: H * 0.66 };
     if (!wb || state.greenScreen) {
@@ -190,8 +191,7 @@ function drawBoardShot(ctx, W, H, t, dur, o) {
         let fs = Math.round(Math.min(W, H) * 0.058);
         ctx.font = '900 ' + fs + 'px ' + MARKER_FONT;
         while (ctx.measureText(title).width > card.w * 0.9 && fs > 16) { fs -= 2; ctx.font = '900 ' + fs + 'px ' + MARKER_FONT; }
-        ctx.fillStyle = '#1f1f1f'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        ctx.globalAlpha = clamp01(t / 0.3); ctx.fillText(title, card.x + card.w / 2, top); ctx.globalAlpha = 1;
+        drawTextReveal(ctx, title, card.x + card.w / 2, top + fs * 0.55, t - 0.12, { font: '900 ' + fs + 'px ' + MARKER_FONT, color: '#1f1f1f', each: 0.06 });
         top += fs * 1.35;
     }
     const inner = { x: card.x + card.w * 0.05, y: top, w: card.w * 0.9, h: card.y + card.h - top - card.h * 0.05 };
@@ -212,94 +212,22 @@ function drawBoardShot(ctx, W, H, t, dur, o) {
         const room = portrait ? W * 0.4 : card.x - W * 0.03;
         if (pw > room) { pw = room; ph = pw * pres.height / pres.width; }
         const px = portrait ? W * 0.02 : Math.max(W * 0.01, (card.x - pw) / 2), py = (portrait ? H * 0.99 : H * 0.96) - ph + Math.sin(t * 2.2) * H * 0.004;
-        ctx.save(); ctx.globalAlpha = clamp01(t / 0.35);
-        ctx.drawImage(pres, px, py, pw, ph);
+        // le personnage glisse depuis le bord sur un ressort, puis respire
+        const sp = spring(t - 0.1, SPRINGS.natural), slide = (1 - sp) * (portrait ? -pw * 0.6 : -(px + pw));
+        ctx.save(); ctx.globalAlpha = clamp01((t - 0.1) / 0.25);
+        ctx.drawImage(pres, px + slide, py, pw, ph);
         ctx.restore();
     }
     return active;
 }
-// ─────────────── Graphiques animés (motion design) ───────────────
-const fmtNum = (v, final) => (Math.abs(final ?? v) >= 20 || Number.isInteger(final ?? v) ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString('fr-FR');
-function drawGraphic(ctx, area, gr, t, dur) {
-    const items = (gr.items || []).slice(0, 5), unit = gr.unit ? ' ' + gr.unit : '';
-    const ink = '#1f1f1f', acc = accentColor(), base = Math.min(area.w, area.h);
-    ctx.save(); ctx.textBaseline = 'middle';
-    if (gr.type === 'counter') {
-        const it = items[0], p = easeOut((t - 0.3) / 1.4);
-        let fs = Math.round(base * 0.34);
-        const txt = fmtNum((it.value || 0) * p, it.value) + unit;
-        ctx.font = '900 ' + fs + 'px ' + UI_FONT;
-        while (ctx.measureText(txt).width > area.w * 0.95 && fs > 20) { fs -= 4; ctx.font = '900 ' + fs + 'px ' + UI_FONT; }
-        ctx.textAlign = 'center'; ctx.fillStyle = acc; ctx.globalAlpha = clamp01(t / 0.3);
-        ctx.lineWidth = fs * 0.06; ctx.strokeStyle = ink; ctx.strokeText(txt, area.x + area.w / 2, area.y + area.h * 0.42);
-        ctx.fillText(txt, area.x + area.w / 2, area.y + area.h * 0.42);
-        ctx.font = '700 ' + Math.round(fs * 0.3) + 'px ' + UI_FONT; ctx.fillStyle = ink; ctx.globalAlpha = clamp01((t - 1.2) / 0.4);
-        wrapLines(ctx, it.label || '', area.w * 0.9).slice(0, 2).forEach((l, k) => ctx.fillText(l, area.x + area.w / 2, area.y + area.h * 0.72 + k * fs * 0.38));
-    } else if (gr.type === 'bars') {
-        // étiquette au-dessus de chaque barre : toute la largeur reste pour la barre et sa valeur
-        const max = Math.max(...items.map(i => Math.abs(i.value) || 0), 1e-6), n = items.length;
-        const rowH = Math.min(area.h / n, base * 0.5);
-        let fs = Math.max(14, Math.min(rowH * 0.24, area.w * 0.07)), valW;
-        for (;;) {
-            ctx.font = '800 ' + Math.round(fs) + 'px ' + UI_FONT;
-            valW = Math.max(...items.map(i => ctx.measureText(fmtNum(i.value, i.value) + unit).width)) + fs * 0.5;
-            if (valW <= area.w * 0.55 || fs <= 12) break;
-            fs -= 1;
-        }
-        const top = area.y + (area.h - rowH * n) / 2, barX = area.x;
-        const barMax = Math.max(area.w * 0.2, area.w - valW), big = items.reduce((a, b) => (Math.abs(b.value) > Math.abs(a.value) ? b : a));
-        items.forEach((it, k) => {
-            const p = easeOut((t - 0.3 - k * 0.3) / 0.8), y0 = top + rowH * k;
-            ctx.globalAlpha = clamp01((t - 0.2 - k * 0.3) / 0.3);
-            ctx.font = '700 ' + Math.round(fs) + 'px ' + UI_FONT; ctx.fillStyle = ink; ctx.textAlign = 'left';
-            ctx.fillText(wrapLines(ctx, it.label, area.w)[0] || '', barX, y0 + rowH * 0.28);
-            const bh = Math.min(rowH * 0.36, fs * 1.5), by = y0 + rowH * 0.62, bw = Math.max(bh * 0.4, barMax * (Math.abs(it.value) / max) * p);
-            ctx.fillStyle = it === big ? acc : '#8fb3e8';
-            roundRectPath(ctx, barX, by - bh / 2, bw, bh, bh * 0.25); ctx.fill();
-            ctx.fillStyle = ink; ctx.font = '800 ' + Math.round(fs) + 'px ' + UI_FONT;
-            ctx.fillText(fmtNum(it.value * p, it.value) + unit, barX + bw + fs * 0.4, by);
-        });
-    } else if (gr.type === 'list') {
-        const n = items.length, rowH = Math.min(area.h / n, base * 0.32);
-        let fs = Math.max(14, Math.min(rowH * 0.42, base * 0.1));
-        // police réduite pour que chaque ligne tienne en entier
-        for (;;) {
-            ctx.font = '700 ' + Math.round(fs) + 'px ' + UI_FONT;
-            if (Math.max(...items.map(i => ctx.measureText(i.label || '').width)) <= area.w - fs * 2.4 || fs <= 12) break;
-            fs -= 1;
-        }
-        const span = Math.max(1, dur * 0.75 - 0.3);
-        items.forEach((it, k) => {
-            const at = 0.3 + span * k / n, a = clamp01((t - at) / 0.3), y = area.y + rowH * (k + 0.5) + (area.h - rowH * n) / 2;
-            if (a <= 0) return;
-            ctx.globalAlpha = a;
-            const cx = area.x + fs * 0.9;
-            ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(cx, y, fs * 0.55, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = fs * 0.14; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-            ctx.beginPath(); ctx.moveTo(cx - fs * 0.25, y); ctx.lineTo(cx - fs * 0.05, y + fs * 0.2); ctx.lineTo(cx + fs * 0.28, y - fs * 0.22); ctx.stroke();
-            ctx.fillStyle = ink; ctx.textAlign = 'left'; ctx.font = '700 ' + Math.round(fs) + 'px ' + UI_FONT;
-            ctx.fillText(wrapLines(ctx, it.label, area.w - fs * 2.4)[0] || '', area.x + fs * 2, y + (1 - a) * fs * 0.4);
-        });
-    } else if (gr.type === 'compare') {
-        const two = items.slice(0, 2), fs = Math.round(base * 0.2);
-        two.forEach((it, k) => {
-            const p = easeOut((t - 0.3 - k * 0.5) / 1.1), cx = area.x + area.w * (k ? 0.76 : 0.24);
-            ctx.globalAlpha = clamp01((t - 0.2 - k * 0.5) / 0.3);
-            ctx.textAlign = 'center'; ctx.fillStyle = k ? acc : '#4a7fd6'; ctx.font = '900 ' + fs + 'px ' + UI_FONT;
-            ctx.fillText(fmtNum((it.value || 0) * p, it.value) + unit, cx, area.y + area.h * 0.42);
-            ctx.fillStyle = ink; ctx.font = '700 ' + Math.round(fs * 0.32) + 'px ' + UI_FONT;
-            wrapLines(ctx, it.label || '', area.w * 0.42).slice(0, 2).forEach((l, j) => ctx.fillText(l, cx, area.y + area.h * 0.7 + j * fs * 0.4));
-        });
-        ctx.globalAlpha = clamp01((t - 0.6) / 0.3); ctx.fillStyle = '#9a9a9a'; ctx.font = '900 ' + Math.round(fs * 0.4) + 'px ' + UI_FONT; ctx.textAlign = 'center';
-        ctx.fillText('vs', area.x + area.w / 2, area.y + area.h * 0.42);
-    }
-    ctx.restore();
-}
-// Graphique proposé par Claude, nettoyé (valeurs numériques, 5 éléments au plus)
+// Graphiques animés : voir js/graphics.js
+const GRAPHIC_TYPES = ['counter', 'bars', 'list', 'compare', 'timeline', 'chain', 'beforeafter'];
 function normalizeGraphic(g) {
-    const type = ['counter', 'bars', 'list', 'compare'].includes(g?.type) ? g.type : 'none';
-    const items = (Array.isArray(g?.items) ? g.items : []).map(i => ({ label: String(i?.label || '').slice(0, 60), value: Number(i?.value) || 0 })).filter(i => i.label || i.value).slice(0, 5);
-    if (type === 'none' || !items.length || (type === 'compare' && items.length < 2) || (type === 'bars' && items.length < 2)) return { type: 'none', title: '', unit: '', items: [] };
+    const type = GRAPHIC_TYPES.includes(g?.type) ? g.type : 'none';
+    const items = (Array.isArray(g?.items) ? g.items : []).map(i => ({ label: String(i?.label || '').slice(0, 60), value: Number(i?.value) || 0, icon: String(i?.icon || '').slice(0, 60) }))
+        .filter(i => i.label || i.value).slice(0, type === 'timeline' ? 6 : 5);
+    const need = { bars: 2, compare: 2, timeline: 2, chain: 2, beforeafter: 2 }[type] || 1;
+    if (type === 'none' || items.length < need) return { type: 'none', title: '', unit: '', items: [] };
     return { type, title: String(g.title || '').slice(0, 50), unit: String(g.unit || '').slice(0, 12), items };
 }
 

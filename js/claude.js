@@ -135,9 +135,9 @@ const PLAN_SCHEMA = {
                     graphic: {
                         type: 'object',
                         properties: {
-                            type: { type: 'string', enum: ['none', 'counter', 'bars', 'list', 'compare'] },
+                            type: { type: 'string', enum: ['none', 'counter', 'bars', 'list', 'compare', 'timeline', 'chain', 'beforeafter'] },
                             title: { type: 'string' }, unit: { type: 'string' },
-                            items: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, value: { type: 'number' } }, required: ['label', 'value'], additionalProperties: false } }
+                            items: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, value: { type: 'number' }, icon: { type: 'string' } }, required: ['label', 'value', 'icon'], additionalProperties: false } }
                         },
                         required: ['type', 'title', 'unit', 'items'], additionalProperties: false
                     }
@@ -181,7 +181,7 @@ function planRequestFor(scenes) {
             (richActive()
                 ? '- "narration" : SCÈNES RICHES. Si la réplique contient plusieurs phrases, "spoken" = la première phrase (courte, dite face caméra) et "narration" = la suite, sans la changer. Si elle n\'a qu\'une phrase, "narration" = 1 à 2 phrases (dans la langue de la vidéo) qui approfondissent l\'idée (exemple concret, chiffre juste, comparaison), exactes et faciles à prononcer, dites par la voix off pendant qu\'on montre l\'illustration en plein écran. "narration" vaut "" pour la toute première et la toute dernière réplique.\n'
                 : '- "narration" : toujours ""\n') +
-            '- "graphic" : ' + (richActive() ? 'pour les scènes qui ont une narration, un petit graphique animé affiché sur le plan illustré QUAND c\'est utile : "counter" (un chiffre clé : 1 élément), "bars" (2 à 5 valeurs comparables), "list" (2 à 4 étapes ou idées courtes, "value" = 0), "compare" (2 éléments face à face) ; "title" très court, "unit" (ex. "%", "km", "°C" ou ""), labels de 1 à 4 mots. Les chiffres doivent être EXACTS (ne rien inventer). Au plus une scène sur trois ; sinon type "none" avec des champs vides' : 'toujours type "none", title "", unit "", items []') + '\n' +
+            '- "graphic" : ' + (richActive() ? 'pour les scènes qui ont une narration, un graphique animé (motion design) affiché sur le plan illustré QUAND il explique mieux qu\'un dessin : "counter" (un chiffre clé : 1 élément), "bars" (2 à 5 valeurs comparables), "list" (2 à 4 étapes ou idées courtes, "value" = 0), "compare" (2 éléments face à face), "timeline" (frise : 2 à 6 dates dans l\'ordre, "value" = l\'année, ex. 1789, "label" = l\'événement), "chain" (2 à 4 étapes de cause à conséquence, "value" = 0), "beforeafter" (exactement 2 éléments : la situation avant puis après, "value" = 0) ; "title" très court, "unit" (ex. "%", "km", "°C" ou ""), labels de 1 à 4 mots ; "icon" de chaque élément = 1 à 3 mots-clés ANGLAIS d\'un pictogramme simple (ex. "crown", "scale, justice", "factory") ou "". Varie les types d\'une scène à l\'autre. Les chiffres et les dates doivent être EXACTS (ne rien inventer). Au plus une scène sur trois ; sinon type "none" avec des champs vides' : 'toujours type "none", title "", unit "", items []') + '\n' +
             (state.poses.length && !referenceImage() ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
             wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
         schema: planSchema()

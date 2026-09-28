@@ -15,7 +15,7 @@ function saveProject() {
     setJSON(STORAGE.LAST_PROJECT, snap);
     if (typeof saveProjectSnapshot === 'function') saveProjectSnapshot(snap);
 }
-function restoreProject() {
+async function restoreProject() {
     const p = getJSON(STORAGE.LAST_PROJECT);
     if (!p || !Array.isArray(p.queue) || !p.queue.some(q => q.status === 'done' && q.videoUrl)) return;
     if (Date.now() - (p.date || 0) > 3 * 24 * 3600 * 1000) return;
@@ -27,7 +27,7 @@ function restoreProject() {
     state.scenePlan = p.scenePlan || null;
     state.photoSmall = p.photo || null;
     state.projectId = p.projectId || null;
-    state.drawings = (p.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
+    state.drawings = await Promise.all((p.drawings || []).map(compileStoredDrawing));
     state.queue = p.queue.map(q => ({ ...q, image: null, progress: q.status === 'done' ? 'Terminé' : 'Échec', videoId: null, prompt: null, startTime: null }));
     state.completed = state.queue.filter(q => q.status === 'done').length;
     state.failed = state.queue.length - state.completed;
@@ -138,13 +138,13 @@ async function pollBackgroundJob() {
         const done = job.scenes.filter(sc => sc.status === 'done').length;
         const failed = job.scenes.filter(sc => sc.status === 'failed').length;
         if (job.status === 'done') {
-            loadBackgroundResults(saved, job);
+            await loadBackgroundResults(saved, job);
             bgUI({ title: '✅ Tes scènes sont prêtes !', text: done + '/' + n + ' scènes générées' + (failed ? ' (' + failed + ' en échec)' : '') + '. Appuie sur le bouton et garde l\'appli ouverte 1 à 2 minutes pour le montage.', pct: 100, ready: true, running: false });
             return;
         }
         if (job.status === 'failed' || job.status === 'cancelled') {
             setJSON(STORAGE.BG_JOB, { ...saved, finished: true });
-            if (done) loadBackgroundResults(saved, job);
+            if (done) await loadBackgroundResults(saved, job);
             bgUI({ title: job.status === 'cancelled' ? '⏹ Génération arrêtée' : '❌ Génération échouée', text: (job.message || '') + (done ? ' · Les ' + done + ' scènes terminées peuvent être assemblées.' : ''), pct: n ? done / n * 100 : 0, error: job.status === 'failed', running: false });
             if (done) { document.getElementById('bg-finish-btn').classList.remove('hidden'); }
             return;
@@ -157,7 +157,7 @@ async function pollBackgroundJob() {
         scheduleBgPoll(30000);
     } finally { bgPolling = false; }
 }
-function loadBackgroundResults(saved, job) {
+async function loadBackgroundResults(saved, job) {
     const lines = splitScriptIntoScenes(saved.script || '');
     document.getElementById('theme-input').value = saved.theme || '';
     document.getElementById('script-input').value = saved.script || '';
@@ -166,7 +166,7 @@ function loadBackgroundResults(saved, job) {
     updateScriptStats();
     state.scenePlan = job.plan || fallbackScenePlan(lines);
     if (saved.photo) state.photoSmall = saved.photo;
-    state.drawings = (job.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
+    state.drawings = await Promise.all((job.drawings || []).map(compileStoredDrawing));
     state.queue = job.scenes.map(sc => ({ sceneIndex: sc.index, sceneText: lines[sc.index] || '', image: null, status: sc.status === 'done' ? 'done' : 'failed', progress: sc.status === 'done' ? 'Terminé' : 'Échec', error: sc.error, videoUrl: sc.videoUrl, mediaKey: sc.mediaKey || undefined, narrKey: sc.narrKey || undefined, videoId: null, prompt: null, startTime: null }));
     state.completed = state.queue.filter(q => q.status === 'done').length;
     state.failed = state.queue.length - state.completed;

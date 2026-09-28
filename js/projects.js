@@ -42,10 +42,10 @@ function saveProjectSnapshot(snap) {
     const p = findProject(state.projectId);
     if (p && p.status === 'draft' && snap.queue?.some(q => q.status === 'done')) updateProject(p.id, { status: 'ready' });
 }
-function applySnapshot(p) {
+async function applySnapshot(p) {
     state.scenePlan = p.scenePlan || null;
     if (p.photo) state.photoSmall = p.photo;
-    state.drawings = (p.drawings || []).map(raw => { if (!raw) return null; const c = compileDrawing(raw); if (c) c.raw = raw; return c; });
+    state.drawings = await Promise.all((p.drawings || []).map(compileStoredDrawing));
     state.queue = p.queue.map(q => ({ ...q, image: null, progress: q.status === 'done' ? 'Terminé' : 'Échec', videoId: null, prompt: null, startTime: null }));
     state.completed = state.queue.filter(q => q.status === 'done').length;
     state.failed = state.queue.length - state.completed;
@@ -113,11 +113,11 @@ async function openProject(id, go = true) {
         updateScriptStats();
         let snap = null;
         try { snap = await idbGet('project:' + id); } catch (e) {}
-        if (snap && snap.queue?.length) applySnapshot(snap);
+        if (snap && snap.queue?.length) await applySnapshot(snap);
         else if (p.jobId && getProxyUrl()) {
             try {
                 const r = await fetch(getProxyUrl() + '/jobs/' + p.jobId); const job = await r.json();
-                if (r.ok && ['done', 'failed', 'cancelled'].includes(job.status) && job.scenes.some(s => s.status === 'done')) loadBackgroundResults({ id: p.jobId, projectId: id, theme: p.title, script: p.script, style: p.style, photo: state.photoSmall }, job);
+                if (r.ok && ['done', 'failed', 'cancelled'].includes(job.status) && job.scenes.some(s => s.status === 'done')) await loadBackgroundResults({ id: p.jobId, projectId: id, theme: p.title, script: p.script, style: p.style, photo: state.photoSmall }, job);
                 else if (r.ok) {
                     setJSON(STORAGE.BG_JOB, { id: p.jobId, projectId: id, date: p.createdAt, theme: p.title, script: p.script, style: p.style, n: job.scenes.length, photo: state.photoSmall });
                     bgUI({ title: '☁️ Génération en arrière-plan', text: job.message || 'En cours…', pct: 5, running: true }); scheduleBgPoll(300);

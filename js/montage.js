@@ -284,8 +284,8 @@ function drawCaptions(ctx, cw, ch, sc, t) {
 // ─────────────── Bulles, dessins ───────────────
 function drawBubble(ctx, cw, ch, text, t) {
     if (!text) return;
-    const appear = Math.min(1, t / 0.35);
-    const scale = appear < 1 ? 0.6 + 0.4 * (1 - Math.pow(1 - appear, 3)) + Math.sin(appear * Math.PI) * 0.06 : 1;
+    // pop sur un ressort (léger rebond), puis respiration discrète
+    const appear = clamp01(t / 0.18), scale = (0.8 + 0.2 * spring(t, SPRINGS.bouncy)) * (1 + 0.01 * breathe(t, { period: 2.8 }));
     const fontSize = Math.round(Math.min(cw, ch) * 0.06);
     ctx.save();
     ctx.font = '800 ' + fontSize + 'px ' + UI_FONT;
@@ -335,10 +335,13 @@ function strokeSketch(ctx, area, drawing, fracs, alpha, showTip) {
     (drawing.labels || []).forEach(lb => {
         const a = clamp01(((fracs[lb.stroke] ?? 0) - 0.5) / 0.5);
         if (a <= 0) return;
-        ctx.globalAlpha = alpha * a;
-        ctx.font = '800 ' + lb.size + 'px ' + MARKER_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = lb.accent ? INK.red : '#1f1f1f';
-        ctx.fillText(lb.text, lb.x, lb.y + (1 - a) * 6);
+        ctx.globalAlpha = alpha;
+        if (lb.accent) {   // « VS » : pop sur un ressort
+            const sc = 0.4 + 0.6 * Math.min(1.2, EASE.outBack(a));
+            ctx.save(); ctx.translate(lb.x, lb.y); ctx.scale(sc, sc);
+            ctx.font = '900 ' + lb.size + 'px ' + MARKER_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK.red; ctx.fillText(lb.text, 0, 0);
+            ctx.restore();
+        } else drawTextWipe(ctx, lb.text, lb.x, lb.y, a, { font: '800 ' + lb.size + 'px ' + MARKER_FONT, color: '#1f1f1f' });
     });
     ctx.restore();
     if (tip && showTip && alpha > 0.5) {
@@ -407,11 +410,13 @@ function drawTitleCard(ctx, cw, ch, title, t, kind) {
     let lines = wrapLines(ctx, title, cw * 0.82);
     while (lines.length > 3 && fs > 20) { fs -= 4; ctx.font = '900 ' + fs + 'px ' + MARKER_FONT; lines = wrapLines(ctx, title, cw * 0.82); }
     const lh = fs * 1.15, y0 = ch / 2 - (lines.length - 1) * lh / 2 - (kind === 'intro' ? fs * 0.3 : 0);
-    const reveal = easeOut(t / 0.9);
-    ctx.beginPath(); ctx.rect(0, 0, cw * 0.09 + cw * 0.82 * reveal, ch); ctx.clip();
-    ctx.fillStyle = wb ? '#1f1f1f' : '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    lines.forEach((l, i) => ctx.fillText(l, cw / 2, y0 + i * lh));
     ctx.restore();
+    // chaque mot monte dans sa fenêtre (révélation par masque), ligne après ligne
+    let wordsBefore = 0;
+    lines.forEach((l, i) => {
+        drawTextReveal(ctx, l, cw / 2, y0 + i * lh, t - 0.05 - wordsBefore * 0.08, { font: '900 ' + fs + 'px ' + MARKER_FONT, color: wb ? '#1f1f1f' : '#fff', each: 0.08, dur: 0.45 });
+        wordsBefore += l.split(/\s+/).length;
+    });
     // soulignement tracé au feutre
     const u = clamp01((t - 0.75) / 0.45);
     if (u > 0) {
@@ -420,7 +425,8 @@ function drawTitleCard(ctx, cw, ch, title, t, kind) {
         ctx.beginPath(); ctx.moveTo(ux, uy); ctx.quadraticCurveTo(ux + wMax / 2, uy + fs * 0.12, ux + wMax * u, uy - fs * 0.04); ctx.stroke(); ctx.restore();
     }
     if (kind === 'card' && t > 0) {
-        ctx.save(); ctx.globalAlpha = easeOut(t / 0.4) * 0.6; ctx.fillStyle = wb ? '#8a84a3' : '#fff';
+        const st = enterState(t, { delay: 0.1, rise: fs * 0.25, scaleFrom: 0.96, spring: SPRINGS.gentle });
+        ctx.save(); applyState(ctx, { ...st, alpha: st.alpha * 0.6 }, cw / 2, y0 - fs * 0.95); ctx.fillStyle = wb ? '#8a84a3' : '#fff';
         ctx.font = '700 ' + Math.round(fs * 0.35) + 'px ' + UI_FONT; ctx.textAlign = 'center';
         ctx.fillText('— ' + (state.theme || 'La suite') + ' —', cw / 2, y0 - fs * 0.95); ctx.restore();
     }
@@ -464,8 +470,8 @@ function drawHighlight(ctx, cw, ch, text, t, remaining) {
     if (!text) return;
     const hold = Math.min(1.8, remaining + 1.8);
     if (t > hold) return;
-    const appear = clamp01(t / 0.25), out = clamp01((hold - t) / 0.25);
-    const bounce = appear < 1 ? 0.5 + 0.5 * easeOut(appear) + Math.sin(appear * Math.PI) * 0.12 : 1;
+    const appear = clamp01(t / 0.15), ex = exitState(t, { at: hold - 0.22, dur: 0.22 }), out = ex.alpha;
+    const bounce = (0.5 + 0.5 * spring(t, SPRINGS.bouncy)) * ex.scale * (1 + 0.015 * breathe(t, { period: 1.9 }));
     const base = Math.min(cw, ch);
     let fs = Math.round(base * 0.16);
     ctx.save();
@@ -625,6 +631,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     const actx = getAudioCtx();
     try { await actx.resume(); } catch (e) {}
     Object.assign(montagePause, { on: false, since: 0, total: 0, rec: null, actx, resuming: null });
+    await loadIcons();   // icônes des illustrations et des graphiques
     const { premium } = await prepareAssets(items, label);
     const segs = buildSegments(items, maxDuration);
     const musicBuf = await loadMusicBuffer();

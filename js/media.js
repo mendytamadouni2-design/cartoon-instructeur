@@ -7,6 +7,8 @@
 const DRAW_VB = { w: 400, h: 300 };
 const INK = { black: '#1f1f1f', blue: '#2563eb', red: '#e03e3e', green: '#1f9d55', orange: '#f08c00' };
 // Claude dessine 1 à 3 éléments, chacun dans sa case de 200 × 200 ; l'appli les range et écrit leur mot-clé dessous
+// Quelques noms d'icônes Lucide utiles, donnés à Claude comme repères (la recherche accepte aussi des mots-clés)
+const ICON_HINTS = 'crown, landmark, scale, gavel, users, user, file-text, scroll, book-open, graduation-cap, lightbulb, brain, heart, sun, moon, cloud, cloud-rain, droplet, snowflake, flame, leaf, sprout, trees, mountain, waves-horizontal, globe, earth, map, flag, castle, church, factory, house, building, school, hospital, ship, plane, car, train-front, rocket, atom, dna, microscope, flask-conical, zap, battery, magnet, thermometer, clock, calendar, hourglass, banknote, coins, receipt, trending-up, trending-down, chart-column, handshake, swords, shield, lock, key, megaphone, vote, newspaper, smartphone, monitor, wifi, database, wheat, utensils, apple, fish, bird, paw-print, bug, virus, pill, stethoscope, skull, triangle-alert, target, search, recycle, wind, bike, anchor, compass, gem, trophy';
 const DRAWING_SCHEMA = {
     type: 'object',
     properties: {
@@ -15,10 +17,10 @@ const DRAWING_SCHEMA = {
             items: {
                 type: 'object',
                 properties: {
-                    label: { type: 'string' }, word: { type: 'string' },
+                    label: { type: 'string' }, word: { type: 'string' }, icon: { type: 'string' },
                     paths: { type: 'array', items: { type: 'object', properties: { d: { type: 'string' }, color: { type: 'string', enum: Object.keys(INK) } }, required: ['d', 'color'], additionalProperties: false } }
                 },
-                required: ['label', 'word', 'paths'], additionalProperties: false
+                required: ['label', 'word', 'icon', 'paths'], additionalProperties: false
             }
         },
         link: { type: 'string', enum: ['none', 'arrow', 'versus'] }
@@ -29,7 +31,15 @@ const DRAWING_SCHEMA = {
 // avec leur mot-clé écrit dessous (vraie police) et une flèche ou « VS » entre eux.
 function layoutDrawing(out) {
     if (!out || !Array.isArray(out.elements)) return out;   // ancien format : déjà en place
-    const els = out.elements.filter(e => e && Array.isArray(e.paths) && e.paths.length).slice(0, 3);
+    // icône de la bibliothèque quand Claude en propose une qui existe (trait net, reconnaissable), sinon son dessin
+    const withIcons = out.elements.map(e => {
+        if (!e) return e;
+        const ic = e.icon && typeof findIcon === 'function' ? findIcon(String(e.icon).split(/\s*[,;|]\s*/)) : null;
+        const norm = d => typeof normalizePath === 'function' ? normalizePath(d).map(sp => segsToD(sp.segs)).join(' ') : d;
+        return ic ? { ...e, paths: ic.paths.map((d, i) => ({ d, color: i === 0 && e.accent ? 'red' : 'black' })), iconName: ic.name }
+            : { ...e, paths: (Array.isArray(e.paths) ? e.paths : []).map(p => ({ ...p, d: norm(p.d) })) };
+    });
+    const els = withIcons.filter(e => e && Array.isArray(e.paths) && e.paths.length).slice(0, 3);
     const n = els.length, paths = [], labels = [];
     if (!n) return { paths, labels };
     const link = ['arrow', 'versus'].includes(out.link) && n > 1 ? out.link : 'none';
@@ -61,13 +71,13 @@ function layoutDrawing(out) {
         return out;
     };
     els.forEach((el, k) => {
-        const parsed = el.paths.map(p => ({ p, toks: parse(p.d) })).filter(x => x.toks).slice(0, 12);
+        const parsed = el.paths.map(p => ({ p, toks: parse(p.d) })).filter(x => x.toks).slice(0, 24);
         if (!parsed.length) return;
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         parsed.forEach(x => walk(x.toks, (px, py) => { if (isFinite(px) && isFinite(py)) { x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); } return [0, 0]; }));
         if (!isFinite(x0)) return;
         const bw = Math.max(20, x1 - x0), bh = Math.max(20, y1 - y0);
-        const s = Math.min((cellW - 8) / bw, (zoneH - 8) / bh, 2.5);
+        const s = Math.min((cellW - 8) / bw, (zoneH - 8) / bh, el.iconName ? 7 : 2.5);   // une icône (grille 24) remplit sa case
         const cx = M + k * (cellW + gap) + cellW / 2, cy = top + zoneH / 2;
         const ox = cx - (x0 + x1) / 2 * s, oy = cy - (y0 + y1) / 2 * s;
         const r = v => Math.round(v * 10) / 10;
@@ -83,7 +93,9 @@ function layoutDrawing(out) {
         const label = String(el.label || '').trim().slice(0, 28);
         if (label) labels.push({ text: label, x: r(cx), y: labelY, size: Math.max(16, Math.min(34, (cellW - 4) / (label.length * 0.55))), path: paths.length - 1 });
     });
-    // « VS » placé après le premier élément : on le rattache au dernier trait de cet élément
+    // mots-clés d'une même taille (celle du plus long), pour un rendu homogène
+    const size = Math.min(...labels.filter(l => !l.accent).map(l => l.size), 34);
+    labels.forEach(l => { if (!l.accent) l.size = size; });
     return { paths, labels };
 }
 let measureSvgEl = null;
@@ -102,6 +114,14 @@ function measurePath(d) {
     return { el, len };
 }
 // Transforme la réponse de Claude en traits prêts à animer (un trait = un seul tracé continu).
+// Compile une illustration enregistrée (ancien format, format mis en page ou éléments bruts de Claude)
+async function compileStoredDrawing(raw) {
+    if (!raw) return null;
+    if (Array.isArray(raw.elements)) await loadIcons();
+    const c = compileDrawing(layoutDrawing(raw));
+    if (c) c.raw = raw;
+    return c;
+}
 function compileDrawing(raw) {
     const strokes = [], lastStroke = [];
     for (const p of (raw?.paths || [])) {
@@ -133,7 +153,8 @@ function drawingRequestFor(sceneText, index, total, feedback, visual) {
             'Compose l\'illustration en 1 à 3 ÉLÉMENTS (2 ou 3 de préférence) : l\'appli les place côte à côte et écrit sous chacun son mot-clé.\n' +
             'Pour chaque élément :\n- "label" : son mot-clé, 1 à 3 mots dans la langue de la vidéo (ex. « Privilèges », « Constitution », « Coup d\'État »)\n' +
             '- "word" : le mot de la phrase (écrit exactement pareil) au moment duquel il commence à être dessiné, ou ""\n' +
-            '- "paths" : 3 à 10 traits qui dessinent CET élément seul, centré dans une case de 200 × 200 (coordonnées SVG de 0 à 200, origine en haut à gauche, marge de 15). Chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer). Dessin au trait, sans remplissage, AUCUNE lettre ni chiffre dans les traits. Surtout du noir ("black"), une couleur d\'accent pour le détail important.\n' +
+            '- "icon" : 1 à 3 mots-clés ANGLAIS séparés par des virgules pour trouver une icône toute faite (ex. "crown, king" ; "scale, justice" ; "factory"). Mets d\'abord un nom d\'icône Lucide exact si tu le connais (' + ICON_HINTS + '). Si l\'élément est trop particulier pour une icône (ex. une guillotine, un personnage historique précis), mets "" et dessine-le dans "paths".\n' +
+            '- "paths" : si "icon" est vide, 3 à 10 traits qui dessinent CET élément seul (sinon []), centré dans une case de 200 × 200 (coordonnées SVG de 0 à 200, origine en haut à gauche, marge de 15). Chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer). Dessin au trait, sans remplissage, AUCUNE lettre ni chiffre dans les traits. Surtout du noir ("black"), une couleur d\'accent pour le détail important.\n' +
             '"link" : "arrow" si les éléments se suivent (cause → conséquence, avant → après, étapes), "versus" s\'ils s\'opposent, sinon "none".',
         schema: DRAWING_SCHEMA,
         maxTokens: 8000
@@ -142,9 +163,9 @@ function drawingRequestFor(sceneText, index, total, feedback, visual) {
 async function generateDrawing(sceneText, index, total, feedback) {
     const p = scenePlanFor(index);
     const out = await callClaude(drawingRequestFor([sceneText, p.narration].filter(Boolean).join(' '), index, total, feedback));
-    const laid = layoutDrawing(out);
-    const compiled = compileDrawing(laid);
-    if (compiled) compiled.raw = laid;
+    await loadIcons();
+    const compiled = compileDrawing(layoutDrawing(out));
+    if (compiled) compiled.raw = out;   // on garde la réponse brute : la mise en page est refaite à chaque ouverture
     return compiled;
 }
 async function prepareDrawings() {

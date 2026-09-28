@@ -251,7 +251,7 @@ document.addEventListener('click', async e => {
     const s = getJSON(STORAGE.BG_SERIES), row = state._seriesRows?.[parseInt(b.dataset.seriesFinish, 10)];
     if (!s || !row?.job) return;
     unlockAudio();
-    loadBackgroundResults({ ...row.ep, theme: row.ep.title, photo: s.photo }, row.job);
+    await loadBackgroundResults({ ...row.ep, theme: row.ep.title, photo: s.photo }, row.job);
     state.isSeriesMode = true;
     const ok = await runAssembly();
     state.isSeriesMode = false;

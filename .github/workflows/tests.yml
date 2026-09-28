@@ -24,6 +24,8 @@ jobs:
         run: |
           node --input-type=module --check < relais/cloudflare-worker.js
           node --check sw.js
+      - name: Tests du moteur de motion design
+        run: node tests/unit-motion.js
       - name: Lancer les tests
         working-directory: tests
         run: node run-e2e.js

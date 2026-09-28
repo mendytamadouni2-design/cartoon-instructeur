@@ -502,11 +502,15 @@ async function testCompositor(browser) {
         proc.dispose();
         // graphiques animés dans les deux formats
         const bad = [];
-        for (const [W, H] of [[640, 360], [360, 640]]) for (const type of ['counter', 'bars', 'list', 'compare']) {
+        await loadIcons();
+        for (const [W, H] of [[640, 360], [360, 640]]) for (const type of ['counter', 'bars', 'list', 'compare', 'timeline', 'chain', 'beforeafter']) {
             const c = document.createElement('canvas'); c.width = W; c.height = H;
-            try { drawBoardShot(c.getContext('2d'), W, H, 2, 4, { backdrop: c, drawing: null, sched: null, title: 'Titre', presenter: null, graphic: normalizeGraphic({ type, title: 'Évaporation', unit: 'km³', items: [{ label: 'Océans', value: 500000 }, { label: 'Continents', value: 70000 }, { label: 'Lacs et rivières', value: 1200 }] }), words: [] }); }
+            try { drawBoardShot(c.getContext('2d'), W, H, 2, 4, { backdrop: c, drawing: null, sched: null, title: 'Titre', presenter: null, graphic: normalizeGraphic({ type, title: 'Évaporation', unit: 'km³', items: [{ label: 'Océans', value: 500000, icon: 'waves-horizontal' }, { label: 'Continents', value: 70000, icon: 'mountain' }, { label: 'Lacs et rivières', value: 1200, icon: 'droplet' }] }), words: [] }); }
             catch (e) { bad.push(type + ' ' + W + 'x' + H + ' : ' + e.message); }
         }
+        // illustration de Claude : icônes de la bibliothèque + dessin libre, mots-clés dessous
+        const laid = layoutDrawing({ link: 'arrow', elements: [{ label: 'Roi', word: '', icon: 'king, crown', paths: [] }, { label: 'Peuple', word: '', icon: 'people', paths: [] }, { label: 'Libre', word: '', icon: '', paths: [{ d: 'm10 10 l 80 80', color: 'red' }] }] });
+        const iconDrawing = { names: [findIcon(['king'])?.name, findIcon(['water drop'])?.name], paths: laid.paths.length, labels: laid.labels.map(l => l.text).join(','), arrows: laid.paths.filter(p => p.d.includes('M') && p.color === 'black').length };
         const ng = normalizeGraphic({ type: 'bars', items: [{ label: 'x', value: 'abc' }, { label: 'y', value: 2 }] });
         const none = normalizeGraphic({ type: 'n\'importe', items: [] });
         // pause du montage : le temps passé en arrière-plan n'est pas compté
@@ -518,7 +522,7 @@ async function testCompositor(browser) {
         const played = await runFrames(1.2, () => {});
         const wall = (performance.now() - w0) / 1000;
         Object.assign(montagePause, { on: false, actx: null });
-        return { keyed, bbox: st.bbox, gr, al, bad, ng, none: none.type, played, wall };
+        return { keyed, bbox: st.bbox, gr, al, bad, ng, none: none.type, played, wall, iconDrawing };
     });
     // image de référence fournie (personnage sur fond vert) : importée, détourée, le nœud papillon vert garde sa couleur
     await page.evaluate(() => { state.greenScreen = true; state.images = [{ dataUri: 'data:image/png;base64,iVBORw0KGgo=' }]; navOpen('set-brand'); renderReference(); });
@@ -544,7 +548,8 @@ async function testCompositor(browser) {
     check(r.bbox && Math.abs(r.bbox.x - 60 / 320) < 0.03 && Math.abs(r.bbox.w - 60 / 320) < 0.03, 'silhouette du personnage repérée');
     check(r.gr && r.gr.off[0] < 0 && r.gr.off[2] > 0, 'couleurs d\'une scène trop chaude ramenées vers la référence');
     check(r.al && r.al.s > 1 && r.al.dx < 0, 'personnage recalé (taille et position) d\'une scène à l\'autre');
-    check(!r.bad.length, 'graphiques animés (compteur, barres, liste, comparaison) en paysage et vertical' + (r.bad.length ? ' : ' + r.bad.join(' | ') : ''));
+    check(!r.bad.length, 'graphiques animés (compteur, barres, liste, comparaison, frise, chaîne, avant/après) en paysage et vertical' + (r.bad.length ? ' : ' + r.bad.join(' | ') : ''));
+    check(r.iconDrawing.names.join() === 'crown,droplet' && r.iconDrawing.labels === 'Roi,Peuple,Libre' && r.iconDrawing.paths > 6, 'illustration : icônes de la bibliothèque + dessin libre (commandes relatives acceptées), mots-clés dessous (' + JSON.stringify(r.iconDrawing) + ')');
     check(r.ng.items[0].value === 0 && r.none === 'none', 'graphiques invalides neutralisés');
     check(r.played > 1.1 && r.wall > 2, 'montage en pause quand l\'appli passe en arrière-plan, puis reprise (' + r.played.toFixed(2) + ' s joués en ' + r.wall.toFixed(2) + ' s)');
     const cut = await page.evaluate(() => { state.trimMode = 'auto'; return sceneCutAuto({ sttWords: [{ text: 'Bonjour', start: 0.9, end: 1.3 }, { text: 'toi', start: 1.4, end: 2.6 }], speech: { silent: false, start: 0.2, end: 5.8, coverage: 0.99 } }, 6, 1); });
