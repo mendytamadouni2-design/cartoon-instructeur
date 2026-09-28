@@ -50,9 +50,12 @@ function renderElevenLabsVoices() {
     const list = document.getElementById('elevenlabs-voices-list'); if (!list) return;
     const saved = getLS(STORAGE.ELEVENLABS_VOICE);
     if (saved && !elevenlabsSelectedVoiceId) elevenlabsSelectedVoiceId = saved;
-    list.innerHTML = elevenlabsVoices.map(v =>
+    // voix « premade » (et les tiennes) : utilisables sans abonnement ; celles de la bibliothèque demandent un abonnement payant
+    const free = v => ['premade', 'cloned', 'generated'].includes(v.category);
+    const sorted = elevenlabsVoices.slice().sort((a, b) => free(b) - free(a));
+    list.innerHTML = sorted.map(v =>
         '<div class="tts-voice-item ' + (v.voice_id === elevenlabsSelectedVoiceId ? 'selected' : '') + '" data-voice-id="' + esc(v.voice_id) + '">' +
-        '<div class="v-name">' + esc(v.name) + '</div><div class="v-info">' + esc(v.category || '') + '</div></div>'
+        '<div class="v-name">' + esc(v.name) + '</div><div class="v-info">' + (free(v) ? '✅ gratuite' : '💳 abonnement payant') + '</div></div>'
     ).join('');
     list.querySelectorAll('[data-voice-id]').forEach(el => {
         el.addEventListener('click', () => {
@@ -70,7 +73,12 @@ async function generateElevenLabsAudio(text, voiceId, modelId, stability, simila
         method: 'POST', headers: { 'xi-api-key': key, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
         body: JSON.stringify(body)
     });
-    if (!res.ok) { const err = await res.text(); throw new Error('ElevenLabs ' + res.status + ' ' + err.slice(0, 120)); }
+    if (!res.ok) {
+        const err = await res.text();
+        // voix de la bibliothèque ElevenLabs : réservée aux abonnés payants
+        if (res.status === 402 || /paid_plan_required/.test(err)) throw new Error('cette voix ElevenLabs demande un abonnement payant : choisis une voix marquée « gratuite » dans Réglages → Voix et sous-titres');
+        throw new Error('ElevenLabs ' + res.status + ' ' + err.slice(0, 120));
+    }
     if (typeof trackCost === 'function') trackCost('elevenlabs', text.length / 1000 * ELEVENLABS_PRICE_1K);
     return await res.blob();
 }

@@ -520,6 +520,23 @@ async function redoInBackground(items) {
     showToast('Nouvelles prises envoyées ✓ Tu peux éteindre ton téléphone, puis revenir appuyer sur « Terminer »', 'success', 7000);
 }
 // Avant le montage : récupère les nouvelles prises terminées (renvoie false s'il faut encore attendre)
+let redoWatch = null;
+function watchRedo() {
+    if (redoWatch) return;
+    redoWatch = setInterval(async () => {
+        const p = state.projectId && findProject(state.projectId);
+        if (!p?.redo || !getProxyUrl()) { clearInterval(redoWatch); redoWatch = null; return; }
+        if (document.hidden || assembling || state.isRunning) return;
+        try {
+            const job = await (await fetch(getProxyUrl() + '/jobs/' + p.redo.jobId)).json();
+            if (['done', 'failed', 'cancelled'].includes(job.status)) {
+                clearInterval(redoWatch); redoWatch = null;
+                showToast('Nouvelle prise prête ✓ Le montage démarre', 'success', 4000);
+                runAssembly();
+            }
+        } catch (e) {}
+    }, 30000);
+}
 async function applyPendingRedo() {
     const p = state.projectId && findProject(state.projectId);
     if (!p?.redo || !getProxyUrl()) return true;
@@ -530,7 +547,8 @@ async function applyPendingRedo() {
         if (!r.ok) throw new Error(job.error || ('HTTP ' + r.status));
         if (!['done', 'failed', 'cancelled'].includes(job.status)) {
             const done = job.scenes.filter(s => s.status === 'done').length;
-            showToast('Nouvelles prises encore en cours sur ton serveur (' + done + '/' + job.scenes.length + ') : reviens un peu plus tard', 'warn', 6000);
+            showToast('Nouvelle prise en cours sur ton serveur (' + done + '/' + job.scenes.length + ', 5 à 15 min). Laisse l\'appli ouverte : le montage démarrera tout seul dès qu\'elle sera prête. Tu peux aussi revenir plus tard.', 'warn', 8000);
+            watchRedo();
             return false;
         }
         let applied = 0;
@@ -555,8 +573,9 @@ async function applyPendingRedo() {
 function updateVoiceIndicator() {
     const el = document.getElementById('voice-indicator'); if (!el) return;
     const vid = elevenVoiceId(), name = (typeof elevenlabsVoices !== 'undefined' && elevenlabsVoices.find(v => v.voice_id === vid)?.name) || (vid ? 'voix choisie' : '');
-    const eleven = state.voiceSource === 'fit' && getElevenLabsKey() && vid;
-    el.innerHTML = eleven ? '🗣️ Voix : <b>ElevenLabs</b> (' + esc(name) + '), calée sur les lèvres' + (richActive() ? ' · scènes riches activées' : '')
+    const fit = state.voiceSource === 'fit', prem = state.voiceSource === 'premium' && state.ttsEngine === 'elevenlabs';
+    const eleven = (fit || prem) && getElevenLabsKey() && vid;
+    el.innerHTML = eleven ? '🗣️ Voix : <b>ElevenLabs</b> (' + esc(name) + ')' + (fit ? ', calée sur les lèvres' : '') + (richActive() ? ' · scènes riches activées' : '')
         : '🗣️ Voix : <b>Agnes</b>. ' + (getElevenLabsKey() ? 'Choisis une voix ElevenLabs dans Réglages → Voix et sous-titres pour une voix plus naturelle.' : 'Ajoute ta clé ElevenLabs (Réglages → Voix et sous-titres) pour une voix plus naturelle et les scènes riches.');
 }
 function applyQualityDefaults() {

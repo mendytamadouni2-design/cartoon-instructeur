@@ -127,8 +127,13 @@ function applyTrims(item, cut, vDur) {
 function sceneCut(item, vDur, index) { return applyTrims(item, sceneCutAuto(item, vDur, index), vDur); }
 function sceneCutAuto(item, vDur, index) {
     if (state.trimMode === 'none') return { tin: 0, tout: vDur };
-    const a = item.speech;
-    if (state.trimMode === 'auto' && a && !a.silent && a.coverage < 0.93) {
+    const a = item.speech, sw = item.sttWords;
+    // mots transcrits : on coupe juste avant le premier et juste après le dernier
+    if (state.trimMode === 'auto' && Array.isArray(sw) && sw.length) {
+        const tin = Math.max(0, sw[0].start - 0.12), tout = Math.min(vDur, sw[sw.length - 1].end + 0.3);
+        if (tout - tin >= 1) return { tin, tout };
+    }
+    if (state.trimMode === 'auto' && a && !a.silent && a.coverage < 0.97) {
         let tin = Math.max(0, a.start - 0.15), tout = Math.min(vDur, a.end + 0.35);
         if (tout - tin >= 1.2) return { tin, tout };
     }
@@ -759,7 +764,8 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
             const usingFit = !usingTts && state.voiceSource === 'fit' && !!item.fitBuffer;
             let cut = usingTts ? applyTrims(item, { tin: seg.index > 0 ? Math.min(0.4, vDur / 3) : 0, tout: vDur }, vDur) : sceneCut(item, vDur, seg.index);
             let dur = cut.tout - cut.tin;
-            if (usingTts) dur = Math.max(dur, item.ttsBuffer.duration + 0.25);
+            // voix premium : la scène dure le temps de la phrase (+ un souffle), pas les 6 s du clip → plus de blanc entre les scènes
+            if (usingTts) { const sp = item.ttsSpeech, end = sp && !sp.silent ? sp.end : item.ttsBuffer.duration; dur = Math.max(1.2, Math.min(item.ttsBuffer.duration, end + 0.35)); }
             dur = Math.min(dur, maxDuration - T);
             const words = usingTts
                 ? computeWordTimes({ ...item, sttWords: null, speech: item.ttsSpeech }, { tin: 0, tout: dur }, dur)
@@ -955,6 +961,7 @@ async function runAssembly() {
         const redo = bad.filter(b => !b.autoRedone);
         if (redo.length && !state.autoRun && getAgnesKey() && (state.images[0] || state.photoSmall)) {
             redo.forEach(b => { b.autoRedone = true; });
+            saveProject();
             log('Scènes refaites automatiquement : ' + badMsg);
             if (canRedoInBackground()) {
                 showToast('🔁 ' + badMsg + ' Nouvelles prises lancées sur ton serveur : reviens appuyer sur « Terminer » quand elles sont prêtes.', 'warn', 9000);

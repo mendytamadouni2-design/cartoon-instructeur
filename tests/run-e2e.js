@@ -547,6 +547,10 @@ async function testCompositor(browser) {
     check(!r.bad.length, 'graphiques animés (compteur, barres, liste, comparaison) en paysage et vertical' + (r.bad.length ? ' : ' + r.bad.join(' | ') : ''));
     check(r.ng.items[0].value === 0 && r.none === 'none', 'graphiques invalides neutralisés');
     check(r.played > 1.1 && r.wall > 2, 'montage en pause quand l\'appli passe en arrière-plan, puis reprise (' + r.played.toFixed(2) + ' s joués en ' + r.wall.toFixed(2) + ' s)');
+    const cut = await page.evaluate(() => { state.trimMode = 'auto'; return sceneCutAuto({ sttWords: [{ text: 'Bonjour', start: 0.9, end: 1.3 }, { text: 'toi', start: 1.4, end: 2.6 }], speech: { silent: false, start: 0.2, end: 5.8, coverage: 0.99 } }, 6, 1); });
+    check(Math.abs(cut.tin - 0.78) < 0.01 && Math.abs(cut.tout - 2.9) < 0.01, 'scène coupée juste avant le premier mot et juste après le dernier (pas de blanc entre les scènes)');
+    const ind = await page.evaluate(() => { localStorage.setItem('elevenlabs_api_key', 'sk_x'); elevenlabsSelectedVoiceId = 'v1'; state.voiceSource = 'premium'; state.ttsEngine = 'elevenlabs'; updateVoiceIndicator(); return document.getElementById('voice-indicator')?.textContent || ''; });
+    check(ind.includes('ElevenLabs'), 'voix premium ElevenLabs bien affichée (' + ind.slice(0, 40) + ')');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }
