@@ -8,14 +8,16 @@ const KEY_GREEN = [0, 177 / 255, 64 / 255];   // #00B140
 const VP_VERT = 'attribute vec2 p; varying vec2 uv; void main() { uv = vec2((p.x + 1.0) * 0.5, 1.0 - (p.y + 1.0) * 0.5); gl_Position = vec4(p, 0.0, 1.0); }';
 const VP_FRAG = [
     'precision mediump float;',
-    'varying vec2 uv; uniform sampler2D tex; uniform vec3 gain; uniform vec3 off; uniform float keyOn; uniform vec3 keyCol; uniform float sim; uniform float smoothv; uniform float spill;',
+    'varying vec2 uv; uniform sampler2D tex; uniform vec3 gain; uniform vec3 off; uniform float keyOn; uniform vec3 keyCol; uniform float sim; uniform float smoothv; uniform float spill; uniform vec2 texel;',
     'vec2 cbcr(vec3 c) { return vec2(-0.1687 * c.r - 0.3313 * c.g + 0.5 * c.b, 0.5 * c.r - 0.4187 * c.g - 0.0813 * c.b); }',
+    'float keyA(vec2 p) { return smoothstep(sim, sim + smoothv, distance(cbcr(texture2D(tex, p).rgb), cbcr(keyCol))); }',
     'void main() {',
     '  vec4 src = texture2D(tex, uv);',
     '  float a = 1.0; vec3 c = src.rgb;',
     '  if (keyOn > 0.5) {',
     '    float d = distance(cbcr(c), cbcr(keyCol));',
     '    a = smoothstep(sim, sim + smoothv, d);',
+    '    a = min(a, min(min(keyA(uv + vec2(texel.x, 0.0)), keyA(uv - vec2(texel.x, 0.0))), min(keyA(uv + vec2(0.0, texel.y)), keyA(uv - vec2(0.0, texel.y)))));',   // bord resserré d'un pixel : plus de halo
     '    float s = max(0.0, c.g - max(c.r, c.b));',   // débordement de vert sur les contours
     '    c.g -= s * spill * (1.0 - smoothstep(sim + smoothv * 0.5, sim + smoothv * 1.2, d));',   // seulement près du fond : un accessoire vert garde sa couleur
     '  }',
@@ -42,7 +44,7 @@ function createVideoProcessor() {
             tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
             [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE));
             [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.LINEAR));
-            ['tex', 'gain', 'off', 'keyOn', 'keyCol', 'sim', 'smoothv', 'spill'].forEach(n => { loc[n] = gl.getUniformLocation(prog, n); });
+            ['tex', 'gain', 'off', 'keyOn', 'keyCol', 'sim', 'smoothv', 'spill', 'texel'].forEach(n => { loc[n] = gl.getUniformLocation(prog, n); });
         }
     } catch (e) { log('WebGL indisponible : ' + e.message); gl = null; }
     // repli 2D (plus lent : image réduite)
@@ -66,7 +68,7 @@ function createVideoProcessor() {
                 } catch (e) { failed = true; log('Texture vidéo refusée : ' + e.message); return null; }
                 gl.uniform1i(loc.tex, 0); gl.uniform3fv(loc.gain, gain); gl.uniform3fv(loc.off, off);
                 gl.uniform1f(loc.keyOn, opts.key ? 1 : 0); gl.uniform3fv(loc.keyCol, KEY_GREEN);
-                gl.uniform1f(loc.sim, 0.085); gl.uniform1f(loc.smoothv, 0.06); gl.uniform1f(loc.spill, 0.85);
+                gl.uniform1f(loc.sim, 0.085); gl.uniform1f(loc.smoothv, 0.06); gl.uniform1f(loc.spill, 0.85); gl.uniform2f(loc.texel, 1 / w, 1 / h);
                 gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
                 return canvas;
@@ -251,9 +253,19 @@ function framingFor(seg, look, wb, hasDrawing) {
     return { z: 1.16, cx, cy };
 }
 // Médaillon : image détourée recadrée sur la silhouette du personnage
+function alphaBBox(layer) {
+    const c = document.createElement('canvas'), sw = 160, sh = Math.max(1, Math.round(160 * layer.height / layer.width));
+    c.width = sw; c.height = sh;
+    const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(layer, 0, 0, sw, sh);
+    const d = g.getImageData(0, 0, sw, sh).data;
+    let x0 = sw, y0 = sh, x1 = -1, y1 = -1;
+    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) if (d[(y * sw + x) * 4 + 3] > 128) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    return x1 < 0 ? null : { x: x0 / sw, y: y0 / sh, w: (x1 - x0 + 1) / sw, h: (y1 - y0 + 1) / sh };
+}
 function presenterFrom(layer, look) {
     if (!layer) return null;
-    const b = look?.bbox || { x: 0, y: 0, w: 1, h: 1 };
+    // cadre mesuré sur cette image précise (le personnage a pu bouger depuis la mesure de la scène)
+    const b = alphaBBox(layer) || look?.bbox || { x: 0, y: 0, w: 1, h: 1 };
     const m = 0.06, x = Math.max(0, b.x - m) * layer.width, y = Math.max(0, b.y - m) * layer.height;
     const w = Math.min(layer.width - x, (b.w + 2 * m) * layer.width), h = Math.min(layer.height - y, (b.h + m) * layer.height + layer.height * 0.02);
     if (w < 4 || h < 4) return null;

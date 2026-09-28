@@ -6,20 +6,86 @@
 // ══════════════════════════════════════════════════════════════════
 const DRAW_VB = { w: 400, h: 300 };
 const INK = { black: '#1f1f1f', blue: '#2563eb', red: '#e03e3e', green: '#1f9d55', orange: '#f08c00' };
+// Claude dessine 1 à 3 éléments, chacun dans sa case de 200 × 200 ; l'appli les range et écrit leur mot-clé dessous
 const DRAWING_SCHEMA = {
     type: 'object',
     properties: {
-        paths: {
+        elements: {
             type: 'array',
             items: {
                 type: 'object',
-                properties: { d: { type: 'string' }, color: { type: 'string', enum: Object.keys(INK) }, word: { type: 'string' } },
-                required: ['d', 'color', 'word'], additionalProperties: false
+                properties: {
+                    label: { type: 'string' }, word: { type: 'string' },
+                    paths: { type: 'array', items: { type: 'object', properties: { d: { type: 'string' }, color: { type: 'string', enum: Object.keys(INK) } }, required: ['d', 'color'], additionalProperties: false } }
+                },
+                required: ['label', 'word', 'paths'], additionalProperties: false
             }
-        }
+        },
+        link: { type: 'string', enum: ['none', 'arrow', 'versus'] }
     },
-    required: ['paths'], additionalProperties: false
+    required: ['elements', 'link'], additionalProperties: false
 };
+// Mise en page des illustrations : 1 à 3 éléments dessinés chacun dans sa case, rangés côte à côte,
+// avec leur mot-clé écrit dessous (vraie police) et une flèche ou « VS » entre eux.
+function layoutDrawing(out) {
+    if (!out || !Array.isArray(out.elements)) return out;   // ancien format : déjà en place
+    const els = out.elements.filter(e => e && Array.isArray(e.paths) && e.paths.length).slice(0, 3);
+    const n = els.length, paths = [], labels = [];
+    if (!n) return { paths, labels };
+    const link = ['arrow', 'versus'].includes(out.link) && n > 1 ? out.link : 'none';
+    const M = 10, gap = link === 'none' ? 14 : 36, top = 8, zoneH = 200, labelY = 250;
+    const cellW = (400 - 2 * M - gap * (n - 1)) / n;
+    const parse = d => {
+        const s = String(d || '');
+        if (/[a-df-z]/.test(s.replace(/e-?\d/g, ''))) return null;   // commandes relatives refusées
+        const toks = s.match(/[MLQCZHV]|-?\d*\.?\d+(?:e-?\d+)?/g);
+        return toks && toks[0] === 'M' ? toks : null;
+    };
+    // parcourt les points d'un tracé (x,y), en appelant f pour chacun
+    const walk = (toks, f) => {
+        const out = []; let cmd = null, buf = [], lx = 0, ly = 0;
+        const flush = () => {
+            if (cmd === 'H') { buf.forEach(x => { lx = x; const p = f(x, ly); out.push('L', p[0], p[1]); }); }
+            else if (cmd === 'V') { buf.forEach(y => { ly = y; const p = f(lx, y); out.push('L', p[0], p[1]); }); }
+            else if (cmd && cmd !== 'Z') {
+                const per = { M: 2, L: 2, Q: 4, C: 6 }[cmd];
+                for (let i = 0; i + per <= buf.length; i += per) {
+                    out.push(i === 0 || cmd !== 'M' ? cmd : 'L');
+                    for (let k = 0; k < per; k += 2) { const p = f(buf[i + k], buf[i + k + 1]); out.push(p[0], p[1]); lx = buf[i + k]; ly = buf[i + k + 1]; }
+                }
+            } else if (cmd === 'Z') out.push('Z');
+            buf = [];
+        };
+        for (const t of toks) { if (/[A-Z]/.test(t)) { flush(); cmd = t; } else buf.push(+t); }
+        flush();
+        return out;
+    };
+    els.forEach((el, k) => {
+        const parsed = el.paths.map(p => ({ p, toks: parse(p.d) })).filter(x => x.toks).slice(0, 12);
+        if (!parsed.length) return;
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        parsed.forEach(x => walk(x.toks, (px, py) => { if (isFinite(px) && isFinite(py)) { x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); } return [0, 0]; }));
+        if (!isFinite(x0)) return;
+        const bw = Math.max(20, x1 - x0), bh = Math.max(20, y1 - y0);
+        const s = Math.min((cellW - 8) / bw, (zoneH - 8) / bh, 2.5);
+        const cx = M + k * (cellW + gap) + cellW / 2, cy = top + zoneH / 2;
+        const ox = cx - (x0 + x1) / 2 * s, oy = cy - (y0 + y1) / 2 * s;
+        const r = v => Math.round(v * 10) / 10;
+        if (k > 0 && link === 'arrow') {
+            const ax0 = M + k * (cellW + gap) - gap + 6, ax1 = M + k * (cellW + gap) - 6, ay = cy;
+            paths.push({ d: 'M ' + r(ax0) + ' ' + ay + ' L ' + r(ax1) + ' ' + ay + ' M ' + r(ax1 - 9) + ' ' + (ay - 8) + ' L ' + r(ax1) + ' ' + ay + ' L ' + r(ax1 - 9) + ' ' + (ay + 8), color: 'black', word: '' });
+        }
+        if (k > 0 && link === 'versus') labels.push({ text: 'VS', x: r(M + k * (cellW + gap) - gap / 2), y: cy, size: 20, path: paths.length - 1, accent: true });
+        parsed.forEach((x, i) => {
+            const d = walk(x.toks, (px, py) => [r(ox + px * s), r(oy + py * s)]).join(' ');
+            paths.push({ d, color: x.p.color || 'black', word: i === 0 ? String(el.word || '') : '' });
+        });
+        const label = String(el.label || '').trim().slice(0, 28);
+        if (label) labels.push({ text: label, x: r(cx), y: labelY, size: Math.max(16, Math.min(34, (cellW - 4) / (label.length * 0.55))), path: paths.length - 1 });
+    });
+    // « VS » placé après le premier élément : on le rattache au dernier trait de cet élément
+    return { paths, labels };
+}
 let measureSvgEl = null;
 function measurePath(d) {
     if (!measureSvgEl) {
@@ -37,8 +103,9 @@ function measurePath(d) {
 }
 // Transforme la réponse de Claude en traits prêts à animer (un trait = un seul tracé continu).
 function compileDrawing(raw) {
-    const strokes = [];
+    const strokes = [], lastStroke = [];
     for (const p of (raw?.paths || [])) {
+        lastStroke.push(strokes.length - 1);
         const pieces = String(p.d || '').split(/(?=M)/).map(x => x.trim()).filter(x => /^M/.test(x));
         let first = true;
         for (const d of pieces) {
@@ -50,17 +117,24 @@ function compileDrawing(raw) {
             strokes.push({ d, path2d, el, len, color: INK[p.color] || INK.black, word: first ? String(p.word || '') : '' });
             first = false;
         }
+        lastStroke[lastStroke.length - 1] = strokes.length - 1;
     }
-    return strokes.length ? { strokes, total: strokes.reduce((a, b) => a + b.len, 0) } : null;
+    // mots-clés : affichés quand le dernier trait de leur élément est tracé
+    const labels = (raw?.labels || []).map(l => ({ text: String(l.text || '').slice(0, 28), x: +l.x || 0, y: +l.y || 0, size: +l.size || 20, accent: !!l.accent, stroke: lastStroke[l.path] ?? -1 })).filter(l => l.text && l.stroke >= 0);
+    return strokes.length ? { strokes, labels, total: strokes.reduce((a, b) => a + b.len, 0) } : null;
 }
 function drawingRequestFor(sceneText, index, total, feedback, visual) {
     const v = visual !== undefined ? visual : (scenePlanFor(index).visual || '');
     return {
-        system: 'Tu es illustrateur de vidéos pédagogiques façon tableau blanc. Tu dessines au feutre, en quelques traits simples et lisibles, ce que dit le narrateur, comme un professeur qui illustre au tableau. Ton dessin doit être reconnaissable au premier coup d\'œil et montrer exactement l\'idée demandée, pas une idée voisine.',
+        effort: 'high',
+        system: 'Tu es illustrateur de vidéos pédagogiques façon tableau blanc. Tu dessines au feutre, en quelques traits simples et lisibles, ce que dit le narrateur, comme un professeur qui illustre au tableau. Chaque élément doit être un objet, un personnage simplifié ou un symbole CONCRET, reconnaissable au premier coup d\'œil, qui montre exactement l\'idée demandée (jamais une forme abstraite).',
         prompt: 'Sujet de la vidéo : ' + (state.theme || 'non précisé') + '.\nScript complet (pour le contexte) :\n' + state.scenes.map((l, k) => (k + 1) + '. ' + l).join('\n') +
             '\n\nÀ illustrer maintenant, phrase ' + (index + 1) + '/' + total + ' : « ' + sceneText + ' »' + (v ? '\nCe qu\'il faut dessiner : ' + v : '') + (feedback ? '\nUn premier dessin a été refusé pour cette raison : ' + feedback + ' Fais un dessin nettement plus clair.' : '') + '\n\n' +
-            'Dessine une illustration concrète et compréhensible de cette phrase (objets, personnages simplifiés, flèches, symboles visuels), dans une zone de ' + DRAW_VB.w + ' × ' + DRAW_VB.h + ' (coordonnées SVG, origine en haut à gauche, marge de 20).\n' +
-            'Contraintes :\n- 4 à 18 traits, chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer une forme)\n- dessin au trait uniquement (pas de remplissage)\n- AUCUNE lettre, AUCUN chiffre, AUCUN mot, aucun texte\n- ordre des traits = ordre dans lequel on les dessine (d\'abord l\'élément principal, puis les détails et les flèches)\n- surtout du noir ("black"), une ou deux couleurs d\'accent maximum pour ce qui est important\n- "word" : le mot de la phrase (écrit exactement pareil) au moment duquel ce trait doit commencer à être dessiné, pour que le dessin apparaisse quand le personnage en parle ; "" pour les traits qui suivent simplement le précédent',
+            'Compose l\'illustration en 1 à 3 ÉLÉMENTS (2 ou 3 de préférence) : l\'appli les place côte à côte et écrit sous chacun son mot-clé.\n' +
+            'Pour chaque élément :\n- "label" : son mot-clé, 1 à 3 mots dans la langue de la vidéo (ex. « Privilèges », « Constitution », « Coup d\'État »)\n' +
+            '- "word" : le mot de la phrase (écrit exactement pareil) au moment duquel il commence à être dessiné, ou ""\n' +
+            '- "paths" : 3 à 10 traits qui dessinent CET élément seul, centré dans une case de 200 × 200 (coordonnées SVG de 0 à 200, origine en haut à gauche, marge de 15). Chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer). Dessin au trait, sans remplissage, AUCUNE lettre ni chiffre dans les traits. Surtout du noir ("black"), une couleur d\'accent pour le détail important.\n' +
+            '"link" : "arrow" si les éléments se suivent (cause → conséquence, avant → après, étapes), "versus" s\'ils s\'opposent, sinon "none".',
         schema: DRAWING_SCHEMA,
         maxTokens: 8000
     };
@@ -68,8 +142,9 @@ function drawingRequestFor(sceneText, index, total, feedback, visual) {
 async function generateDrawing(sceneText, index, total, feedback) {
     const p = scenePlanFor(index);
     const out = await callClaude(drawingRequestFor([sceneText, p.narration].filter(Boolean).join(' '), index, total, feedback));
-    const compiled = compileDrawing(out);
-    if (compiled) compiled.raw = out;
+    const laid = layoutDrawing(out);
+    const compiled = compileDrawing(laid);
+    if (compiled) compiled.raw = laid;
     return compiled;
 }
 async function prepareDrawings() {

@@ -351,20 +351,14 @@ const MOTION_PROMPTS = {
     explain: 'character gestures with open hands while explaining',
     point: 'character points toward the information',
     think: 'character puts hand on chin, thinking',
-    show: 'character holds up and presents an object',
+    show: 'character presents with an open palm, holding nothing',
     nod: 'character nods approvingly',
     count: 'character counts on their fingers',
-    draw: 'character draws shapes in the air'
+    draw: 'character traces simple shapes in the air with one finger'
 };
+// L'IA vidéo ne dessine plus aucun effet : elle les rate (flous, verts, faux texte). L'appli s'en charge au montage.
 const PEDAGO_FX_PROMPTS = {
-    arrows: 'animated arrows pointing at key elements',
-    bubbles: '',   // bulles dessinées par l'appli au montage, avec le vrai texte
-    highlight: 'soft glowing highlights around the key objects',
-    schemas: '',   // schémas : dessinés par l'appli (tableau blanc) ; l'IA vidéo les remplit de faux texte
-    icons: 'floating educational icons (pictures only)',
-    particles: 'glowing particles of knowledge',
-    chalkboard: 'a chalkboard with simple drawings on it (drawings only)',
-    progress: ''
+    arrows: '', bubbles: '', highlight: '', schemas: '', icons: '', particles: '', chalkboard: '', progress: ''
 };
 const LIPSYNC_PROMPTS = {
     basic: 'character\'s mouth opens and closes naturally as they speak',

@@ -174,6 +174,7 @@ async function loadMainImages() {
         if (Array.isArray(list) && list.length && !state.images.length) { state.images = list; renderImages(); updateGenerateBtn(); }
     } catch (e) {}
     await loadReference();
+    if (typeof loadIdentity === 'function') await loadIdentity();
     if (NAV.tab === 'home') renderHome();
 }
 

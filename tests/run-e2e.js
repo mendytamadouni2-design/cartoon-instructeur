@@ -88,7 +88,8 @@ function claudeMock(route) {
     let out;
     if (props.score) { mockStats.qa++; out = { score: 7.5, summary: 'Personnage régulier, un dessin peu lisible.', issues: [{ scene: 2, kind: 'illustration', problem: 'le dessin ne montre pas la vapeur', action: 'redessiner' }] }; }
     else if (props.results) { mockStats.drawChecks++; out = { results: mockStats.drawChecks === 1 ? [{ k: 1, ok: false, why: 'trop vague' }] : [{ k: 1, ok: true, why: '' }] }; }
-    else if (props.scenes && !props.setting) { mockStats.refChecks++; out = { scenes: [1, 2, 3].map(n => ({ scene: n, same: true, problem: '' })) }; }
+    else if (props.scenes && !props.setting) { mockStats.refChecks++; mockStats.refPrompt = Array.isArray(body.messages[0].content) ? (body.messages[0].content.find(c => c.type === 'text')?.text || '') : String(body.messages[0].content); out = { scenes: [1, 2, 3].map(n => ({ scene: n, same: !(n === 2 && mockStats.refChecks === 1), problem: n === 2 ? 'lunettes perdues' : '' })) }; }
+    else if (props.traits) { mockStats.identity = (mockStats.identity || 0) + 1; out = { traits: 'orange bean-shaped body; round purple glasses; black round eyes; green bow tie; no clothing' }; }
     else if (props.videos?.items?.properties?.lines) out = { videos: [{ title: 'Les volcans', why: 'Spectaculaire', lines: ['Le soleil chauffe l\'eau.', 'Le soleil chauffe l\'eau.'] }, { title: 'La lune', why: 'Mystérieux', lines: ['Le soleil chauffe l\'eau.'] }] };
     else if (props.replies) out = { replies: [{ i: 0, reply: 'Merci beaucoup ! 😄' }] };
     else if (props.vocabulary) out = { title: 'Le cycle de l\'eau', objectives: ['Je sais expliquer l\'évaporation.'], summary: 'Le soleil chauffe l\'eau, qui monte et forme des nuages. Œuvre de la nature !', vocabulary: [{ word: 'Évaporation', definition: 'Passage de l\'eau liquide à la vapeur.' }], quiz: [{ question: 'Qui chauffe l\'eau ?', choices: ['Le soleil', 'La lune', 'Le vent'], answer: 0, explanation: 'C\'est la chaleur du soleil.' }], activity: 'Observe une casserole d\'eau chaude.' };
@@ -99,10 +100,9 @@ function claudeMock(route) {
     else if (props.hashtags) out = { caption: 'Le voyage de l\'eau en 30 s', hashtags: ['science', 'eau'] };
     else if (props.lines) out = { lines: ['Ligne modèle un.', 'Ligne modèle deux.'] };
     else if (props.issues) out = { issues: [{ line: 1, problem: 'imprécis', fix: 'Le soleil réchauffe l\'eau des océans.' }] };
-    else if (props.paths && ++mockStats.paths) out = { paths: [
-        { d: 'M 90 110 C 90 70 150 70 150 110 C 150 150 90 150 90 110 Z', color: 'orange', word: 'soleil' },
-        { d: 'M 60 250 Q 120 230 180 250 Q 240 270 300 250', color: 'blue', word: 'eau' },
-        { d: 'M 200 230 C 205 200 230 180 250 150', color: 'black', word: '' }] };
+    else if (props.elements && ++mockStats.paths) out = { link: 'arrow', elements: [
+        { label: 'Soleil', word: 'soleil', paths: [{ d: 'M 60 100 C 60 60 140 60 140 100 C 140 140 60 140 60 100 Z', color: 'orange' }, { d: 'M 100 20 L 100 45', color: 'orange' }] },
+        { label: 'Évaporation', word: 'eau', paths: [{ d: 'M 20 170 Q 60 150 100 170 Q 140 190 180 170', color: 'blue' }, { d: 'M 100 150 C 105 120 90 90 100 60', color: 'black' }] }] };
     else if (props.scenes) out = { setting: '', scenes: [
         { spoken: 'Le soleil chauffe l\'eau.', action: 'draws', camera: 'medium-wide shot', bubble: 'Le soleil', zoom: 'none', emphasis: '', section: '', shot: 'character', highlight: '100 °C', pose: 'main', narration: '', visual: 'un soleil au-dessus de la mer' },
         { spoken: 'Le soleil chauffe l\'eau.', action: 'points', camera: 'medium-wide shot', bubble: 'Évaporation', zoom: 'in', emphasis: 'chauffe', section: '', shot: 'board', highlight: '', pose: 'main', narration: 'L\'eau chaude devient une vapeur invisible qui monte vers le ciel.', visual: 'des flèches qui montent de la mer' },
@@ -237,6 +237,9 @@ async function testPhoneMontage(browser) {
     check(r.board.length === 1 && r.board[0][0] === 1 && r.board[0][1] > 1.2, 'plan illustré commenté après la scène 2 (' + JSON.stringify(r.board) + ')');
     check(await page.evaluate(() => segmentsForScene(1)[0].text === scenePlanFor(1).spoken && /-->/.test(generateSRT()) && generateSRT().includes('vapeur')), 'sous-titres : réplique puis voix off');
     check(mockStats.refChecks >= 1, 'scènes comparées à l\'image de référence avant le montage');
+    check(mockStats.identity === 1 && scenePrompts.every(b => b.prompt.includes('Character identity') && b.prompt.includes('round purple glasses') && b.prompt.includes('holds nothing') && !/Effects:/.test(b.prompt)) && mockStats.refPrompt.includes('round purple glasses'), 'fiche d\'identité du personnage dans chaque scène, rien dans les mains, aucun effet demandé à Agnes');
+    check(scenePrompts.length === 5 && await page.evaluate(() => state.queue[1].autoRedone === true), 'scène au personnage différent refaite automatiquement avant le montage (une seule fois) ' + JSON.stringify([scenePrompts.length, mockStats.refChecks, scenePrompts.map(b => (b.prompt.match(/says[^"]*"([^"]{0,25})/) || [])[1])]));
+    check(await page.evaluate(() => state.drawings.filter(Boolean).every(d => d.labels.length === 2 && d.labels[0].text === 'Soleil') && state.drawings.some(Boolean)), 'illustrations rangées en cases avec leur mot-clé écrit dessous');
     check(await page.evaluate(() => document.getElementById('voice-indicator').textContent.includes('ElevenLabs')), 'voix utilisée affichée (ElevenLabs)');
     await page.waitForFunction(() => !!state.qaReport, null, { timeout: 60000 }).catch(() => {});
     check(await page.evaluate(() => (state.qaFrames || []).length >= 8 && !!state.qaReport && document.getElementById('qa-report').textContent.includes('7.5')) && mockStats.images >= 8, 'contrôle par l\'IA : ' + mockStats.images + ' images analysées, rapport affiché');
@@ -244,7 +247,7 @@ async function testPhoneMontage(browser) {
     await page.click('[data-qa-redraw]');
     await page.waitForFunction(() => document.querySelector('[data-qa-redraw]')?.textContent.includes('refaites'), null, { timeout: 30000 });
     check(true, 'contrôle par l\'IA : illustration refaite en un appui');
-    check(dialogs.some(d => /pas de voix|personnage muet/.test(d)), 'contrôle qualité : scène muette détectée et refaite');
+    check(await page.evaluate(() => /Scènes refaites automatiquement[^\n]*(pas de voix|personnage muet)/.test(journalText())), 'contrôle qualité : scène muette détectée et refaite');
     check(r.size > 100000, 'vidéo finale produite (' + r.type + ', ' + Math.round(r.size / 1024) + ' Ko)');
     check(r.tl.every(d => d > 2 && d < 3.2), 'blancs coupés (durées ' + r.tl.join(', ') + ' s)');
     check(r.fit.every(Boolean), 'voix ElevenLabs calée utilisée');
@@ -399,7 +402,7 @@ async function testPhoneMontage(browser) {
     check(!mockStats.badSystem, 'consignes de Claude envoyées avec le cache (moins cher)');
     const ef = mockStats.efforts;
     check([...mockStats.models].join() === 'claude-opus-5-5', 'Claude Opus 5.5 par défaut (moins cher)');
-    check(ef['setting,scenes'] === 'high' && ef['lines'] === 'high' && ef['paths'] === 'medium' && ef['caption,hashtags'] === 'low' && ef['replies'] === 'low', 'effort adapté à chaque tâche (' + JSON.stringify(ef) + ')');
+    check(ef['setting,scenes'] === 'high' && ef['lines'] === 'high' && ef['elements,link'] === 'high' && ef['caption,hashtags'] === 'low' && ef['replies'] === 'low', 'effort adapté à chaque tâche (' + JSON.stringify(ef) + ')');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }

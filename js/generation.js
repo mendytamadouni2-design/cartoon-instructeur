@@ -10,7 +10,7 @@ function saveProject() {
         date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle,
         scenePlan: state.scenePlan, photo: state.photoSmall, projectId: state.projectId,
         drawings: state.scenes.map((_, i) => state.drawings[i]?.raw || null),
-        queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null, edit: q.edit || undefined, mediaKey: q.mediaKey || undefined, narrKey: q.narrKey || undefined }))
+        queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null, edit: q.edit || undefined, mediaKey: q.mediaKey || undefined, narrKey: q.narrKey || undefined, autoRedone: q.autoRedone || undefined }))
     };
     setJSON(STORAGE.LAST_PROJECT, snap);
     if (typeof saveProjectSnapshot === 'function') saveProjectSnapshot(snap);
@@ -77,6 +77,7 @@ async function sendBackgroundJob(scenes, theme, script, useStoryboard) {
     const sb = useStoryboard && storyboardValid();
     const savedTheme = state.theme;
     state.theme = theme || state.theme;
+    await ensureIdentity();
     try {
         const templates = scenes.map((t, i) => buildScenePrompt({ sceneIndex: i, sceneText: t }, {
             total: n, setting: '{{SETTING}}',

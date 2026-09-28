@@ -122,6 +122,7 @@ const PLAN_SCHEMA = {
                 properties: {
                     spoken: { type: 'string' },
                     action: { type: 'string' },
+                    keywords: { type: 'array', items: { type: 'string' } },
                     camera: { type: 'string', enum: CAMERA_SHOTS },
                     bubble: { type: 'string' },
                     zoom: { type: 'string', enum: ['in', 'none'] },
@@ -141,7 +142,7 @@ const PLAN_SCHEMA = {
                         required: ['type', 'title', 'unit', 'items'], additionalProperties: false
                     }
                 },
-                required: ['spoken', 'action', 'camera', 'bubble', 'zoom', 'emphasis', 'section', 'shot', 'highlight', 'narration', 'visual', 'graphic'], additionalProperties: false
+                required: ['spoken', 'action', 'keywords', 'camera', 'bubble', 'zoom', 'emphasis', 'section', 'shot', 'highlight', 'narration', 'visual', 'graphic'], additionalProperties: false
             }
         }
     },
@@ -167,7 +168,8 @@ function planRequestFor(scenes) {
             'Pour la vidéo entière, donne "setting" : une description en anglais (1 à 2 phrases) d\'un décor unique, SIMPLE et épuré (peu d\'objets, fond calme qui ne détourne pas l\'attention du personnage), lié au sujet, qui restera identique dans toutes les scènes. Aucun texte, panneau écrit ou lettre dans le décor.\n' +
             'Puis pour CHACUNE des ' + scenes.length + ' répliques ci-dessous, dans le même ordre, donne :\n' +
             '- "spoken" : la réplique à prononcer, dans la langue de la vidéo, sans changer le sens, adaptée à une voix de synthèse (' + SPEECH_RULES + ')\n' +
-            '- "action" : en anglais, le geste ou l\'action du personnage (commence par un verbe, ex. "points at a glowing drop of water floating beside him"), qui prolonge naturellement l\'action précédente et illustre la réplique\n' +
+            '- "action" : en anglais, un geste SIMPLE du personnage, les mains vides (commence par un verbe, ex. "gestures with an open hand toward the side", "counts on their fingers", "raises one finger"), qui prolonge naturellement le geste précédent. INTERDIT : tenir, montrer ou faire apparaître un objet, un document, une carte, un écran, un panneau, un accessoire ou un effet visuel (l\'IA vidéo les dessine mal) ; tout ce qui illustre passe par "visual"\n' +
+            '- "keywords" : 2 ou 3 mots-clés très courts (1 à 3 mots chacun) qui résument l\'idée de la réplique' + (richActive() ? ' et de sa narration' : '') + ', dans la langue de la vidéo\n' +
             '- "camera" : le cadrage, en variant les plans d\'une scène à l\'autre\n' +
             '- "bubble" : 2 à 5 mots-clés à afficher dans une bulle, dans la langue de la vidéo, ou "" si la scène n\'en a pas besoin (une scène sur deux environ)\n' +
             '- "zoom" : "in" pour les moments forts (environ une scène sur trois, jamais deux de suite), sinon "none"\n' +
@@ -196,7 +198,7 @@ async function planScenesWithClaude(scenes) {
             return { spoken: p.spoken || text, action: p.action || fb[i].action, camera: p.camera || fb[i].camera, bubble: String(p.bubble || '').slice(0, 60),
                 zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '',
                 shot: isWhiteboard() && p.shot === 'board' && i > 0 && i < scenes.length - 1 ? 'board' : 'character', highlight: String(p.highlight || '').slice(0, 40),
-                narration: richActive() && i > 0 && i < scenes.length - 1 ? String(p.narration || '').trim() : (richActive() && splitSentences(text).length > 1 ? splitSentences(text).slice(1).join(' ') : ''), visual: String(p.visual || '').slice(0, 300), graphic: normalizeGraphic(p.graphic),
+                narration: richActive() && i > 0 && i < scenes.length - 1 ? String(p.narration || '').trim() : (richActive() && splitSentences(text).length > 1 ? splitSentences(text).slice(1).join(' ') : ''), visual: String(p.visual || '').slice(0, 300), graphic: normalizeGraphic(p.graphic), keywords: normKeywords(p.keywords),
                 pose: state.poses.some(x => x.id === p.pose) ? p.pose : 'main' };
         })
     };
@@ -250,6 +252,7 @@ async function prepareStoryboardFlow() {
     if (state.storyboarding) return;
     state.storyboarding = true; state.storyboardApproved = false; updateGenerateBtn();
     try {
+        await ensureIdentity();
         await prepareScenePlan();
         if (needsDrawings() && getClaudeKey()) { setStatus('Claude dessine les illustrations…'); await prepareDrawings(); }
         state.storyboardSig = currentScriptSignature();

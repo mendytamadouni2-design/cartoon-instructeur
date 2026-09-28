@@ -556,18 +556,18 @@ export class VideoJob {
                 const sc = job.plan?.scenes?.[i] || {};
                 if (req.prompt) req.prompt = req.prompt.split('{{SPOKEN}}').join(sc.spoken || req.fallbackText || '').split('{{NARRATION}}').join(sc.narration || '').split('{{VISUAL}}').join(sc.visual || '')
                     .replace(/\nCe qu'il faut dessiner : \s*\n/, '\n');
-                drawings[i] = await callClaude(secrets, req);
+                drawings[i] = layoutDrawing(await callClaude(secrets, req));
                 // vérification : Claude relit le dessin (tracés SVG) et le fait refaire s'il ne montre pas la bonne idée
                 if (req.verify && drawings[i] && Array.isArray(drawings[i].paths)) {
-                    const svg = drawings[i].paths.map(pth => '<path d="' + pth.d + '" stroke="' + pth.color + '"/>').join('\n');
+                    const svg = drawings[i].paths.map(pth => '<path d="' + pth.d + '" stroke="' + pth.color + '"/>').concat((drawings[i].labels || []).map(l => '<text x="' + l.x + '" y="' + l.y + '">' + l.text + '</text>')).join('\n');
                     const intent = [sc.visual, sc.spoken || req.fallbackText, sc.narration].filter(Boolean).join(' — ');
                     const check = await callClaude(secrets, {
-                        system: 'Tu es directeur artistique. Tu lis un dessin au trait décrit en SVG (zone 400 × 300) et tu juges s\'il illustre clairement l\'idée demandée.',
+                        system: 'Tu es directeur artistique. Tu lis un dessin au trait décrit en SVG (zone 400 × 300) et tu juges s\'il illustre clairement l\'idée demandée (les <text> sont les mots-clés écrits sous chaque élément).', effort: 'high',
                         prompt: 'Idée à illustrer : ' + intent + '\n\nDessin :\n' + svg + '\n\nDonne "ok" (true s\'il montre bien cette idée de façon reconnaissable) et "why" (sinon, ce qui ne va pas).',
                         schema: { type: 'object', properties: { ok: { type: 'boolean' }, why: { type: 'string' } }, required: ['ok', 'why'], additionalProperties: false }, maxTokens: 2000
                     }).catch(() => ({ ok: true }));
                     if (!check.ok) {
-                        const again = await callClaude(secrets, { ...req, prompt: req.prompt + '\nUn premier dessin a été refusé pour cette raison : ' + check.why + ' Fais un dessin nettement plus clair.' }).catch(() => null);
+                        const again = await callClaude(secrets, { ...req, prompt: req.prompt + '\nUn premier dessin a été refusé pour cette raison : ' + check.why + ' Fais un dessin nettement plus clair.' }).then(layoutDrawing).catch(() => null);
                         if (again && Array.isArray(again.paths)) drawings[i] = again;
                     }
                 }
@@ -701,6 +701,68 @@ function fillTemplate(template, scene, setting) {
     if (setting) p = p.split('{{SETTING}}').join(clean(setting));
     else p = p.replace(/Setting, identical in every shot: \{\{SETTING\}\}\.\s*/g, '');
     return p;
+}
+
+// Mise en page des illustrations : 1 à 3 éléments dessinés chacun dans sa case, rangés côte à côte,
+// avec leur mot-clé écrit dessous (vraie police) et une flèche ou « VS » entre eux.
+function layoutDrawing(out) {
+    if (!out || !Array.isArray(out.elements)) return out;   // ancien format : déjà en place
+    const els = out.elements.filter(e => e && Array.isArray(e.paths) && e.paths.length).slice(0, 3);
+    const n = els.length, paths = [], labels = [];
+    if (!n) return { paths, labels };
+    const link = ['arrow', 'versus'].includes(out.link) && n > 1 ? out.link : 'none';
+    const M = 10, gap = link === 'none' ? 14 : 36, top = 8, zoneH = 200, labelY = 250;
+    const cellW = (400 - 2 * M - gap * (n - 1)) / n;
+    const parse = d => {
+        const s = String(d || '');
+        if (/[a-df-z]/.test(s.replace(/e-?\d/g, ''))) return null;   // commandes relatives refusées
+        const toks = s.match(/[MLQCZHV]|-?\d*\.?\d+(?:e-?\d+)?/g);
+        return toks && toks[0] === 'M' ? toks : null;
+    };
+    // parcourt les points d'un tracé (x,y), en appelant f pour chacun
+    const walk = (toks, f) => {
+        const out = []; let cmd = null, buf = [], lx = 0, ly = 0;
+        const flush = () => {
+            if (cmd === 'H') { buf.forEach(x => { lx = x; const p = f(x, ly); out.push('L', p[0], p[1]); }); }
+            else if (cmd === 'V') { buf.forEach(y => { ly = y; const p = f(lx, y); out.push('L', p[0], p[1]); }); }
+            else if (cmd && cmd !== 'Z') {
+                const per = { M: 2, L: 2, Q: 4, C: 6 }[cmd];
+                for (let i = 0; i + per <= buf.length; i += per) {
+                    out.push(i === 0 || cmd !== 'M' ? cmd : 'L');
+                    for (let k = 0; k < per; k += 2) { const p = f(buf[i + k], buf[i + k + 1]); out.push(p[0], p[1]); lx = buf[i + k]; ly = buf[i + k + 1]; }
+                }
+            } else if (cmd === 'Z') out.push('Z');
+            buf = [];
+        };
+        for (const t of toks) { if (/[A-Z]/.test(t)) { flush(); cmd = t; } else buf.push(+t); }
+        flush();
+        return out;
+    };
+    els.forEach((el, k) => {
+        const parsed = el.paths.map(p => ({ p, toks: parse(p.d) })).filter(x => x.toks).slice(0, 12);
+        if (!parsed.length) return;
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        parsed.forEach(x => walk(x.toks, (px, py) => { if (isFinite(px) && isFinite(py)) { x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); } return [0, 0]; }));
+        if (!isFinite(x0)) return;
+        const bw = Math.max(20, x1 - x0), bh = Math.max(20, y1 - y0);
+        const s = Math.min((cellW - 8) / bw, (zoneH - 8) / bh, 2.5);
+        const cx = M + k * (cellW + gap) + cellW / 2, cy = top + zoneH / 2;
+        const ox = cx - (x0 + x1) / 2 * s, oy = cy - (y0 + y1) / 2 * s;
+        const r = v => Math.round(v * 10) / 10;
+        if (k > 0 && link === 'arrow') {
+            const ax0 = M + k * (cellW + gap) - gap + 6, ax1 = M + k * (cellW + gap) - 6, ay = cy;
+            paths.push({ d: 'M ' + r(ax0) + ' ' + ay + ' L ' + r(ax1) + ' ' + ay + ' M ' + r(ax1 - 9) + ' ' + (ay - 8) + ' L ' + r(ax1) + ' ' + ay + ' L ' + r(ax1 - 9) + ' ' + (ay + 8), color: 'black', word: '' });
+        }
+        if (k > 0 && link === 'versus') labels.push({ text: 'VS', x: r(M + k * (cellW + gap) - gap / 2), y: cy, size: 20, path: paths.length - 1, accent: true });
+        parsed.forEach((x, i) => {
+            const d = walk(x.toks, (px, py) => [r(ox + px * s), r(oy + py * s)]).join(' ');
+            paths.push({ d, color: x.p.color || 'black', word: i === 0 ? String(el.word || '') : '' });
+        });
+        const label = String(el.label || '').trim().slice(0, 28);
+        if (label) labels.push({ text: label, x: r(cx), y: labelY, size: Math.max(16, Math.min(34, (cellW - 4) / (label.length * 0.55))), path: paths.length - 1 });
+    });
+    // « VS » placé après le premier élément : on le rattache au dernier trait de cet élément
+    return { paths, labels };
 }
 
 function mergePlan(out, fallback) {

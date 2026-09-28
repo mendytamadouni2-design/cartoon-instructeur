@@ -327,6 +327,14 @@ function strokeSketch(ctx, area, drawing, fracs, alpha, showTip) {
         ctx.setLineDash([l, st.len + 10]); ctx.lineDashOffset = 0; ctx.stroke(st.path2d);
         try { tip = st.el.getPointAtLength(l); } catch (e) {}
     });
+    (drawing.labels || []).forEach(lb => {
+        const a = clamp01(((fracs[lb.stroke] ?? 0) - 0.5) / 0.5);
+        if (a <= 0) return;
+        ctx.globalAlpha = alpha * a;
+        ctx.font = '800 ' + lb.size + 'px ' + MARKER_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = lb.accent ? INK.red : '#1f1f1f';
+        ctx.fillText(lb.text, lb.x, lb.y + (1 - a) * 6);
+    });
     ctx.restore();
     if (tip && showTip && alpha > 0.5) {
         const x = ox + tip.x * s, y = oy + tip.y * s, r = Math.max(4, s * 6);
@@ -360,7 +368,7 @@ function drawingSchedule(drawing, wordTimes, dur) {
         t = start + d;
         return { start, end: start + d };
     });
-    const limit = dur * 0.92, first = sched[0].start, last = sched[sched.length - 1].end;
+    const limit = dur * 0.8, first = sched[0].start, last = sched[sched.length - 1].end;
     if (last > limit && last > first) {
         const k = Math.max(0.05, (limit - first) / (last - first));
         sched.forEach(s => { s.start = first + (s.start - first) * k; s.end = first + (s.end - first) * k; });
@@ -662,7 +670,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
     const sceneTotal = items.length;
     const qa = !preview && label === 'Montage' && state.qaOn && typeof createQa === 'function' ? createQa(segs.length) : null;
     const timeline = [];
-    let T = 0, hasPrev = false, prevSketch = null, prevWasScene = false, prevWasBoard = false, musicSrc = null;
+    let T = 0, hasPrev = false, prevSketch = null, prevWasScene = false, prevWasBoard = false, prevWasCard = false, musicSrc = null;
     if (rec) { rec.start(1000); montagePause.rec = rec; }
     if (musicBuf) { musicSrc = actx.createBufferSource(); musicSrc.buffer = musicBuf; musicSrc.loop = true; musicSrc.connect(musicGain); musicSrc.start(); duckTo(musicHigh); }
 
@@ -696,8 +704,11 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 src.connect(vg).connect(comp);
                 try { src.start(actx.currentTime + 0.05, 0, dur); } catch (e) {}
                 const info = { name: 'scène ' + (item.sceneIndex + 1) + ' · plan illustré' };
+                // jamais de plan vide : sans dessin ni graphique, les mots-clés s'affichent en liste animée
+                let boardGraphic = normalizeGraphic(plan.graphic);
+                if (boardGraphic.type === 'none' && !drawing && plan.keywords?.length) boardGraphic = normalizeGraphic({ type: 'list', title: '', unit: '', items: plan.keywords.map(k => ({ label: k, value: 0 })) });
                 const played = await runFrames(dur, t => {
-                    const active = drawBoardShot(g, W, H, t, dur, { backdrop, drawing, sched, title: plan.bubble || '', presenter, graphic: normalizeGraphic(plan.graphic), words });
+                    const active = drawBoardShot(g, W, H, t, dur, { backdrop, drawing, sched, title: plan.bubble || '', presenter, graphic: boardGraphic, words, keywords: plan.keywords });
                     sfx.scribble(active);
                     if (plan.highlight && t > dur * 0.55) drawHighlight(g, W, H, plan.highlight, t - dur * 0.55, dur - t);
                     if (t < 0.45) {   // transition « zoom » : l'image précédente s'agrandit et s'efface
@@ -711,7 +722,9 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 sfx.scribble(false);
                 try { src.stop(); } catch (e) {}
                 timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played, narration: true });
-                pg.drawImage(canvas, 0, 0); hasPrev = true; prevSketch = null; prevWasScene = false; prevWasBoard = true;
+                // image de fin propre (sans sous-titres ni logo) pour la transition suivante
+                drawBoardShot(pg, W, H, played, dur, { backdrop, drawing, sched, title: plan.bubble || '', presenter, graphic: boardGraphic, words, keywords: plan.keywords });
+                hasPrev = true; prevSketch = null; prevWasScene = false; prevWasBoard = true; prevWasCard = false;
                 T += played;
                 continue;
             }
@@ -722,12 +735,16 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 if (seg.type === 'intro') sfx.pop(); else if (seg.type === 'card') sfx.whoosh();
                 const fadeFromPrev = hasPrev;
                 const played = await runFrames(dur, t => {
+                    // le titre descend et recouvre l'image précédente (pas de fondu qui assombrit le personnage)
+                    const drop = fadeFromPrev && t < 0.45 ? 1 - easeOut(t / 0.45) : 0;
+                    if (drop > 0) { g.drawImage(prevCanvas, 0, 0); g.save(); g.translate(0, -H * drop); }
                     if (seg.type === 'outro') drawOutro(g, W, H, t, dur, logoImg);
                     else drawTitleCard(g, W, H, seg.title, t, seg.type);
-                    if (fadeFromPrev && t < 0.35) { g.save(); g.globalAlpha = 1 - t / 0.35; g.drawImage(prevCanvas, 0, 0); g.restore(); }
+                    if (drop > 0) g.restore();
                     if (seg.type === 'outro' && musicBuf && t > dur - 1.3) musicGain.gain.setTargetAtTime(0.0001, actx.currentTime, 0.3);
                 });
-                pg.drawImage(canvas, 0, 0); hasPrev = true; prevSketch = null; prevWasScene = false; prevWasBoard = false;
+                if (seg.type === 'outro') drawOutro(pg, W, H, played, dur, null); else drawTitleCard(pg, W, H, seg.title, played, seg.type);
+                hasPrev = true; prevSketch = null; prevWasScene = false; prevWasBoard = false; prevWasCard = true;
                 T += played;
                 continue;
             }
@@ -769,10 +786,12 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 const hit = nw ? words.find(w => normWord(w.text) === nw || normWord(w.text).startsWith(nw)) : null;
                 zoomAt = hit ? hit.start : dur * 0.35;
             }
-            const transition = state.transition === 'fade' ? 'fade' : state.transition === 'cut' ? 'cut' : prevWasBoard ? 'push' : (prevWasScene && !seg.newSection ? 'join' : 'fade');
+            // après un titre : le titre remonte et découvre la scène (pas de fondu qui mélange texte, bulle et personnage)
+            const transition = state.transition === 'cut' ? 'cut' : prevWasCard && hasPrev ? 'wipe' : state.transition === 'fade' ? 'fade' : (prevWasScene && !seg.newSection ? 'join' : 'fade');
             const fadeIn = hasPrev && (transition === 'fade' || transition === 'join');
-            const pushOut = hasPrev && transition === 'push';
-            const fadeSec = transition === 'join' ? JOIN_SEC : FADE_SEC;
+            const wipeIn = hasPrev && transition === 'wipe';
+            const overlayDelay = wipeIn ? 0.55 : hasPrev && transition === 'fade' ? 0.35 : 0;   // bulles et mises en valeur après la transition
+            const fadeSec = transition === 'join' ? JOIN_SEC : prevWasBoard ? 0.3 : FADE_SEC;
             if (transition === 'fade' && prevWasScene) sfx.whoosh();
             const qaInfo = { name: 'scène ' + (item.sceneIndex + 1) };
             const layerOpts = { proc, grade: item.grade, keyed: !!item.keyed, align: item.align, framing: framingFor(seg, item.look, wb, !!drawing) };
@@ -816,6 +835,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                 if (wb && area) {
                     if (prevSketch && t < FADE_SEC && transition === 'cut') drawSketch(g, prevSketch.area, prevSketch.drawing, 1, 1 - t / FADE_SEC);
                     drawingActive = drawSketchTimed(g, area, drawing, sched, t, Math.min(1, t / 0.15));
+                    if (!drawing && plan.keywords?.length) drawGraphic(g, area, { type: 'list', title: '', unit: '', items: plan.keywords.map(k => ({ label: k, value: 0 })) }, t, dur);
                     if (state.pedagoFx.includes('bubbles') && plan.bubble) {
                         const showAt = sched ? sched[Math.floor(sched.length / 2)].end : dur * 0.45;
                         const a = clamp01((t - showAt) / 0.25);
@@ -823,19 +843,19 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
                         drawSketchLabel(g, area, plan.bubble, a);
                     }
                 } else if (state.pedagoFx.includes('bubbles') && plan.bubble) {
-                    if (!bubblePopped) { bubblePopped = true; sfx.pop(); }
-                    drawBubble(g, W, H, plan.bubble, t);
+                    if (!bubblePopped && t >= overlayDelay) { bubblePopped = true; sfx.pop(); }
+                    if (t >= overlayDelay) drawBubble(g, W, H, plan.bubble, t - overlayDelay);
                 }
                 g.restore();
                 sfx.scribble(drawingActive);
-                if (highlightAt !== null && t >= highlightAt) {
+                if (highlightAt !== null && t >= Math.max(highlightAt, overlayDelay)) {
                     if (!highlightPopped) { highlightPopped = true; sfx.pop(); }
                     drawHighlight(g, W, H, plan.highlight, t - highlightAt, dur - t);
                 }
                 if (fadeIn && t < fadeSec) { g.save(); g.globalAlpha = 1 - t / fadeSec; g.drawImage(prevCanvas, 0, 0); g.restore(); }
-                if (pushOut && t < 0.4) {   // transition « glissé » : le tableau part vers la gauche
-                    const e = easeOut(t / 0.4);
-                    g.save(); g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = W * 0.02; g.drawImage(prevCanvas, -W * e, 0); g.restore();
+                if (wipeIn && t < 0.45) {   // le titre remonte et découvre la scène
+                    const e = easeOut(t / 0.45);
+                    g.drawImage(prevCanvas, 0, -H * e);
                 }
                 drawCaptions(g, W, H, sc, t);
                 if (logoImg) drawLogo(g, W, H, logoImg);
@@ -848,7 +868,7 @@ async function assembleVideo({ maxDuration = Infinity, label = 'Montage', format
             drawSceneLayer(pg, v, W, H, layerOpts);
             if (item.keyed && proc) presenter = presenterFrom(proc.process(v, { grade: item.grade, key: true }), item.look);
             if (prevSketch) drawSketch(pg, area, drawing, 1, 1);
-            hasPrev = true; prevWasScene = true; prevWasBoard = false;
+            hasPrev = true; prevWasScene = true; prevWasBoard = false; prevWasCard = false;
             disposeStageVideo(v);
             T += played;
             // précharge la scène suivante pendant qu'on est encore là
@@ -931,19 +951,23 @@ async function runAssembly() {
         const bad = [...new Set([...items.filter(sceneProblem), ...visualBad])].sort((a, b) => a.sceneIndex - b.sceneIndex);
         const why = b => sceneProblem(b) || b.visualProblem || 'différente';
         const badMsg = bad.length + ' scène' + (bad.length > 1 ? 's semblent ratées' : ' semble ratée') + ' (' + bad.map(b => 'scène ' + (b.sceneIndex + 1) + ' : ' + why(b)).join(', ') + ').';
-        if (bad.length && !state.autoRun && getAgnesKey() && (state.images[0] || state.photoSmall) && canRedoInBackground() &&
-            confirm(badMsg + '\n\nOK : les refaire en arrière-plan sur ton serveur (tu peux éteindre ton téléphone), puis revenir appuyer sur « Créer la vidéo finale ».\nAnnuler : monter quand même.')) {
-            await redoInBackground(bad);
-            return false;
-        }
-        if (bad.length && !state.autoRun && !canRedoInBackground() && getAgnesKey() && (state.images[0] || state.photoSmall) &&
-            confirm(badMsg + '\n\nLes refaire automatiquement avant le montage ? (environ ' + Math.ceil(bad.length * 1.5) + ' min, appli ouverte)')) {
+        // Refait automatiquement (une seule fois par scène) les scènes ratées, avant le montage
+        const redo = bad.filter(b => !b.autoRedone);
+        if (redo.length && !state.autoRun && getAgnesKey() && (state.images[0] || state.photoSmall)) {
+            redo.forEach(b => { b.autoRedone = true; });
+            log('Scènes refaites automatiquement : ' + badMsg);
+            if (canRedoInBackground()) {
+                showToast('🔁 ' + badMsg + ' Nouvelles prises lancées sur ton serveur : reviens appuyer sur « Terminer » quand elles sont prêtes.', 'warn', 9000);
+                await redoInBackground(redo);
+                return false;
+            }
+            showToast('🔁 ' + badMsg + ' Je les refais automatiquement (environ ' + Math.ceil(redo.length * 1.5) + ' min, garde l\'appli ouverte).', 'warn', 8000);
             state.regenerating = true; renderQueue();
-            for (let i = 0; i < bad.length; i++) {
+            for (let i = 0; i < redo.length; i++) {
                 if (state.stopRequested) throw new Error('Arrêt demandé');
-                if (i > 0) await countdown(createIntervalMs, 'Nouvelle prise ' + (i + 1) + '/' + bad.length + ' dans ');
-                setStatus('Nouvelle prise de la scène ' + (bad[i].sceneIndex + 1) + '…');
-                try { await regenerateScene(bad[i]); } catch (e) { log('Nouvelle prise : ' + e.message); }
+                if (i > 0) await countdown(createIntervalMs, 'Nouvelle prise ' + (i + 1) + '/' + redo.length + ' dans ');
+                setStatus('Nouvelle prise de la scène ' + (redo[i].sceneIndex + 1) + '…');
+                try { await regenerateScene(redo[i]); } catch (e) { log('Nouvelle prise : ' + e.message); }
             }
             state.regenerating = false; renderQueue();
         }

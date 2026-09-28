@@ -141,10 +141,10 @@ function renderStyles() {
 const LANG_NAMES = { 'fr-FR': 'French', 'en-US': 'English', 'en-GB': 'English', 'es-ES': 'Spanish', 'de-DE': 'German', 'it-IT': 'Italian', 'pt-BR': 'Portuguese', 'ar-SA': 'Arabic', 'zh-CN': 'Chinese', 'ja-JP': 'Japanese', 'ko-KR': 'Korean', 'ru-RU': 'Russian' };
 const LANG_NAMES_FR = { 'fr-FR': 'français', 'en-US': 'anglais (américain)', 'en-GB': 'anglais (britannique)', 'es-ES': 'espagnol', 'de-DE': 'allemand', 'it-IT': 'italien', 'pt-BR': 'portugais (brésilien)', 'ar-SA': 'arabe', 'zh-CN': 'chinois', 'ja-JP': 'japonais', 'ko-KR': 'coréen', 'ru-RU': 'russe' };
 const CAMERA_SHOTS = ['medium shot', 'medium close-up', 'medium-wide shot', 'close-up', 'three-quarter angle medium shot', 'wide shot'];
-const AUTO_ACTIONS = ['explains with open, expressive hand gestures', 'points toward something next to them', 'counts on their fingers', 'holds up and presents an object related to the topic', 'thinks with a hand on the chin, then smiles', 'nods enthusiastically', 'draws shapes in the air with one hand'];
+const AUTO_ACTIONS = ['explains with open, expressive hand gestures', 'gestures with one open hand toward the side', 'counts on their fingers', 'nods and smiles while explaining', 'raises one finger to make a point', 'opens both palms toward the viewer', 'tilts their head, thinking, then continues'];
 
 // Mise en scène de secours (sans Claude) : plans et gestes variés, décor constant.
-const WHITEBOARD_ACTIONS = ['holds a black marker and draws in the air toward the empty white space on the right', 'points with the marker toward the empty space on the right, smiling', 'turns slightly toward the right and sketches with the marker', 'explains with open hands, then gestures toward the right side', 'taps the marker in the air toward the right as if underlining something'];
+const WHITEBOARD_ACTIONS = ['gestures with an open hand toward the empty white space on the right', 'points toward the empty space on the right, as if showing a drawing', 'explains with open hand gestures, facing the viewer', 'counts on their fingers, then looks toward the empty space on the right', 'nods and smiles while explaining', 'raises one finger to make a point'];
 function isWhiteboard() { return state.selectedStyle === 'whiteboard'; }
 function fallbackScenePlan(scenes) {
     const actions = isWhiteboard() ? WHITEBOARD_ACTIONS : AUTO_ACTIONS;
@@ -155,7 +155,7 @@ function fallbackScenePlan(scenes) {
             // scènes riches : 1re phrase dite face caméra, la suite par la voix off sur un plan illustré
             const parts = rich ? splitSentences(text) : [];
             return {
-            spoken: parts.length > 1 ? parts[0] : text, narration: parts.length > 1 ? parts.slice(1).join(' ') : '', visual: '', graphic: { type: 'none', title: '', unit: '', items: [] },
+            spoken: parts.length > 1 ? parts[0] : text, narration: parts.length > 1 ? parts.slice(1).join(' ') : '', visual: '', graphic: { type: 'none', title: '', unit: '', items: [] }, keywords: [],
             action: state.motion === 'auto' || isWhiteboard() ? actions[i % actions.length] : (MOTION_PROMPTS[state.motion] || AUTO_ACTIONS[0]),
             camera: CAMERA_SHOTS[i % CAMERA_SHOTS.length],
             bubble: i === 0 ? (state.theme || '').slice(0, 40) : '',
@@ -181,6 +181,8 @@ function buildScenePrompt(item, override) {
     const parts = [];
     parts.push('Educational cartoon animation. This is shot ' + (sceneIndex + 1) + ' of ' + totalScenes + ' of ONE continuous video.');
     parts.push('The character from the input image MUST stay IDENTICAL: same face, hairstyle, body shape, clothing and colors.');
+    const idText = characterIdentity();
+    if (idText) parts.push('Character identity, visible and unchanged in EVERY frame: ' + idText + '. Never add, remove or change any of these features, never add clothes or accessories, never add extra limbs.');
     const wb = isWhiteboard();
     // Image de référence : le style, le décor et le cadrage sont déjà dans l'image de départ
     const ref = !item.chained && typeof referenceImage === 'function' && !!referenceImage();
@@ -208,6 +210,7 @@ function buildScenePrompt(item, override) {
     if (sceneIndex === 0) parts.push('Opening shot: the character greets the viewer.');
     if (sceneIndex === totalScenes - 1 && totalScenes > 1) parts.push('Final shot: the character wraps up warmly.');
     if (plan.action) parts.push('Action: the character ' + plan.action + '.');
+    parts.push('The character holds nothing. No objects, props, documents, maps, signs, screens, tools, glow, arrows, particles, icons or visual effects appear anywhere: only the character moves, with simple natural gestures.');
     if (!chained) parts.push('In the last second, the character returns to the same neutral pose as at the start (facing the camera, arms relaxed), so that consecutive shots join seamlessly.');
     if (wb) parts.push('Camera: locked-off static medium-wide shot, identical framing in every shot. No zoom, no push-in, no camera movement at all.');
     else if (ref || state.camera === 'static') parts.push('Camera: locked-off static shot with exactly the same framing as the input image. No zoom, no push-in, no camera movement at all.');

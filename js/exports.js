@@ -327,6 +327,7 @@ async function startGeneration() {
     let assembled = false;
 
     try {
+        await ensureIdentity();
         if (storyboardValid()) state.drawingsPromise = null;   // mise en scène et dessins déjà validés
         else {
             await prepareScenePlan();

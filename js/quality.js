@@ -5,6 +5,30 @@
 // IMAGE DE RÉFÉRENCE : toutes les scènes partent de la même image (personnage, style, décor, cadrage)
 // ══════════════════════════════════════════════════════════════════
 function photoSig() { const d = state.images[0]?.dataUri || ''; return d.length + ':' + d.slice(-48); }
+// ─────────────── Fiche d'identité du personnage (lue une fois par Claude sur la photo) ───────────────
+function characterIdentity() { return state.identity && state.identity.sig === photoSig() ? state.identity.text : ''; }
+async function loadIdentity() { try { state.identity = (await idbGet('identity:' + photoSig())) || null; } catch (e) { state.identity = null; } }
+async function ensureIdentity() {
+    const photo = state.images[0]?.dataUri;
+    if (!photo || !getClaudeKey() || characterIdentity()) return characterIdentity();
+    if (!state.identity) await loadIdentity();
+    if (characterIdentity()) return characterIdentity();
+    try {
+        setStatus('Claude note les traits du personnage…');
+        const out = await callClaude({
+            system: 'You describe cartoon characters precisely so that a video AI can redraw them identically. You only list what is actually visible.',
+            prompt: 'Describe this character\'s fixed visual features in English, as one compact list separated by semicolons: body shape and color, head, eyes (shape and color), eyebrows, nose, mouth, glasses or accessories, clothing (or "no clothing"), hands, feet, any distinctive detail. Be concrete (colors, shapes). 25 to 60 words. No pose, no expression, no background.',
+            images: [await downscaleImage(photo, 768, 0.85)],
+            schema: { type: 'object', properties: { traits: { type: 'string' } }, required: ['traits'], additionalProperties: false },
+            maxTokens: 2000, effort: 'medium'
+        });
+        const text = String(out.traits || '').replace(/"/g, "'").replace(/\s+/g, ' ').trim().slice(0, 500);
+        if (text) { state.identity = { sig: photoSig(), text }; await idbPut('identity:' + photoSig(), state.identity).catch(() => {}); log('Fiche du personnage : ' + text); }
+    } catch (e) { log('Fiche du personnage : ' + e.message); }
+    finally { setStatus(null); }
+    return characterIdentity();
+}
+function normKeywords(k) { return (Array.isArray(k) ? k : []).map(x => String(x || '').trim().slice(0, 30)).filter(Boolean).slice(0, 3); }
 function refStorageKey(style) { return 'ref:' + (style || state.selectedStyle) + (state.greenScreen ? ':green' : ''); }
 function referenceImage() { return state.reference && state.reference.sig === photoSig() && state.reference.style === state.selectedStyle && !!state.reference.green === !!state.greenScreen ? state.reference.image : null; }
 async function loadReference() {
@@ -16,6 +40,7 @@ function referencePrompt() {
     return [
         'Reference shot for an educational cartoon series.',
         'The character from the input image MUST stay IDENTICAL: same face, hairstyle, body shape, clothing and colors.',
+        characterIdentity() ? 'Character identity: ' + characterIdentity() + '.' : '',
         style ? 'Visual style: ' + stylePromptFor(style) : '',
         state.greenScreen ? 'Background: flat, evenly lit pure chroma-key green (#00B140) backdrop filling the whole frame: no shadows on it, no gradient, no floor, no objects. The character keeps its own colors exactly (including any green or teal accessory); the backdrop never tints the character.' + (wb ? ' The character stands on the LEFT third of the frame.' : '')
             : wb ? 'Background: pure plain white (#FFFFFF), completely empty. The character stands on the LEFT third of the frame; the rest of the frame is empty white space.'
@@ -43,6 +68,7 @@ async function extractFrameAt(blob, frac, max = 1280, quality = 0.92) {
 async function createReference() {
     const photo = state.images[0]?.dataUri;
     if (!photo) { showToast('Ajoute d\'abord la photo du personnage', 'error'); return; }
+    await ensureIdentity();
     if (!getAgnesKey()) { showToast('Clé Agnes manquante', 'error'); return; }
     if (state.isRunning || assembling || state.regenerating) return;
     unlockAudio();
@@ -173,8 +199,8 @@ function drawBoardShot(ctx, W, H, t, dur, o) {
     let active = false;
     if (o.drawing && hasGraphic) {
         // côte à côte en paysage, l'un au-dessus de l'autre en vertical
-        const left = portrait ? { x: inner.x, y: inner.y + inner.h * 0.56, w: inner.w, h: inner.h * 0.44 } : { x: inner.x, y: inner.y, w: inner.w * 0.44, h: inner.h };
-        const right = portrait ? { x: inner.x, y: inner.y, w: inner.w, h: inner.h * 0.52 } : { x: inner.x + inner.w * 0.47, y: inner.y, w: inner.w * 0.53, h: inner.h };
+        const left = portrait ? { x: inner.x, y: inner.y + inner.h * 0.5, w: inner.w, h: inner.h * 0.5 } : { x: inner.x, y: inner.y, w: inner.w * 0.52, h: inner.h };
+        const right = portrait ? { x: inner.x, y: inner.y, w: inner.w, h: inner.h * 0.46 } : { x: inner.x + inner.w * 0.55, y: inner.y, w: inner.w * 0.45, h: inner.h };
         active = drawSketchTimed(ctx, left, o.drawing, o.sched, t, Math.min(1, t / 0.15));
         drawGraphic(ctx, right, o.graphic, t, dur);
     } else if (hasGraphic) drawGraphic(ctx, inner, o.graphic, t, dur);
@@ -311,7 +337,8 @@ async function verifyDrawings() {
         setStatus('Claude vérifie les dessins…');
         try {
             const out = await callClaude({
-                system: 'Tu es directeur artistique de vidéos pédagogiques. Tu vérifies que chaque dessin au trait illustre clairement et sans erreur l\'idée demandée, qu\'il est lisible par un enfant et qu\'il ne contient aucun texte. Tu es exigeant mais juste.',
+                effort: 'high',
+                system: 'Tu es directeur artistique de vidéos pédagogiques. Tu vérifies que chaque dessin au trait illustre clairement et sans erreur l\'idée demandée, qu\'il est lisible par un enfant, sans chevauchement, et que ses mots-clés (écrits sous chaque élément) sont justes. Aucun autre texte. Tu es exigeant mais juste.',
                 prompt: 'Images dans l\'ordre. Pour chacune, l\'idée à illustrer :\n' + batch.map((i, k) => (k + 1) + '. ' + drawingIntent(i)).join('\n') + '\n\nPour chaque image, donne "k" (son numéro), "ok" (true si elle montre bien l\'idée) et "why" (ce qui ne va pas, en une phrase, sinon "").',
                 images: batch.map(i => drawingToImage(state.drawings[i])),
                 schema: { type: 'object', properties: { results: { type: 'array', items: { type: 'object', properties: { k: { type: 'integer' }, ok: { type: 'boolean' }, why: { type: 'string' } }, required: ['k', 'ok', 'why'], additionalProperties: false } } }, required: ['results'], additionalProperties: false }
@@ -437,24 +464,35 @@ document.addEventListener('click', async e => {
 // CONTRÔLE AVANT MONTAGE : chaque scène comparée à l'image de référence
 // ══════════════════════════════════════════════════════════════════
 async function checkScenesAgainstReference(items) {
-    const ref = referenceImage();
+    const ref = referenceImage() || state.images[0]?.dataUri;
     if (!ref || !getClaudeKey() || !items.length) return [];
+    const idText = characterIdentity(), bad = [];
+    const schema = { type: 'object', properties: { scenes: { type: 'array', items: { type: 'object', properties: { scene: { type: 'integer' }, same: { type: 'boolean' }, problem: { type: 'string' } }, required: ['scene', 'same', 'problem'], additionalProperties: false } } }, required: ['scenes'], additionalProperties: false };
     try {
-        setStatus('Claude compare les scènes à l\'image de référence…');
-        const imgs = [];
-        for (const it of items) {
-            await fetchClipBlob(it);
-            imgs.push(await extractFrameAt(it.blob, 0.15, 320, 0.6), await extractFrameAt(it.blob, 0.85, 320, 0.6));
+        const refSmall = await downscaleImage(ref, 512, 0.8);
+        // 3 images par scène (début, milieu, fin), 7 scènes par appel
+        for (let b = 0; b < items.length; b += 7) {
+            const batch = items.slice(b, b + 7), imgs = [];
+            setStatus('Claude vérifie le personnage (scènes ' + (b + 1) + ' à ' + (b + batch.length) + ')…');
+            for (const it of batch) {
+                await fetchClipBlob(it);
+                for (const f of [0.2, 0.5, 0.85]) imgs.push(await extractFrameAt(it.blob, f, 384, 0.65));
+            }
+            const out = await callClaude({
+                system: 'Tu contrôles la cohérence d\'un personnage de dessin animé entre plusieurs plans. Tu es strict sur son apparence (tout trait ajouté, perdu ou changé est une erreur) mais tu acceptes les changements de pose, de geste et d\'expression.',
+                prompt: 'Image 1 : la référence du personnage.' + (idText ? ' Ses traits obligatoires : ' + idText + '.' : '') + '\nEnsuite, 3 images par scène (début, milieu, fin), dans l\'ordre des scènes ' + batch.map(it => it.sceneIndex + 1).join(', ') + '.\n' +
+                    'Pour chaque scène, "same" vaut false si, sur AU MOINS UNE des 3 images : un trait manque ou change (lunettes, yeux, couleur, forme du corps, accessoire), un vêtement ou un accessoire est ajouté, un membre est en trop ou déformé, le personnage tient un objet, un effet ou un texte apparaît, ou le style de dessin change. Donne "scene" (son numéro), "same" et "problem" (ce qui diffère, en une phrase, sinon "").',
+                images: [refSmall].concat(imgs), schema, effort: 'high'
+            });
+            for (const s of out.scenes || []) {
+                if (s.same) continue;
+                const it = batch.find(x => x.sceneIndex === s.scene - 1);
+                if (it) { it.visualProblem = s.problem || 'personnage différent'; bad.push(it); }
+            }
         }
-        const out = await callClaude({
-            system: 'Tu contrôles la cohérence d\'un personnage de dessin animé entre plusieurs plans. Tu ne signales que les vraies différences (autre visage, autres couleurs, autre style de dessin, autre décor), pas les changements de pose ou d\'expression.',
-            prompt: 'Image 1 : la référence. Ensuite, 2 images par scène (début puis fin), dans l\'ordre des scènes ' + items.map(it => it.sceneIndex + 1).join(', ') + '.\nPour chaque scène, donne "scene" (son numéro), "same" (true si le personnage et le décor sont bien ceux de la référence) et "problem" (sinon, ce qui diffère).',
-            images: [ref].concat(imgs),
-            schema: { type: 'object', properties: { scenes: { type: 'array', items: { type: 'object', properties: { scene: { type: 'integer' }, same: { type: 'boolean' }, problem: { type: 'string' } }, required: ['scene', 'same', 'problem'], additionalProperties: false } } }, required: ['scenes'], additionalProperties: false }
-        });
-        return (out.scenes || []).filter(s => !s.same).map(s => { const it = items.find(x => x.sceneIndex === s.scene - 1); if (it) it.visualProblem = s.problem || 'personnage différent'; return it; }).filter(Boolean);
-    } catch (e) { log('Contrôle visuel : ' + e.message); return []; }
+    } catch (e) { log('Contrôle visuel : ' + e.message); }
     finally { setStatus(null); }
+    return bad;
 }
 
 // ══════════════════════════════════════════════════════════════════
