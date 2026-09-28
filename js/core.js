@@ -16,8 +16,33 @@ const CREATE_INTERVAL_SAFE = 75000;
 const POLL_INTERVAL_SEC = 8;
 const MAX_POLL_ATTEMPTS = 100;
 
-// Version de l'appli, affichée en bas de l'accueil. À augmenter à chaque mise à jour en ligne.
-const APP_VERSION = { num: 12, date: '2026-09-28', note: 'icônes 3D, numéro de version' };
+// Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
+// Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
+const APP_VERSIONS = [
+    { num: '7.1', date: '2026-09-28', note: 'Icônes 3D modernes, numéro de version' },
+    { num: '7.0', date: '2026-09-28', note: 'Motion design (animations, frises, chaînes, avant/après) et montage image par image' },
+    { num: '6.4', date: '2026-09-28', note: 'Plus de blanc entre les scènes, indicateur de voix corrigé' },
+    { num: '6.3', date: '2026-09-28', note: 'Personnage plus stable, transitions propres, illustrations lisibles' },
+    { num: '6.2', date: '2026-09-28', note: 'Claude moins cher (Opus 5.5, cache)' },
+    { num: '6.1', date: '2026-09-28', note: 'Importer sa propre image de référence' },
+    { num: '6.0', date: '2026-09-27', note: 'Fond vert, couleurs harmonisées, graphiques animés' },
+    { num: '5.0', date: '2026-09-27', note: 'Personnage identique, scènes riches, contrôle par l\'IA' },
+    { num: '4.4', date: '2026-09-27', note: 'Mode test rapide (3 scènes)' },
+    { num: '4.3', date: '2026-09-27', note: 'Appli disponible hors ligne' },
+    { num: '4.2', date: '2026-09-27', note: 'Projets en parallèle, pilote automatique, Shorts, Instagram, fiche PDF' },
+    { num: '4.1', date: '2026-09-27', note: 'Mêmes corrections pour tous les styles' },
+    { num: '4.0', date: '2026-09-27', note: 'Nouvelle interface : onglets et création en 5 étapes' },
+    { num: '3.2', date: '2026-09-27', note: 'TikTok et programmation des publications' },
+    { num: '3.1', date: '2026-09-27', note: 'Aperçu, éditeur de montage, séries, autres langues' },
+    { num: '3.0', date: '2026-09-26', note: 'Montage pro, storyboard, voix ElevenLabs' },
+    { num: '2.1', date: '2026-09-26', note: 'Serveur Cloudflare connecté par défaut' },
+    { num: '2.0', date: '2026-09-23', note: 'Génération en arrière-plan (téléphone éteint)' },
+    { num: '1.3', date: '2026-09-23', note: 'Relais Cloudflare, reprise du dernier projet' },
+    { num: '1.2', date: '2026-09-23', note: 'Style tableau blanc, sauvegarde des clés' },
+    { num: '1.1', date: '2026-09-23', note: 'Montage sur iPhone corrigé, Claude' },
+    { num: '1.0', date: '2026-09-23', note: 'Première version' }
+];
+const APP_VERSION = APP_VERSIONS[0];
 const STORAGE = {
     TIMING: 'agnes_timing_cache_v11',
     AGNES_KEY: 'agnes_api_key',

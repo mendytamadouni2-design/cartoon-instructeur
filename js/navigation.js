@@ -101,8 +101,12 @@ function renderCharChip() {
 // ─────────────── Accueil ───────────────
 function renderAppVersion() {
     const el = document.getElementById('app-version'); if (!el) return;
-    const d = new Date(APP_VERSION.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-    el.textContent = 'Cartoon Instructeur · version ' + APP_VERSION.num + ' · mise à jour du ' + d + ' (' + APP_VERSION.note + ')';
+    const fmt = v => new Date(v.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    // un appui affiche l'historique des mises à jour
+    el.innerHTML = 'Cartoon Instructeur · <b>version ' + esc(APP_VERSION.num) + '</b> · mise à jour du ' + fmt(APP_VERSION) + '<br>' + esc(APP_VERSION.note) +
+        '<br><button type="button" class="linkish" id="app-version-more">Historique des versions</button><span id="app-version-list" class="hidden">' +
+        APP_VERSIONS.map(v => '<br><b>' + esc(v.num) + '</b> · ' + fmt(v) + ' · ' + esc(v.note)).join('') + '</span>';
+    document.getElementById('app-version-more').onclick = () => document.getElementById('app-version-list').classList.toggle('hidden');
 }
 function renderHome() {
     renderAppVersion();
