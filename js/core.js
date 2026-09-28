@@ -16,6 +16,8 @@ const CREATE_INTERVAL_SAFE = 75000;
 const POLL_INTERVAL_SEC = 8;
 const MAX_POLL_ATTEMPTS = 100;
 
+// Version de l'appli, affichée en bas de l'accueil. À augmenter à chaque mise à jour en ligne.
+const APP_VERSION = { num: 12, date: '2026-09-28', note: 'icônes 3D, numéro de version' };
 const STORAGE = {
     TIMING: 'agnes_timing_cache_v11',
     AGNES_KEY: 'agnes_api_key',

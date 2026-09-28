@@ -99,7 +99,13 @@ function renderCharChip() {
 }
 
 // ─────────────── Accueil ───────────────
+function renderAppVersion() {
+    const el = document.getElementById('app-version'); if (!el) return;
+    const d = new Date(APP_VERSION.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    el.textContent = 'Cartoon Instructeur · version ' + APP_VERSION.num + ' · mise à jour du ' + d + ' (' + APP_VERSION.note + ')';
+}
 function renderHome() {
+    renderAppVersion();
     const setup = document.getElementById('home-setup'), live = document.getElementById('home-live');
     const last = document.getElementById('home-last'), costs = document.getElementById('home-costs');
     if (!setup) return;
