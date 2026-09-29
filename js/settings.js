@@ -68,7 +68,7 @@ document.addEventListener('click', e => { if (e.target.closest && e.target.close
 
 const blobToDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
 async function exportKit() {
-    const kit = { app: 'cartoon-instructeur-kit', version: 1, date: new Date().toISOString(), settings: collectSettings(), poses: state.poses };
+    const kit = { app: 'cartoon-instructeur-kit', version: 1, date: new Date().toISOString(), settings: collectSettings(), poses: state.poses, charter: typeof getCharter === 'function' ? getCharter() : null };
     try { const m = await idbGet('music'); if (m) kit.music = { name: getLS(STORAGE.MUSIC_NAME), data: await blobToDataUrl(m) }; } catch (e) {}
     try { const l = await idbGet('logo'); if (l) kit.logo = await blobToDataUrl(l); } catch (e) {}
     saveBlob(new Blob([JSON.stringify(kit)], { type: 'application/json' }), 'kit-ma-chaine.json');
@@ -79,6 +79,7 @@ async function importKit(file) {
         if (kit.app !== 'cartoon-instructeur-kit') throw new Error('fichier non reconnu');
         applySettings(kit.settings); saveSettings();
         if (Array.isArray(kit.poses)) { state.poses = kit.poses; await savePoses(); }
+        if (kit.charter && typeof saveCharter === 'function') { saveCharter(kit.charter); loadCharterForm(); }
         if (kit.music?.data) { const b = await (await fetch(kit.music.data)).blob(); await setMusicFile(b, kit.music.name || 'Musique du kit'); }
         if (kit.logo) { await idbPut('logo', await (await fetch(kit.logo)).blob()); setLS(STORAGE.LOGO_SET, '1'); updateLogoStatus(); }
         showToast('Kit de chaîne appliqué ✓', 'success');

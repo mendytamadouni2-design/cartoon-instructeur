@@ -80,6 +80,13 @@
             <label class="control-label">Thème</label>
             <input type="text" class="text-input" id="theme-input" placeholder="Ex : Le cycle de l'eau...">
         </div>
+        <div class="hcard" id="objective-box" style="margin-bottom:0.8rem;">
+            <label class="control-label">🎯 Ou donne juste ton objectif : Claude écrit le script</label>
+            <textarea class="text-input" id="objective-input" rows="2" placeholder="Ex : expliquer les intérêts composés à des débutants, ton fun, avec un exemple concret"></textarea>
+            <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.4rem;"><input type="checkbox" id="objective-research" checked> 🔎 Chercher des infos à jour sur internet (≈ 1 à 4 centimes)</label>
+            <button type="button" class="btn-secondary" id="objective-btn" style="margin-top:0.4rem;">✍️ Écrire mon script à partir de l'objectif</button>
+            <div class="hidden" id="objective-questions" style="margin-top:0.6rem;"></div>
+        </div>
         <div class="control-row">
             <label class="control-label">Script (une phrase = une scène)</label>
             <textarea class="prompt-main" id="script-input" placeholder="Écrivez ou collez votre script...
@@ -97,6 +104,13 @@ Merci de m'avoir écouté !"></textarea>
             <div class="prompt-main-hint">💡 <strong>10 phrases minimum</strong> pour une vidéo &gt; 1 minute. Le thème est optionnel (il sert au titre, à la miniature et au SEO).</div>
         </div>
         <div class="prompt-presets" id="prompt-presets"></div>
+        <div class="control-row" style="margin-top:0.6rem;">
+            <label class="control-label">🖼️ Tes images dans la vidéo (logo, capture d'écran, photo)</label>
+            <input type="file" id="user-images-input" accept="image/*" multiple style="display:none;">
+            <div id="user-images-list"></div>
+            <button type="button" class="btn-secondary" id="user-images-btn" style="margin-top:0.4rem;">➕ Ajouter des images</button>
+            <div class="prompt-main-hint">Claude les place sur les phrases qui en parlent ; elles apparaissent en carte animée.</div>
+        </div>
         <div class="stat-line" style="margin-top:0.7rem;">
             <span>📏 <span id="script-stats">0 phrase · 0 caractère</span></span>
             <span id="script-duration">Durée : 0s</span>
@@ -471,6 +485,30 @@ Merci de m'avoir écouté !"></textarea>
                 <option value="marker">Feutre (écrit à la main)</option>
                 <option value="impact">Impact (très épaisse)</option>
             </select>
+        </div>
+        <div class="hcard" style="margin:0.6rem 0;">
+            <label class="control-label">📺 Charte de ma chaîne (Claude la relit à chaque vidéo)</label>
+            <div class="prompt-presets">
+                <button type="button" class="prompt-preset" data-charter-preset="sobre">🧊 Sobre</button>
+                <button type="button" class="prompt-preset" data-charter-preset="energique">⚡ Énergique</button>
+                <button type="button" class="prompt-preset" data-charter-preset="enfant">🧸 Enfants</button>
+                <button type="button" class="prompt-preset" data-charter-preset="corporate">💼 Pro</button>
+            </div>
+            <input class="text-input" id="charter-name" placeholder="Nom de la chaîne">
+            <input class="text-input" id="charter-promise" placeholder="Ce que ta chaîne apporte (ex : la finance expliquée en 1 minute)" style="margin-top:0.4rem;">
+            <input class="text-input" id="charter-audience" placeholder="Ton public précis (ex : étudiants de 18 à 25 ans)" style="margin-top:0.4rem;">
+            <input class="text-input" id="charter-voice" placeholder="Ton et façon de parler (ex : direct, tutoiement, humour léger)" style="margin-top:0.4rem;">
+            <input class="text-input" id="charter-avoid" placeholder="À éviter (ex : jargon, phrases longues)" style="margin-top:0.4rem;">
+            <input class="text-input" id="charter-signature" placeholder="Phrase signature (optionnel)" style="margin-top:0.4rem;">
+            <label class="control-label" style="margin-top:0.4rem;">Rythme des animations</label>
+            <select id="charter-energy">
+                <option value="calm">Calme</option>
+                <option value="normal" selected>Normal</option>
+                <option value="punchy">Percutant</option>
+            </select>
+            <input type="file" id="charter-ref-input" accept="image/*" multiple style="display:none;">
+            <button type="button" class="btn-secondary" id="charter-ref-btn" style="margin-top:0.6rem;">🎬 Fais comme cette vidéo (1 à 4 captures d'écran)</button>
+            <div class="prompt-main-hint hidden" id="charter-ref-summary"></div>
         </div>
         <input type="file" id="kit-input" accept=".json,application/json" style="display:none;">
         <button type="button" class="btn-secondary" id="kit-export-btn">💾 Exporter mon kit de chaîne</button>
@@ -1212,6 +1250,7 @@ Phrase 2..."></textarea>
 <script src="js/compositor.js?v=202609291200"></script>
 <script src="js/quality.js?v=202609291200"></script>
 <script src="js/graphics.js?v=202609291200"></script>
+<script src="js/channel.js?v=202609291200"></script>
 <script src="js/init.js?v=202609291200"></script>
 </body>
 </html>

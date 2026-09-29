@@ -627,6 +627,64 @@ async function testCompositor(browser) {
     check(budget.afterCache === 1 && budget.leftAfter === 800 - 'Bonjour à tous, phrase de test.'.length, 'ElevenLabs : une phrase déjà dite est reprise de la mémoire, jamais repayée');
     check(/épuisé/.test(budget.msg) && budget.noCall && /épuisé/.test(budget.blocked) && /épuisé/.test(budget.exhaustedLine), 'ElevenLabs : quota épuisé détecté, plus aucun appel inutile');
     check(budget.need >= 40, 'ElevenLabs : caractères nécessaires estimés avant de lancer (' + budget.need + ')');
+    // 8.0 : Shorts / TikTok (pas de cartons, accroche, rythme), charte, mode objectif, recherche internet, images perso
+    const v8 = await page.evaluate(async () => {
+        const r = {};
+        state.target = 'shorts'; state.introOn = true; state.outroOn = true; state.sectionCards = true; state.theme = 'Test';
+        const it = { sceneIndex: 0 }, it2 = { sceneIndex: 1 };
+        r.shortSegs = buildSegments([it, it2], Infinity).map(s => s.type).join(',');
+        r.ytSegs = buildSegments([it, it2], Infinity, 'landscape').map(s => s.type).join(',');
+        r.format = outputFormat();
+        const words = [0.2, 0.8, 1.5, 2.3, 3.1, 3.9, 4.6, 5.4].map((t, i) => ({ text: 'm' + i, start: t, end: t + 0.5 }));
+        r.cuts = punchSchedule(words, 7);
+        r.zoomAfter = punchZoom(r.cuts, r.cuts[0] + 0.5);
+        const c = document.createElement('canvas'); c.width = 360; c.height = 640; const g = c.getContext('2d');
+        g.fillStyle = '#000'; g.fillRect(0, 0, 360, 640);
+        drawHookTitle(g, 360, 640, 'Tu savais ça ?', 0.8);
+        r.hookPixels = g.getImageData(0, 100, 360, 60).data.some((v, i) => i % 4 === 0 && v > 150);
+        setJSON(STORAGE.CHARTER, { name: 'Prof Patate', voice: 'direct', energy: 'punchy' });
+        r.ctx = claudeContext();
+        r.energyCuts = punchSchedule(words, 7).length;
+        // callClaude : recherche internet avec reprise après une pause (pause_turn)
+        const realFetch = window.fetch; const bodies = [];
+        window.fetch = async (u, o) => {
+            if (String(u).includes('api.anthropic.com')) {
+                bodies.push(JSON.parse(o.body));
+                const paused = bodies.length === 1;
+                return new Response(JSON.stringify({ model: 'claude-opus-5-5', stop_reason: paused ? 'pause_turn' : 'end_turn', content: [{ type: 'text', text: paused ? 'Fait 1. ' : 'Fait 2.' }], usage: { input_tokens: 10, output_tokens: 10, server_tool_use: { web_search_requests: 2 } } }), { status: 200 });
+            }
+            return realFetch(u, o);
+        };
+        const oldKey = localStorage.getItem(STORAGE.CLAUDE_KEY); localStorage.setItem(STORAGE.CLAUDE_KEY, 'sk-ant-test');
+        try { r.research = await callClaude({ prompt: 'x', webSearch: 3 }); } finally { window.fetch = realFetch; }
+        r.tool = bodies[0].tools?.[0]?.type; r.resent = bodies.length === 2 && bodies[1].messages.length === 2;
+        // mode objectif : pas de question → script écrit directement, avec les faits trouvés
+        const realCall = window.callClaude, calls = [];
+        window.callClaude = async o => { calls.push(o); if (o.webSearch) return 'Fait vérifié (source)'; if (o.schema?.properties?.questions) return { questions: [] }; return { title: 'Les intérêts composés', lines: ['Ton argent peut travailler pour toi ?', 'Oui, grâce aux intérêts composés.'] }; };
+        try {
+            document.getElementById('objective-input').value = 'expliquer les intérêts composés';
+            document.getElementById('objective-research').checked = true;
+            await startObjective();
+        } finally { window.callClaude = realCall; if (oldKey === null) localStorage.removeItem(STORAGE.CLAUDE_KEY); else localStorage.setItem(STORAGE.CLAUDE_KEY, oldKey); }
+        r.script = document.getElementById('script-input').value; r.theme = document.getElementById('theme-input').value;
+        r.usedNotes = calls.some(o => /Fait vérifié/.test(o.prompt || '')) && calls.some(o => o.webSearch);
+        // images perso : champ « image » dans la mise en scène et carte animée au montage
+        setJSON(STORAGE.USER_IMAGES, [{ id: 'imgA', name: 'logo', desc: 'le logo de la chaîne' }]);
+        r.schemaImg = planSchema().properties.scenes.items.properties.image?.enum.join(',');
+        r.planLine = /imgA/.test(planRequestFor(['a', 'b']).prompt);
+        const img = document.createElement('canvas'); img.width = 200; img.height = 100; img.getContext('2d').fillStyle = '#f00'; img.getContext('2d').fillRect(0, 0, 200, 100);
+        g.fillStyle = '#000'; g.fillRect(0, 0, 360, 640);
+        drawUserImage(g, 360, 640, img, 1, 4);
+        r.imgPixels = g.getImageData(0, 64, 360, 220).data.some((v, i) => i % 4 === 0 && v > 200);
+        localStorage.removeItem(STORAGE.CHARTER); localStorage.removeItem(STORAGE.USER_IMAGES);
+        return r;
+    });
+    check(v8.shortSegs === 'scene,scene' && v8.ytSegs.startsWith('intro') && v8.ytSegs.endsWith('outro') && v8.format === 'portrait', 'Shorts : vertical, aucun carton de titre ni de fin (la version YouTube les garde)');
+    check(v8.cuts.length >= 2 && v8.zoomAfter > 1.05 && v8.hookPixels, 'Shorts : accroche écrite en gros + recadrage toutes les 2 à 3 s (' + v8.cuts.map(x => x.toFixed(1)).join(', ') + ')');
+    check(/Prof Patate/.test(v8.ctx) && /direct/.test(v8.ctx) && v8.energyCuts >= v8.cuts.length, 'charte de la chaîne relue par Claude, rythme « percutant » appliqué');
+    check(v8.tool === 'web_search_20260209' && v8.resent && v8.research === 'Fait 1. Fait 2.', 'recherche internet : outil web de Claude, reprise après pause');
+    check(/intérêts composés/.test(v8.script) && v8.theme === 'Les intérêts composés' && v8.usedNotes, 'mode objectif : infos cherchées sur internet puis script et titre écrits');
+    check(v8.schemaImg === 'none,imgA' && v8.planLine && v8.imgPixels, 'tes images : proposées à Claude pour la mise en scène et affichées en carte animée');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }

@@ -14,7 +14,8 @@ try { if (!localStorage.getItem('claude_model_v55') && localStorage.getItem(STOR
 // Effort (réflexion) : « low » pour les petits textes, « medium » pour le courant, « high » pour ce qui compte le plus
 const claudeSupportsEffort = model => !/haiku/.test(model);
 
-async function callClaude({ system, prompt, schema = null, maxTokens = 16000, images = null, effort = 'medium' }) {
+// webSearch : nombre maximal de recherches internet (outil web_search d'Anthropic, ≈ 0,01 $ la recherche)
+async function callClaude({ system, prompt, schema = null, maxTokens = 16000, images = null, effort = 'medium', webSearch = 0 }) {
     const key = getClaudeKey();
     if (!key) throw new Error('clé Claude manquante');
     const model = getClaudeModel();
@@ -35,16 +36,33 @@ async function callClaude({ system, prompt, schema = null, maxTokens = 16000, im
         'anthropic-dangerous-direct-browser-access': 'true'
     };
     if (CLAUDE_FALLBACK_MODELS.includes(model)) { body.fallbacks = 'default'; headers['anthropic-beta'] = 'server-side-fallback-2026-07-01'; }
-    let res;
-    try { res = await fetch(CLAUDE_API, { method: 'POST', headers, body: JSON.stringify(body) }); }
-    catch (e) { throw new Error('connexion à Claude impossible'); }
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-        if (res.status === 401) throw new Error('clé Claude invalide');
-        if (res.status === 429) throw new Error('trop de requêtes, réessaie dans une minute');
-        if (res.status === 529 || res.status >= 500) throw new Error('Claude est surchargé, réessaie plus tard');
-        throw new Error(data?.error?.message || ('erreur HTTP ' + res.status));
+    if (webSearch) body.tools = [{ type: 'web_search_20260209', name: 'web_search', max_uses: webSearch }];
+    let data, texts = [];
+    // la recherche internet tourne côté Anthropic ; si elle marque une pause (pause_turn), on renvoie le tour pour qu'elle reprenne
+    for (let round = 0; round < 4; round++) {
+        let res;
+        try { res = await fetch(CLAUDE_API, { method: 'POST', headers, body: JSON.stringify(body) }); }
+        catch (e) { throw new Error('connexion à Claude impossible'); }
+        data = await res.json().catch(() => null);
+        if (!res.ok) {
+            if (res.status === 401) throw new Error('clé Claude invalide');
+            if (res.status === 429) throw new Error('trop de requêtes, réessaie dans une minute');
+            if (res.status === 529 || res.status >= 500) throw new Error('Claude est surchargé, réessaie plus tard');
+            throw new Error(data?.error?.message || ('erreur HTTP ' + res.status));
+        }
+        trackClaudeUsage(data, model);
+        if (data.stop_reason !== 'pause_turn') break;
+        texts.push(...(data.content || []).filter(b => b.type === 'text').map(b => b.text));
+        body.messages = [...body.messages, { role: 'assistant', content: data.content }];
     }
+    if (data.stop_reason === 'refusal') throw new Error('Claude a refusé cette demande');
+    if (data.stop_reason === 'max_tokens') throw new Error('réponse trop longue, coupée');
+    const text = (webSearch ? texts.join('') : '') + (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    if (!schema) return text.trim();
+    try { return JSON.parse(text); } catch (e) { throw new Error('réponse de Claude illisible'); }
+}
+function trackClaudeUsage(data, model) {
+    if (data.usage && data.usage.server_tool_use?.web_search_requests && typeof trackCost === 'function') trackCost('claude', data.usage.server_tool_use.web_search_requests * 0.0093);
     if (data.usage && typeof trackCost === 'function') {
         const [pi, po] = CLAUDE_PRICES[data.model] || CLAUDE_PRICES[model] || CLAUDE_PRICES['claude-opus-5-5'];
         const u = data.usage, cw = u.cache_creation_input_tokens || 0, cr = u.cache_read_input_tokens || 0;
@@ -53,11 +71,6 @@ async function callClaude({ system, prompt, schema = null, maxTokens = 16000, im
         trackCost('claude', ((u.input_tokens || 0) * pi + cw * pi * 1.25 + cr * pi * rf + (u.output_tokens || 0) * po) / 1e6);
         if (cr) { state.claudeCacheSaved = (state.claudeCacheSaved || 0) + cr * pi * (1 - rf) / 1e6; log('Claude : ' + cr + ' jetons relus depuis le cache'); }
     }
-    if (data.stop_reason === 'refusal') throw new Error('Claude a refusé cette demande');
-    if (data.stop_reason === 'max_tokens') throw new Error('réponse trop longue, coupée');
-    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-    if (!schema) return text.trim();
-    try { return JSON.parse(text); } catch (e) { throw new Error('réponse de Claude illisible'); }
 }
 
 const LINES_SCHEMA = {
@@ -67,7 +80,7 @@ const LINES_SCHEMA = {
 };
 function claudeContext() {
     const lang = LANG_NAMES_FR[state.language] || 'français';
-    return 'Langue : ' + lang + '. Public : ' + AUDIENCE_PROMPTS[state.audience] + ' Ton : ' + TONE_PROMPTS[state.tone] + '.';
+    return 'Langue : ' + lang + '. Public : ' + AUDIENCE_PROMPTS[state.audience] + ' Ton : ' + TONE_PROMPTS[state.tone] + '.' + (typeof charterContext === 'function' ? charterContext() : '');
 }
 const SPEECH_RULES = 'Règles pour une voix de synthèse : phrases courtes (moins de 20 mots), une idée par phrase, nombres et dates écrits en toutes lettres, aucune abréviation, aucun sigle non prononçable, aucun symbole (%, €, &, /), mots simples et courants.';
 
@@ -151,6 +164,11 @@ const PLAN_SCHEMA = {
 };
 function planSchema() {
     const sc = JSON.parse(JSON.stringify(PLAN_SCHEMA));
+    const imgs = typeof userImages === 'function' ? userImages() : [];
+    if (imgs.length) {
+        sc.properties.scenes.items.properties.image = { type: 'string', enum: ['none'].concat(imgs.map(x => x.id)) };
+        sc.properties.scenes.items.required.push('image');
+    }
     if (state.poses.length && !referenceImage()) {
         sc.properties.scenes.items.properties.pose = { type: 'string', enum: ['main'].concat(state.poses.map(p => p.id)) };
         sc.properties.scenes.items.required.push('pose');
@@ -184,6 +202,7 @@ function planRequestFor(scenes) {
                 ? (shortsMode() ? 'FORMAT SHORT : "narration" au plus 1 phrase courte, et seulement pour 1 ou 2 répliques qui en ont vraiment besoin (la vidéo doit rester sous 60 secondes). ' : '') + '- "narration" : SCÈNES RICHES. Si la réplique contient plusieurs phrases, "spoken" = la première phrase (courte, dite face caméra) et "narration" = la suite, sans la changer. Si elle n\'a qu\'une phrase, "narration" = 1 à 2 phrases (dans la langue de la vidéo) qui approfondissent l\'idée (exemple concret, chiffre juste, comparaison), exactes et faciles à prononcer, dites par la voix off pendant qu\'on montre l\'illustration en plein écran. "narration" vaut "" pour la toute première et la toute dernière réplique.\n'
                 : '- "narration" : toujours ""\n') +
             '- "graphic" : ' + (richActive() ? 'pour les scènes qui ont une narration, un graphique animé (motion design) affiché sur le plan illustré QUAND il explique mieux qu\'un dessin : "counter" (un chiffre clé : 1 élément), "bars" (2 à 5 valeurs comparables), "list" (2 à 4 étapes ou idées courtes, "value" = 0), "compare" (2 éléments face à face), "timeline" (frise : 2 à 6 dates dans l\'ordre, "value" = l\'année, ex. 1789, "label" = l\'événement), "chain" (2 à 4 étapes de cause à conséquence, "value" = 0), "beforeafter" (exactement 2 éléments : la situation avant puis après, "value" = 0) ; "title" très court, "unit" (ex. "%", "km", "°C" ou ""), labels de 1 à 4 mots ; "icon" de chaque élément = 1 à 3 mots-clés ANGLAIS d\'un pictogramme simple (ex. "crown", "scale, justice", "factory") ou "". Varie les types d\'une scène à l\'autre. Les chiffres et les dates doivent être EXACTS (ne rien inventer). Au plus une scène sur trois ; sinon type "none" avec des champs vides' : 'toujours type "none", title "", unit "", items []') + '\n' +
+            (typeof userImagesPlanLine === 'function' ? userImagesPlanLine() : '') +
             (state.poses.length && !referenceImage() ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
             wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
         schema: planSchema()
@@ -201,7 +220,8 @@ async function planScenesWithClaude(scenes) {
                 zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '', hook: i === 0 ? String(p.hook || '').trim().slice(0, 48) : '',
                 shot: isWhiteboard() && p.shot === 'board' && i > 0 && i < scenes.length - 1 ? 'board' : 'character', highlight: String(p.highlight || '').slice(0, 40),
                 narration: richActive() && i > 0 && i < scenes.length - 1 ? String(p.narration || '').trim() : (richActive() && splitSentences(text).length > 1 ? splitSentences(text).slice(1).join(' ') : ''), visual: String(p.visual || '').slice(0, 300), graphic: normalizeGraphic(p.graphic), keywords: normKeywords(p.keywords),
-                pose: state.poses.some(x => x.id === p.pose) ? p.pose : 'main' };
+                pose: state.poses.some(x => x.id === p.pose) ? p.pose : 'main',
+                image: i > 0 && typeof userImages === 'function' && userImages().some(x => x.id === p.image) ? p.image : 'none' };
         })
     };
 }

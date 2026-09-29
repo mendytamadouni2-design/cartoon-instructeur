@@ -313,7 +313,7 @@ function showCloudConfigRow(provider) {
     richHint();
     document.getElementById('voice-source-select')?.addEventListener('change', () => setTimeout(updateVoiceIndicator));
     document.addEventListener('click', e => { if (e.target.closest && e.target.closest('.tts-voice-item')) setTimeout(richHint, 50); });
-    loadPoses(); updatePushStatus(); updateEstimate();
+    loadPoses(); updatePushStatus(); updateEstimate(); loadCharterForm(); renderUserImages();
     // ouverture instantanée, même avec un réseau faible (et notifications)
     if (navigator.serviceWorker && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     updateElevenLabsStatus(); updateGCloudStatus(); updateAzureStatus(); updatePollyStatus();

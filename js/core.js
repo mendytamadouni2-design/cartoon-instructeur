@@ -102,6 +102,7 @@ const STORAGE = {
     ALT_FRAMING: 'cartoon_alt_framing',
     FAST_EXPORT: 'cartoon_fast_export',
     ICON_STYLE: 'cartoon_icon_style',
+    CHARTER: 'cartoon_charter', USER_IMAGES: 'cartoon_user_images',
     ELEVEN_USAGE: 'cartoon_eleven_usage', ELEVEN_EXHAUSTED: 'cartoon_eleven_exhausted', TTS_INDEX: 'cartoon_tts_index',
     BANK_USE: 'cartoon_bank_use',
     BACKUP_ON: 'cartoon_backup_on',

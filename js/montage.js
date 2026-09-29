@@ -616,7 +616,7 @@ function hookTextFor(plan) {
 function drawHookTitle(ctx, W, H, text, t) {
     const HOLD = 2.3;
     if (!text || t > HOLD + 0.3) return;
-    const inA = spring(t, SPRINGS.bouncy), out = t > HOLD ? clamp01((t - HOLD) / 0.3) : 0;
+    const inA = spring(t, typeof charterEnergy === 'function' && charterEnergy() === 'calm' ? SPRINGS.smooth : SPRINGS.bouncy), out = t > HOLD ? clamp01((t - HOLD) / 0.3) : 0;
     const sz = safeZone(W, H), maxW = sz.maxW;
     let fs = Math.round(Math.min(W, H) * 0.11);
     ctx.save();
@@ -641,16 +641,18 @@ function drawHookTitle(ctx, W, H, text, t) {
 // Rythme Shorts : un léger « punch-in » (recadrage plus serré) toutes les 2 à 3 s, calé sur les groupes de mots,
 // pour que l'image change souvent sans nouvelle scène à générer.
 function punchSchedule(words, dur) {
-    const cuts = [], MIN = 1.8, TARGET = 2.5;
+    const en = typeof charterEnergy === 'function' ? charterEnergy() : 'normal';
+    const TARGET = en === 'calm' ? 3.2 : en === 'punchy' ? 2.0 : 2.5, MIN = TARGET * 0.72, cuts = [];
     let last = 0;
-    (words || []).forEach(w => { if (w.start - last >= TARGET && dur - w.start > 1.2) { cuts.push(w.start - 0.04); last = w.start; } });
+    (words || []).forEach(w => { if (w.start - last >= TARGET * 0.85 && dur - w.start > 1.2) { cuts.push(w.start - 0.04); last = w.start; } });
     if (!cuts.length) for (let x = TARGET; x < dur - 1.2; x += TARGET) cuts.push(x);
     return cuts.filter((c, i) => i === 0 ? c >= MIN : c - cuts[i - 1] >= MIN);
 }
 function punchZoom(cuts, t) {
     let k = 0; for (const c of cuts) if (t >= c) k++;
     if (!k) return 1;
-    const since = t - cuts[k - 1], target = k % 2 ? 1.09 : 1.0, from = k % 2 ? 1.0 : 1.09;
+    const en = typeof charterEnergy === 'function' ? charterEnergy() : 'normal', amp = en === 'calm' ? 1.05 : en === 'punchy' ? 1.13 : 1.09;
+    const since = t - cuts[k - 1], target = k % 2 ? amp : 1.0, from = k % 2 ? 1.0 : amp;
     return from + (target - from) * easeOut(clamp01(since / 0.12));
 }
 async function loadMusicBuffer() {
@@ -709,6 +711,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     Object.assign(montagePause, { on: false, since: 0, total: 0, rec: null, actx: offline ? null : rtCtx, resuming: null });
     // icônes des graphiques (emojis 3D pour les styles colorés), chargées avant la première image
     await preloadVideoIcons(items.flatMap(it => (scenePlanFor(it.sceneIndex).graphic?.items || []).map(x => x.icon)).filter(Boolean));
+    if (typeof preloadUserImages === 'function') await preloadUserImages(items.map(it => scenePlanFor(it.sceneIndex).image));
     const { premium } = await prepareAssets(items, label);
     const segs = buildSegments(items, maxDuration, format);
     // horloge du montage : en image par image, le son est programmé sur l'instant de l'image calculée
@@ -898,6 +901,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             let zoomAt = null;
             const punches = shortsMode() && !wb && !boardShot && H > W * 1.1 ? punchSchedule(words, dur) : null;
             const hookText = shortsMode() && seg.index === 0 && H > W * 1.1 ? hookTextFor(plan) : '';
+            const userImg = plan.image && plan.image !== 'none' && typeof userImageCache !== 'undefined' ? userImageCache.get(plan.image) || null : null;
             if (state.zoomOn && plan.zoom === 'in' && !boardShot) {
                 const nw = normWord(plan.emphasis || '');
                 const hit = nw ? words.find(w => normWord(w.text) === nw || normWord(w.text).startsWith(nw)) : null;
@@ -977,6 +981,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                     g.drawImage(prevCanvas, 0, -H * e);
                 }
                 drawCaptions(g, W, H, sc, t);
+                if (userImg) drawUserImage(g, W, H, userImg, t - Math.max(overlayDelay + 0.25, dur * 0.2), dur - Math.max(overlayDelay + 0.25, dur * 0.2));
                 if (hookText) drawHookTitle(g, W, H, hookText, t);
                 if (logoImg) drawLogo(g, W, H, logoImg);
                 if (qa) qa.tick(canvas, T + t, t, dur, qaInfo);
