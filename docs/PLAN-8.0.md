@@ -102,9 +102,27 @@ un test de comparaison à 5 $ reste possible si l'utilisateur le demande.
 
 ---
 
-## Décisions en attente (utilisateur)
-1. Personnage : option A (poses), B (vectoriel) ou les deux selon le style (recommandé : les deux).
-2. ElevenLabs : rester en gratuit avec compteur, ou abonnement.
-3. Outil d'images payant si Agnes ne suffit pas pour les poses.
-4. Recherche internet pour le mode « objectif » (quelques centimes par vidéo).
-5. Cible principale : YouTube long, Shorts/TikTok, ou les deux.
+## Décisions prises (29/09)
+1. **Personnage** : recommandation retenue → option A (poses fabriquées **avec Agnes**) pour
+   tous les styles dès la 8.0 ; option B (vectoriel) plus tard en 8.x pour les styles dessinés.
+   Méthode : comme `createReference()` (`js/quality.js`) — une courte vidéo Agnes par pose sur
+   fond vert, meilleure image extraite, vérifiée par Claude avec la fiche du personnage, nouvel
+   essai si ratée, validation par l'utilisateur. Les clips eux-mêmes (3–5 s) peuvent servir de
+   « gestes » animés incrustés. S'appuie sur le kit de poses existant (`state.poses`).
+2. **ElevenLabs** : on reste en **gratuit** (10 000 caractères/mois) → compteur + économies (S2).
+3. **Outil d'images** : on garde **Agnes**. Se renseigner seulement sur les alternatives
+   (ordre de grandeur : quelques centimes par image) sans rien intégrer.
+4. **Recherche internet** pour le mode « objectif » : **acceptée**.
+5. **Cible principale : YouTube Shorts et TikTok** (vertical).
+
+## Conséquences de la cible Shorts/TikTok (prioritaires dans la 8.0)
+- **Vertical 9:16 par défaut**, durée 30–60 s ; 16:9 reste disponible.
+- **Accroche dans les 2 premières secondes** (question, chiffre choc, promesse), écrite par Claude
+  et vérifiée à part.
+- **Rythme rapide** : changement de plan toutes les 2–3 s (zoom, coupe, schéma, pose).
+- **Gros sous-titres mot par mot** placés dans la zone sûre (hors boutons TikTok/Shorts).
+- **Fin en boucle** : la dernière phrase relance la première pour faire revoir la vidéo.
+- **Un sujet → une série de 3 à 5 Shorts** (au lieu d'extraire des Shorts d'une vidéo longue).
+- Quota voix : un Short ≈ 700–900 caractères → **environ 10 à 14 Shorts par mois** en gratuit.
+- Moins de scènes par vidéo → moins d'attente Agnes et moins de nouvelles prises.
+- Formats 1:1 et 4:5 : gardés mais secondaires.
