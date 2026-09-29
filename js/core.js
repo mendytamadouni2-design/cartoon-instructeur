@@ -19,6 +19,7 @@ const MAX_POLL_ATTEMPTS = 100;
 // Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
 // Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
 const APP_VERSIONS = [
+    { num: '8.0', date: '2026-09-29', note: 'Personnage stable (casting de poses, bouche qui suit la voix), priorité Shorts/TikTok, brouillon animé, retouches en discutant, charte de chaîne, mode objectif avec recherche internet, tes images, compteur ElevenLabs, série de Shorts, miniatures' },
     { num: '7.2', date: '2026-09-29', note: 'Sauvegarde des longues vidéos sur Cloudflare, bouton Partager fiable, journal plus lisible' },
     { num: '7.1', date: '2026-09-28', note: 'Icônes 3D modernes, numéro de version, son de l\'aperçu même en mode silencieux' },
     { num: '7.0', date: '2026-09-28', note: 'Motion design (animations, frises, chaînes, avant/après) et montage image par image' },

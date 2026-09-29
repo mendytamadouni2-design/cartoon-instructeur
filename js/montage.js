@@ -555,13 +555,15 @@ async function prepareAssets(items, label) {
         const item = items[i];
         if (item.puppet) {
             // personnage stable sans scène Agnes : la voix ElevenLabs est indispensable
-            if (!item.ttsBuffer) {
+            if (!item.ttsBuffer && item.draft && !draftUsesVoice()) {
+                item.ttsBuffer = silentVoiceFor(scenePlanFor(item.sceneIndex).spoken || item.sceneText); item.ttsSpeech = null;
+            } else if (!item.ttsBuffer) {
                 setStatus(label + ' : voix ' + (i + 1) + '/' + items.length + '…');
                 const b = await generateElevenLabsAudio(scenePlanFor(item.sceneIndex).spoken || item.sceneText, elevenVoiceId(), document.getElementById('elevenlabs-model-select')?.value || 'eleven_multilingual_v2', '0.5', '0.75', 1);
                 item.ttsBlob = b; item.ttsBuffer = await decodeAudioBlob(b); item.ttsSpeech = analyzeSpeech(item.ttsBuffer);
             }
             item.audioBuffer = null; item.speech = null;
-            if (typeof prepareNarration === 'function' && scenePlanFor(item.sceneIndex).narration) await prepareNarration(item);
+            if (typeof prepareNarration === 'function' && scenePlanFor(item.sceneIndex).narration && (!item.draft || draftUsesVoice())) await prepareNarration(item);
             continue;
         }
         await fetchClipBlob(item);
@@ -719,7 +721,7 @@ async function assembleVideo(opts = {}) {
     }
     return assembleVideoCore({ ...opts, offline: false });
 }
-async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', format = null, preview = null, items: only = null, offline = false } = {}) {
+async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', format = null, preview = null, items: only = null, offline = false, draft = false } = {}) {
     const items = only || montageItems();
     if (!items.some(it => it.sceneIndex >= 0)) throw new Error('aucune scène terminée à assembler');
     const mime = preview || offline ? '' : pickRecorderMime();
@@ -758,7 +760,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     let pending = firstClip ? await createStageVideo(urls.get(firstClip)) : null;
     const { w: W, h: H } = computeOutputSize(pending || { videoWidth: 720, videoHeight: 1280 }, format);
     // personnage stable : les poses validées remplacent le personnage des scènes Agnes
-    const puppet = typeof stableActive === 'function' && stableActive() ? await loadPuppetSprites() : null;
+    const puppet = typeof stableActive === 'function' && stableActive() ? await loadPuppetSprites() : draft && typeof draftSprites === 'function' ? await draftSprites() : null;
     let prevPose = null, puppetMouth = 'closed';
     const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
     const g = canvas.getContext('2d');
@@ -1080,7 +1082,7 @@ function updateAssembleBtn() {
 }
 var lastEditorSig = '';
 function hideResultButtons() {
-    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-audio-btn', 'download-zip-btn', 'download-shorts-btn', 'download-thumbnail-btn', 'download-seo-btn', 'download-chapters-btn', 'download-quiz-btn', 'youtube-upload-btn', 'backup-final-btn', 'lang-version-row', 'section-publish', 'parts-row'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-audio-btn', 'download-zip-btn', 'download-shorts-btn', 'download-thumbnail-btn', 'download-seo-btn', 'download-chapters-btn', 'download-quiz-btn', 'youtube-upload-btn', 'backup-final-btn', 'lang-version-row', 'section-publish', 'parts-row', 'retouch-box'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 }
 function resetExportButtons() {
     state.exportCache = {};
@@ -1089,7 +1091,7 @@ function resetExportButtons() {
 }
 function showResultButtons() {
     resetExportButtons();
-    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-chapters-btn', 'lang-version-row', 'section-publish', 'parts-row'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+    ['download-final-btn', 'download-srt-btn', 'download-scenes-btn', 'download-chapters-btn', 'lang-version-row', 'section-publish', 'parts-row', 'retouch-box'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
     const lvb = document.getElementById('lang-version-btn'); if (lvb) lvb.textContent = '🌍 Créer la version traduite';
     state.langSrt = {}; document.getElementById('lang-yt-btn')?.classList.add('hidden');
     if (typeof renderParts === 'function') renderParts();

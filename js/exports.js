@@ -224,7 +224,8 @@ async function launchSeries() {
     if (!state.seriesEpisodes.length) { showToast('Ajoute des épisodes (titre puis phrases, séparés par une ligne vide)', 'warn', 4000); return; }
     if (state.isRunning) return;
     unlockAudio();
-    if (state.genMode === 'background' && state.proxyJobs && getProxyUrl()) return launchSeriesBackground();
+    // personnage stable + ElevenLabs : pas de scène Agnes, les épisodes se montent directement sur le téléphone
+    if (state.genMode === 'background' && state.proxyJobs && getProxyUrl() && !(typeof stableActive === 'function' && stableActive() && getElevenLabsKey())) return launchSeriesBackground();
     state.isSeriesMode = true; state.seriesAbort = false;
     try {
         for (let i = 0; i < state.seriesEpisodes.length; i++) {
@@ -307,7 +308,7 @@ async function startGeneration() {
     state.elevenOffRun = false;
     if (!state.isSeriesMode && typeof checkVoiceBudget === 'function' && !(await checkVoiceBudget())) return;
     // Personnage stable + voix ElevenLabs : aucune scène à générer chez Agnes, le montage part tout de suite (sur le téléphone)
-    const puppetMode = !state.isSeriesMode && typeof puppetOnly === 'function' && puppetOnly();
+    const puppetMode = typeof puppetOnly === 'function' && puppetOnly();
     if (state.genMode === 'background' && !state.isSeriesMode && !state.oneShot && !puppetMode) {
         if (getProxyUrl() && state.proxyJobs) { await startBackgroundGeneration(); return; }
         showToast('Arrière-plan indisponible (serveur Cloudflare pas à jour) : génération sur le téléphone', 'warn', 6000);

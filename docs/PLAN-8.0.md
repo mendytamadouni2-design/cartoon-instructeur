@@ -126,3 +126,18 @@ un test de comparaison à 5 $ reste possible si l'utilisateur le demande.
 - Quota voix : un Short ≈ 700–900 caractères → **environ 10 à 14 Shorts par mois** en gratuit.
 - Moins de scènes par vidéo → moins d'attente Agnes et moins de nouvelles prises.
 - Formats 1:1 et 4:5 : gardés mais secondaires.
+
+---
+
+## État au 29/09 (soir) : 8.0 codée sur la branche de travail
+
+| Partie | Fichiers | Fait |
+|---|---|---|
+| Voix sous contrôle | `js/voices.js` (budget, cache `tts:*`), `js/montage.js`, `js/exports.js` | compteur, mémoire des phrases, quota épuisé, estimation + raccourcir / voix Agnes, jamais 2 voix |
+| Shorts / TikTok | `js/core.js` (`shortsMode`, `outputFormat`), `js/montage.js` (accroche, punch-in, cartons), `js/growth.js` (SHORT_RULES) | vertical par défaut, accroche 2 s, recadrage 2-3 s, fin en boucle, 4:5 et 1:1 |
+| Charte, style modèle, objectif, images | `js/channel.js`, `js/claude.js` (web_search + pause_turn) | toutes les idées Motion 1, 2, 3, 5, 6 |
+| Personnage stable | `js/puppet.js`, `js/montage.js` | casting 7 poses (fermée / mi / ouverte), vérif Claude, validation, marionnette animée, bouche sur la voix, montage sans Agnes avec ElevenLabs |
+| Réalisation | `js/director.js` | brouillon animé, retouches en discutant (idée Motion 4), sujet → série de Shorts, 3 miniatures |
+
+Reste pour 8.x : option B (personnage vectoriel), réutilisation des décors Agnes entre scènes,
+estimation du temps + notification, puis la liste « Après la 8.0 ».

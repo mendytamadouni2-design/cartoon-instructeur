@@ -314,6 +314,7 @@ function renderStoryboard() {
                 (i > 0 ? '<input class="text-input" data-sb-field="section" data-i="' + i + '" placeholder="Titre de nouvelle partie (optionnel)" value="' + esc(p.section || '') + '">' : '') +
                 '</div>';
         }).join('') +
+        '<button type="button" class="btn-secondary" id="sb-animatic">🎬 Voir le brouillon animé (≈ 1 min, sans Agnes)</button><div class="preview-box hidden" id="animatic-box"></div>' +
         '<button type="button" class="btn-primary" id="sb-approve">✅ Valider le storyboard</button>' +
         '<button type="button" class="btn-secondary" id="sb-redo" style="margin-top:0.4rem;">↺ Refaire tout le storyboard</button>';
     box.classList.remove('hidden');

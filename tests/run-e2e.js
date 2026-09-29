@@ -761,6 +761,50 @@ async function testCompositor(browser) {
     });
     check(cast.created === 2 && cast.checks === 2 && cast.green, 'casting : pose sur fond vert, refusée par Claude puis refaite avec la raison');
     check(cast.hasOpen && cast.approved === false && cast.approvedAfter === true, 'casting : bouche fermée et ouverte extraites de la vidéo, validation par un appui');
+    // 8.0 : brouillon animé, retouches en discutant, un sujet → série de Shorts, 3 miniatures
+    const dir = await page.evaluate(async () => {
+        const r = {}, realCall = window.callClaude, realAssembly = window.runAssembly, realFetch = window.fetch;
+        let agnes = 0; window.fetch = async (u, o) => { if (String(u).includes('agnes')) agnes++; return realFetch(u, o); };
+        const keep = { scenes: state.scenes, plan: state.scenePlan, queue: state.queue, voice: state.voiceSource, music: state.musicVolume };
+        try {
+            const c = document.createElement('canvas'); c.width = 300; c.height = 400; const g = c.getContext('2d'); g.fillStyle = '#9cf'; g.fillRect(0, 0, 300, 400); g.fillStyle = '#f07a3a'; g.fillRect(100, 100, 100, 250);
+            state.images = [{ id: 'p', dataUri: c.toDataURL('image/png') }]; state.cast = null; state.voiceSource = 'agnes';
+            state.scenes = ['Salut.', 'On y va.', 'Fin.']; state.scenePlan = fallbackScenePlan(state.scenes);
+            const box = document.createElement('div'); box.id = 'animatic-box'; document.body.appendChild(box);
+            await runAnimatic();
+            r.animatic = !!box.querySelector('canvas') && !assembling && agnes === 0;
+            box.remove();
+            // retouches
+            state.queue = state.scenes.map((t, i) => ({ sceneIndex: i, sceneText: t, status: 'done', puppet: true, videoUrl: 'puppet:' + i }));
+            let assembled = 0; window.runAssembly = async () => { assembled++; return true; };
+            window.callClaude = async o => {
+                if (o.schema?.properties?.scenes) return { scenes: [{ index: 0, action: 'keep', text: '' }, { index: 1, action: 'rewrite', text: 'Nouvelle phrase.' }, { index: 2, action: 'remove', text: '' }], hook: 'Accroche neuve', energy: 'punchy', music: 'quieter', message: 'Plus court et plus rythmé.' };
+                if (o.schema?.properties?.episodes) return { episodes: [{ title: 'Épisode A', lines: ['Un.', 'Deux.'] }, { title: 'Épisode B', lines: ['Trois.', 'Quatre.'] }, { title: 'Épisode C', lines: ['Cinq.'] }] };
+                if (o.schema?.properties?.text) return { text: 'Test' };
+                return 'Test';
+            };
+            localStorage.setItem(STORAGE.CLAUDE_KEY, 'sk-ant-test');
+            state.musicVolume = 0.4;
+            document.getElementById('retouch-input').value = 'plus court et plus dynamique';
+            await applyRetouch();
+            r.retouch = state.scenePlan.scenes[1].spoken === 'Nouvelle phrase.' && state.queue[2].edit?.skip === true && state.scenePlan.scenes[0].hook === 'Accroche neuve' && charterEnergy() === 'punchy' && state.musicVolume < 0.4 && assembled === 1;
+            // série
+            document.getElementById('series-topic').value = 'les bases de la bourse';
+            await seriesFromTopic();
+            r.series = /Épisode 1 : Épisode A/.test(document.getElementById('series-input').value) && state.seriesEpisodes.length === 3;
+            // miniatures
+            await showThumbnailChoices();
+            r.thumbs = document.querySelectorAll('#thumb-choices img').length === 3 && state.thumbChoices[0].height === 1920;
+        } finally {
+            window.callClaude = realCall; window.runAssembly = realAssembly; window.fetch = realFetch;
+            Object.assign(state, { scenes: keep.scenes, scenePlan: keep.plan, queue: keep.queue, voiceSource: keep.voice, musicVolume: keep.music });
+            localStorage.removeItem(STORAGE.CHARTER);
+        }
+        return r;
+    });
+    check(dir.animatic, 'brouillon animé : toute la vidéo jouée sans rien demander à Agnes');
+    check(dir.retouch, 'retouches en discutant : phrase réécrite, scène enlevée, accroche, rythme et musique, puis remontage');
+    check(dir.series && dir.thumbs, 'un sujet → série de Shorts écrite ; 3 miniatures verticales au choix');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();

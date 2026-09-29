@@ -671,3 +671,5 @@ select:focus { outline: none; border-color: var(--ink); }
 .cast-item:active img.cast-open { opacity: 1; }
 .cast-item small { color: #c0392b; }
 .cast-item button { font-size: 0.72rem; padding: 2px 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); }
+.thumb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+.thumb-grid img { width: 100%; border-radius: 10px; border: 1px solid var(--border); cursor: pointer; }
