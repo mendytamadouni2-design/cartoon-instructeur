@@ -307,6 +307,11 @@ function drawBubble(ctx, cw, ch, text, t) {
     ctx.restore();
 }
 // Où dessiner : l'espace blanc libre à droite du personnage (ou au-dessus de la vidéo en format portrait).
+// Tableau blanc + personnage stable : dessins au-dessus du personnage (vertical) ou à sa droite (paysage)
+function puppetDrawingArea(W, H) {
+    if (H > W * 1.1) { const sz = safeZone(W, H); return { x: W * 0.08, y: Math.max(H * 0.06, sz.top), w: W * 0.78, h: H * 0.34 }; }
+    return { x: W * 0.42, y: H * 0.08, w: W * 0.54, h: H * 0.62 };
+}
 function drawingArea(v, cw, ch) {
     const vw = v.videoWidth || cw, vh = v.videoHeight || ch;
     const f = Math.min(cw / vw, ch / vh), rw = vw * f, rh = vh * f, rx = (cw - rw) / 2, ry = (ch - rh) / 2;
@@ -548,6 +553,17 @@ async function prepareAssets(items, label) {
         setStatus(label + ' : préparation ' + (i + 1) + '/' + items.length + '…');
         setProgress(3 + (i / items.length) * 17);
         const item = items[i];
+        if (item.puppet) {
+            // personnage stable sans scène Agnes : la voix ElevenLabs est indispensable
+            if (!item.ttsBuffer) {
+                setStatus(label + ' : voix ' + (i + 1) + '/' + items.length + '…');
+                const b = await generateElevenLabsAudio(scenePlanFor(item.sceneIndex).spoken || item.sceneText, elevenVoiceId(), document.getElementById('elevenlabs-model-select')?.value || 'eleven_multilingual_v2', '0.5', '0.75', 1);
+                item.ttsBlob = b; item.ttsBuffer = await decodeAudioBlob(b); item.ttsSpeech = analyzeSpeech(item.ttsBuffer);
+            }
+            item.audioBuffer = null; item.speech = null;
+            if (typeof prepareNarration === 'function' && scenePlanFor(item.sceneIndex).narration) await prepareNarration(item);
+            continue;
+        }
         await fetchClipBlob(item);
         if (premium && !item.ttsBuffer && !ttsFailed) {
             try {
@@ -586,6 +602,7 @@ async function prepareAssets(items, label) {
 }
 // Contrôle qualité : scènes sans voix ou à la voix coupée.
 function sceneProblem(item) {
+    if (item.puppet) return null;
     if (state.voiceSource === 'premium') return null;
     if (state.voiceSource === 'fit' && item.fitBuffer) return item.speech?.silent ? 'personnage muet (lèvres immobiles)' : null;
     if (!item.audioBuffer) return 'pas de son';
@@ -623,7 +640,8 @@ function drawHookTitle(ctx, W, H, text, t) {
     const setFont = () => { ctx.font = '900 ' + fs + 'px ' + captionFontFamily(); };
     setFont();
     // retour à la ligne sur 2 lignes au plus
-    const words = text.split(/\s+/); let lines = [text];
+    // la ponctuation française (« ? », « ! », « : ») reste collée au mot précédent
+    const words = text.replace(/\s+([?!:;»])/g, '\u00a0$1').replace(/(«)\s+/g, '$1\u00a0').split(/ +/); let lines = [words.join(' ')];
     const fit = () => lines.every(l => ctx.measureText(l).width <= maxW);
     if (!fit() && words.length > 1) { const k = Math.ceil(words.length / 2); lines = [words.slice(0, k).join(' '), words.slice(k).join(' ')]; }
     while (!fit() && fs > 22) { fs -= 2; setFont(); }
@@ -735,14 +753,18 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     let presenter = null;   // dernière image du personnage détouré (médaillon sur les plans illustrés)
 
     // Enregistrement
-    const urls = new Map(items.map(it => [it, URL.createObjectURL(it.blob)]));
-    let pending = await createStageVideo(urls.get(items[0]));
-    const { w: W, h: H } = computeOutputSize(pending, format);
+    const urls = new Map(items.filter(it => it.blob).map(it => [it, URL.createObjectURL(it.blob)]));
+    const firstClip = items.find(it => it.blob);
+    let pending = firstClip ? await createStageVideo(urls.get(firstClip)) : null;
+    const { w: W, h: H } = computeOutputSize(pending || { videoWidth: 720, videoHeight: 1280 }, format);
+    // personnage stable : les poses validées remplacent le personnage des scènes Agnes
+    const puppet = typeof stableActive === 'function' && stableActive() ? await loadPuppetSprites() : null;
+    let prevPose = null, puppetMouth = 'closed';
     const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
     const g = canvas.getContext('2d');
     const prevCanvas = document.createElement('canvas'); prevCanvas.width = W; prevCanvas.height = H;
     const pg = prevCanvas.getContext('2d');
-    drawFrame(g, pending, W, H);
+    if (pending) drawFrame(g, pending, W, H);
     // Aperçu : on affiche directement le canvas et on joue le son, sans rien enregistrer
     if (preview) { preview.innerHTML = ''; canvas.className = 'preview-canvas'; preview.appendChild(canvas); preview.classList.remove('hidden'); }
     const vStream = preview || offline ? null : canvas.captureStream(30);
@@ -869,10 +891,10 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             // Scène
             const item = seg.item;
             setStatus(label + ' : scène ' + (seg.index + 1) + '/' + sceneTotal + ' — garde l\'appli ouverte');
-            const v = pending || await createStageVideo(urls.get(item));
+            const v = item.puppet ? null : pending || await createStageVideo(urls.get(item));
             pending = null;
-            const vDur = isFinite(v.duration) && v.duration > 0 ? v.duration : 6;
-            const usingTts = !!(premium && item.ttsBuffer);
+            const vDur = v && isFinite(v.duration) && v.duration > 0 ? v.duration : 6;
+            const usingTts = !!((premium || item.puppet) && item.ttsBuffer);
             const usingFit = !usingTts && state.voiceSource === 'fit' && !!item.fitBuffer;
             let cut = usingTts ? applyTrims(item, { tin: seg.index > 0 ? Math.min(0.4, vDur / 3) : 0, tout: vDur }, vDur) : sceneCut(item, vDur, seg.index);
             let dur = cut.tout - cut.tin;
@@ -890,7 +912,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             const shift = item.edit?.drawShift || 0;
             if (sched && shift) sched.forEach(x => { x.start = Math.max(0, Math.min(dur - 0.2, x.start + shift)); x.end = Math.max(x.start + 0.05, Math.min(dur, x.end + shift)); });
             const boardShot = !!(wb && drawing && plan.shot === 'board');
-            const area = wb ? (boardShot ? { x: W * 0.08, y: H * 0.06, w: W * 0.84, h: H * 0.62 } : drawingArea(v, W, H)) : null;
+            const area = wb ? (boardShot ? { x: W * 0.08, y: H * 0.06, w: W * 0.84, h: H * 0.62 } : puppet ? puppetDrawingArea(W, H) : drawingArea(v || {}, W, H)) : null;
             let highlightAt = null;
             if (plan.highlight) {
                 const hw = normWord(String(plan.highlight).split(/\s+/)[0] || '');
@@ -917,10 +939,17 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             const qaInfo = { name: 'scène ' + (item.sceneIndex + 1) };
             const layerOpts = { proc, grade: item.grade, keyed: !!item.keyed, align: item.align, framing: framingFor(seg, item.look, wb, !!drawing) };
 
-            await seekTo(v, cut.tin);
+            if (v) await seekTo(v, cut.tin);
             const buf = usingTts ? item.ttsBuffer : usingFit ? item.fitBuffer : item.audioBuffer;
             // voix calée : son début est aligné sur le début de la parole d'Agnes (les lèvres)
             const fitDelay = usingFit ? Math.max(0, (item.speech && !item.speech.silent ? item.speech.start : 0) - cut.tin) - (item.fitSpeech && !item.fitSpeech.silent ? item.fitSpeech.start : 0) : 0;
+            // personnage stable : pose de la scène, bouche calée sur la voix réellement jouée
+            const poseId = plan.pose && plan.pose !== 'main' && puppet?.[plan.pose] ? plan.pose : 'main';
+            const pz = puppet ? { sprite: puppetSprite(puppet, poseId), env: voiceEnvelope(buf), bt: t => usingTts ? t : usingFit ? t - fitDelay : t + cut.tin, first: prevPose === null, changed: prevPose !== null && prevPose !== poseId } : null;
+            const drawStage = (ctx, t) => {
+                if (wb && !state.greenScreen) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); } else drawDecor(ctx, W, H);
+                return drawPuppet(ctx, W, H, { sprite: pz.sprite, t, env: pz.env, bufTime: pz.bt(t), first: pz.first, poseChanged: pz.changed, wb, mouth: puppetMouth });
+            };
             let src = null, vg = null;
             if (buf) {
                 src = actx.createBufferSource(); src.buffer = buf;
@@ -932,8 +961,8 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             }
             if (musicBuf) duckTo(musicLow);
             // image par image : la scène est décodée/positionnée à l'instant exact de chaque image
-            const fsrc = offline ? await openFrameSource(item, v) : null, sv = fsrc ? fsrc.canvas : v;
-            if (fsrc) await fsrc.at(cut.tin); else { try { await v.play(); } catch (e) {} }
+            const fsrc = offline && v ? await openFrameSource(item, v) : null, sv = fsrc ? fsrc.canvas : v;
+            if (fsrc) await fsrc.at(cut.tin); else if (v) { try { await v.play(); } catch (e) {} }
             if (src) {
                 try {
                     if (usingFit) src.start(actx.currentTime + Math.max(0, fitDelay), Math.max(0, -fitDelay), Math.max(0.1, dur - Math.max(0, fitDelay)));
@@ -953,7 +982,8 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                     // plan « tableau seul » : le dessin en plein écran, léger mouvement de caméra
                     g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
                     const z = 1 + 0.04 * clamp01(t / dur); g.translate(W / 2, H * 0.4); g.scale(z, z); g.translate(-W / 2, -H * 0.4);
-                } else drawSceneLayer(g, sv, W, H, layerOpts);
+                } else if (pz) puppetMouth = drawStage(g, t);
+                else drawSceneLayer(g, sv, W, H, layerOpts);
                 let drawingActive = false;
                 if (wb && area) {
                     if (prevSketch && t < FADE_SEC && transition === 'cut') drawSketch(g, prevSketch.area, prevSketch.drawing, 1, 1 - t / FADE_SEC);
@@ -990,8 +1020,11 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             if (src) { try { src.stop(actx.currentTime); } catch (e) {} }
             timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played });
             prevSketch = drawing && area ? { drawing, area } : null;
-            drawSceneLayer(pg, sv, W, H, layerOpts);
-            if (item.keyed && proc) presenter = presenterFrom(proc.process(sv, { grade: item.grade, key: true }), item.look);
+            if (pz) { drawStage(pg, played); presenter = pz.sprite.closed; prevPose = poseId; }
+            else {
+                drawSceneLayer(pg, sv, W, H, layerOpts);
+                if (item.keyed && proc) presenter = presenterFrom(proc.process(sv, { grade: item.grade, key: true }), item.look);
+            }
             if (fsrc) fsrc.close();
             if (prevSketch) drawSketch(pg, area, drawing, 1, 1);
             hasPrev = true; prevWasScene = true; prevWasBoard = false; prevWasCard = false;
@@ -999,7 +1032,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             T += played;
             // précharge la scène suivante pendant qu'on est encore là
             const nextScene = segs.slice(si + 1).find(s => s.type === 'scene');
-            if (nextScene && T < maxDuration - 0.05) { try { pending = await createStageVideo(urls.get(nextScene.item)); } catch (e) { pending = null; } }
+            if (nextScene && !nextScene.item.puppet && T < maxDuration - 0.05) { try { pending = await createStageVideo(urls.get(nextScene.item)); } catch (e) { pending = null; } }
         }
         done = true;
     } finally {
@@ -1086,7 +1119,8 @@ async function runAssembly() {
         // Contrôle qualité : son (voix coupée, personnage muet) + image (personnage différent de la référence)
         let items = montageItems().filter(q => q.sceneIndex >= 0);
         await prepareAssets(items, 'Vérification');
-        const visualBad = !state.autoRun && typeof checkScenesAgainstReference === 'function' ? await checkScenesAgainstReference(items) : [];
+        // personnage stable : l'image du personnage vient des poses validées, pas des scènes Agnes → pas de contrôle d'image
+        const visualBad = !state.autoRun && !(typeof stableActive === 'function' && stableActive()) && typeof checkScenesAgainstReference === 'function' ? await checkScenesAgainstReference(items.filter(it => !it.puppet)) : [];
         const bad = [...new Set([...items.filter(sceneProblem), ...visualBad])].sort((a, b) => a.sceneIndex - b.sceneIndex);
         const why = b => sceneProblem(b) || b.visualProblem || 'différente';
         const badMsg = bad.length + ' scène' + (bad.length > 1 ? 's semblent ratées' : ' semble ratée') + ' (' + bad.map(b => 'scène ' + (b.sceneIndex + 1) + ' : ' + why(b)).join(', ') + ').';

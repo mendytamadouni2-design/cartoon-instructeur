@@ -89,6 +89,7 @@ async function createReference() {
     finally { state.regenerating = false; state.stopRequested = false; setStatus(null); renderReference(); }
 }
 function renderReference() {
+    if (typeof loadCast === 'function' && (!state.cast || state.cast.sig !== castSig())) loadCast();
     const style = CARTOON_STYLES.find(s => s.id === state.selectedStyle)?.name || state.selectedStyle;
     const ref = referenceImage(), outdated = state.reference && !ref;
     const box = document.getElementById('reference-box');

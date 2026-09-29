@@ -253,6 +253,7 @@ async function seekTo(v, t) {
 }
 async function fetchClipBlob(item) {
     if (item.blob) return item.blob;
+    if (item.puppet) return null;
     const viaProxy = !!getProxyUrl();
     // copie sauvegardée sur ton Cloudflare (ne périme pas, contrairement aux liens d'Agnes)
     if (item.mediaKey && viaProxy) {

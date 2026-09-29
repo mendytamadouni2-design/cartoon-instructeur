@@ -10,7 +10,7 @@ function saveProject() {
         date: Date.now(), theme: state.theme, script: state.script, style: state.selectedStyle,
         scenePlan: state.scenePlan, photo: state.photoSmall, projectId: state.projectId,
         drawings: state.scenes.map((_, i) => state.drawings[i]?.raw || null),
-        queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null, edit: q.edit || undefined, mediaKey: q.mediaKey || undefined, narrKey: q.narrKey || undefined, autoRedone: q.autoRedone || undefined }))
+        queue: state.queue.map(q => ({ sceneIndex: q.sceneIndex, sceneText: q.sceneText, status: q.status === 'done' ? 'done' : 'failed', videoUrl: q.status === 'done' ? q.videoUrl : null, edit: q.edit || undefined, mediaKey: q.mediaKey || undefined, narrKey: q.narrKey || undefined, autoRedone: q.autoRedone || undefined, puppet: q.puppet || undefined }))
     };
     setJSON(STORAGE.LAST_PROJECT, snap);
     if (typeof saveProjectSnapshot === 'function') saveProjectSnapshot(snap);
@@ -287,6 +287,7 @@ document.addEventListener('click', e => {
     if (b) regenerateSceneUI(parseInt(b.dataset.regen, 10));
 });
 function addToGallery(videoUrl, label) {
+    if (!videoUrl || /^puppet:/.test(videoUrl)) return;
     const g = document.getElementById('gallery'), gg = document.getElementById('gallery-grid');
     g.style.display = 'block';
     const el = document.createElement('div');

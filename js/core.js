@@ -141,7 +141,7 @@ const state = {
     subtitlesMode: 'on', subtitlesStyle: 'words', syncWords: true,
     language: 'fr-FR', ttsEngine: 'elevenlabs', voiceSource: 'agnes',
     translateEngine: 'claude',
-    chainScenes: true, camera: 'static', transition: 'smart', trimMode: 'auto', videoFormat: 'auto', target: 'shorts',
+    chainScenes: true, camera: 'static', transition: 'smart', trimMode: 'auto', videoFormat: 'auto', target: 'shorts', stableChar: 'auto', cast: null,
     zoomOn: true, introOn: true, outroOn: true, sectionCards: true, exportQuality: '1080',
     musicSource: 'app', musicVolume: 0.35, sfxOn: true, photoSmall: null, regenerating: false,
     poses: [], storyboardOn: true, storyboardApproved: false, storyboardSig: '', storyboarding: false,

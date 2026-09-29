@@ -465,6 +465,14 @@ Merci de m'avoir écouté !"></textarea>
             <button type="button" class="btn-secondary" id="pose-add-btn" style="margin-top:0.4rem;">＋ Ajouter cette pose</button>
             <div id="poses-list" style="margin-top:0.6rem;"></div>
         </div>
+        <div class="hcard" style="margin-top:0.9rem;">
+            <label class="control-label">🎭 Personnage stable (il ne change plus jamais d'une scène à l'autre)</label>
+            <select id="stable-select">
+                <option value="auto" selected>Utiliser les poses validées dès qu'elles sont prêtes</option>
+                <option value="off">Désactivé (Agnes anime le personnage à chaque scène)</option>
+            </select>
+            <div id="cast-box"></div>
+        </div>
     </div></div>
 </div>
 <div class="section open" id="section-kit">
@@ -1251,6 +1259,7 @@ Phrase 2..."></textarea>
 <script src="js/quality.js?v=202609291200"></script>
 <script src="js/graphics.js?v=202609291200"></script>
 <script src="js/channel.js?v=202609291200"></script>
+<script src="js/puppet.js?v=202609291200"></script>
 <script src="js/init.js?v=202609291200"></script>
 </body>
 </html>

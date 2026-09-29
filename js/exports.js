@@ -306,7 +306,9 @@ async function startGeneration() {
     if (state.storyboardOn && getClaudeKey() && !state.isSeriesMode && !storyboardValid()) { await prepareStoryboardFlow(); return; }
     state.elevenOffRun = false;
     if (!state.isSeriesMode && typeof checkVoiceBudget === 'function' && !(await checkVoiceBudget())) return;
-    if (state.genMode === 'background' && !state.isSeriesMode && !state.oneShot) {
+    // Personnage stable + voix ElevenLabs : aucune scène à générer chez Agnes, le montage part tout de suite (sur le téléphone)
+    const puppetMode = !state.isSeriesMode && typeof puppetOnly === 'function' && puppetOnly();
+    if (state.genMode === 'background' && !state.isSeriesMode && !state.oneShot && !puppetMode) {
         if (getProxyUrl() && state.proxyJobs) { await startBackgroundGeneration(); return; }
         showToast('Arrière-plan indisponible (serveur Cloudflare pas à jour) : génération sur le téléphone', 'warn', 6000);
     }
@@ -344,7 +346,11 @@ async function startGeneration() {
         }
         if (!state.stopRequested) {
             // plan-séquence : enchaînement sur la dernière image ; sinon toutes les scènes partent de l'image de référence
-            if (state.oneShot || (state.chainScenes && !referenceImage())) await runChained(); else await runParallel();
+            if (puppetMode) {
+                state.queue.forEach(q => Object.assign(q, { status: 'done', progress: 'Personnage stable', puppet: true, videoUrl: 'puppet:' + q.sceneIndex, image: null }));
+                state.completed = state.queue.length; renderQueue(); saveProject();
+                showToast('🎭 Personnage stable : aucune scène à attendre chez Agnes, montage direct', 'success', 5000);
+            } else if (state.oneShot || (state.chainScenes && !referenceImage())) await runChained(); else await runParallel();
         }
         if (!state.stopRequested && state.queue.some(q => q.status === 'done')) {
             if (state.drawingsPromise) { setStatus('Finalisation des dessins…'); await state.drawingsPromise; }

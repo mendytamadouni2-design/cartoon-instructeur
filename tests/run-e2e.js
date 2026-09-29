@@ -685,6 +685,83 @@ async function testCompositor(browser) {
     check(v8.tool === 'web_search_20260209' && v8.resent && v8.research === 'Fait 1. Fait 2.', 'recherche internet : outil web de Claude, reprise après pause');
     check(/intérêts composés/.test(v8.script) && v8.theme === 'Les intérêts composés' && v8.usedNotes, 'mode objectif : infos cherchées sur internet puis script et titre écrits');
     check(v8.schemaImg === 'none,imgA' && v8.planLine && v8.imgPixels, 'tes images : proposées à Claude pour la mise en scène et affichées en carte animée');
+    // 8.0 : personnage stable (poses validées, détourées, animées ; bouche calée sur la voix ; montage sans scène Agnes)
+    const pup = await page.evaluate(async () => {
+        const mk = open => { const c = document.createElement('canvas'); c.width = 360; c.height = 640; const g = c.getContext('2d'); g.fillStyle = '#00B140'; g.fillRect(0, 0, 360, 640); g.fillStyle = '#ff7a00'; g.fillRect(130, 160, 100, 380); g.fillStyle = '#222'; g.fillRect(160, 230, 40, open ? 30 : 6); return c.toDataURL('image/jpeg', 0.95); };
+        const closed = mk(false), open = mk(true);
+        state.cast = { sig: castSig(), poses: [{ id: 'main', closed, open, mid: null, approved: true, date: 1 }, { id: 'salue', closed, open: null, mid: null, approved: true, date: 2 }] };
+        const r = { ready: castReady(), active: stableActive() };
+        const sp = await loadPuppetSprites(), s = sp.main;
+        const d = s.closed.getContext('2d').getImageData(0, 0, s.closed.width, s.closed.height).data;
+        let clear = 0, solid = 0; for (let i = 3; i < d.length; i += 4) { if (d[i] < 20) clear++; else solid++; }
+        r.keyed = clear > 0 && solid > clear * 3;   // silhouette recadrée, fond vert retiré sur les bords
+        const ac = new OfflineAudioContext(1, 48000, 48000), b = ac.createBuffer(1, 48000, 48000), ch = b.getChannelData(0);
+        for (let i = 24000; i < 48000; i++) ch[i] = 0.5 * Math.sin(i / 10);
+        const e = voiceEnvelope(b);
+        const c = document.createElement('canvas'); c.width = 360; c.height = 640; const g = c.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, 360, 640);
+        r.mQuiet = drawPuppet(g, 360, 640, { sprite: s, t: 1, env: e, bufTime: 0.2 });
+        r.mLoud = drawPuppet(g, 360, 640, { sprite: s, t: 1, env: e, bufTime: 0.8 });
+        const px = g.getImageData(178, 470, 1, 1).data; r.body = px[0] > 200 && px[1] > 80 && px[1] < 170 && px[2] < 80;
+        // montage complet : 2 répliques, voix ElevenLabs simulée, aucune vidéo Agnes
+        const wav = (() => { const n = 24000, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf); const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+            w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 24000, true); v.setUint32(28, 48000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+            for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, (i > 4000 && i < 20000 ? Math.sin(i / 8) * 12000 : 0), true); return buf; })();
+        const realFetch = window.fetch; let agnes = 0;
+        window.fetch = async (u, o) => { u = String(u); if (u.includes('/text-to-speech/')) return new Response(new Blob([wav], { type: 'audio/wav' })); if (u.includes('agnes')) agnes++; return realFetch(u, o); };
+        const keep = { scenes: state.scenes, plan: state.scenePlan, queue: state.queue, voice: state.voiceSource };
+        try {
+            localStorage.setItem('elevenlabs_api_key', 'sk_test'); elevenlabsSelectedVoiceId = 'v1'; localStorage.removeItem(STORAGE.ELEVEN_EXHAUSTED); elevenQuota = null;
+            state.scenes = ['Bonjour à tous.', 'À bientôt.']; state.scenePlan = fallbackScenePlan(state.scenes); state.scenePlan.scenes[1].pose = 'salue';
+            r.only = puppetOnly();
+            state.queue = state.scenes.map((t, i) => ({ sceneIndex: i, sceneText: t, status: 'done', puppet: true, videoUrl: 'puppet:' + i }));
+            const out = await assembleVideo({ label: 'Test' });
+            r.video = out.blob.size > 1000; r.timeline = out.timeline.length; r.agnes = agnes; r.dur = out.timeline.reduce((a, x) => a + x.duration, 0);
+        } finally { window.fetch = realFetch; Object.assign(state, { scenes: keep.scenes, scenePlan: keep.plan, queue: keep.queue, voiceSource: keep.voice }); state.cast = null; puppetCache = { key: '', sprites: null }; }
+        return r;
+    });
+    check(pup.ready && pup.active && pup.keyed && pup.body, 'personnage stable : poses validées détourées et posées sur le décor');
+    check(pup.mQuiet === 'closed' && pup.mLoud === 'open', 'personnage stable : la bouche s\'ouvre quand la voix parle, se ferme dans les silences');
+    // casting : une vidéo Agnes (simulée) → images bouche fermée / ouverte choisies d'après la voix, vérifiées par Claude, refaite si refusée
+    const cast = await page.evaluate(async () => {
+        const mkClip = async () => {
+            const c = document.createElement('canvas'); c.width = 360; c.height = 640; const g = c.getContext('2d');
+            const ac = new AudioContext(), osc = ac.createOscillator(), gn = ac.createGain(), dst = ac.createMediaStreamDestination();
+            osc.frequency.value = 300; gn.gain.value = 0; osc.connect(gn).connect(dst); osc.start();
+            const rec = new MediaRecorder(new MediaStream([...c.captureStream(30).getVideoTracks(), ...dst.stream.getAudioTracks()]), { mimeType: 'video/webm;codecs=vp8,opus' });
+            const ch = []; rec.ondataavailable = e => ch.push(e.data); const done = new Promise(r => rec.onstop = r); rec.start(200);
+            const t0 = performance.now();
+            await new Promise(res => { const f = () => { const t = (performance.now() - t0) / 1000, talk = t > 1.6 && Math.sin(t * 9) > 0;
+                gn.gain.value = talk ? 0.5 : 0;
+                g.fillStyle = '#00B140'; g.fillRect(0, 0, 360, 640); g.fillStyle = '#ff7a00'; g.fillRect(130, 160, 100, 380); g.fillStyle = '#222'; g.fillRect(160, 230, 40, talk ? 30 : 6);
+                if (t < 3.2) requestAnimationFrame(f); else res(); }; f(); });
+            rec.stop(); await done; ac.close(); return new Blob(ch, { type: 'video/webm' });
+        };
+        const clip = await mkClip();
+        const saved = { cv: window.createVideoTask, pv: window.pollVideo, fc: window.fetchClipBlob, cc: window.callClaude, ei: window.ensureIdentity };
+        let created = 0, checks = 0, prompt = '';
+        window.createVideoTask = async (img, p) => { created++; prompt = p; return 'v' + created; };
+        window.pollVideo = async () => 'https://cdn.test/cast.webm';
+        window.fetchClipBlob = async () => clip;
+        window.ensureIdentity = async () => {};
+        window.callClaude = async o => { checks++; return checks === 1 ? { ok: false, why: 'mains différentes' } : { ok: true, why: '' }; };
+        castCreateInterval = 0;
+        const r = {};
+        try {
+            state.images = [{ id: 'p', dataUri: document.createElement('canvas').toDataURL('image/png') }]; state.cast = null;
+            localStorage.setItem('agnes_api_key', 'sk-test'); localStorage.setItem(STORAGE.CLAUDE_KEY, 'sk-ant-test');
+            await runCasting('main');
+            const p = state.cast?.poses?.find(x => x.id === 'main');
+            r.created = created; r.checks = checks; r.hasOpen = !!(p && p.closed && p.open); r.green = /chroma-key green/.test(prompt) && /Previous attempt was rejected because: mains différentes/.test(prompt);
+            r.approved = p?.approved;
+            document.querySelector('[data-cast-ok="main"]')?.click(); await new Promise(res => setTimeout(res, 300));
+            r.approvedAfter = state.cast.poses.find(x => x.id === 'main').approved;
+        } finally { Object.assign(window, { createVideoTask: saved.cv, pollVideo: saved.pv, fetchClipBlob: saved.fc, callClaude: saved.cc, ensureIdentity: saved.ei }); castCreateInterval = CREATE_INTERVAL_MIN; state.cast = null; }
+        return r;
+    });
+    check(cast.created === 2 && cast.checks === 2 && cast.green, 'casting : pose sur fond vert, refusée par Claude puis refaite avec la raison');
+    check(cast.hasOpen && cast.approved === false && cast.approvedAfter === true, 'casting : bouche fermée et ouverte extraites de la vidéo, validation par un appui');
+    check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }

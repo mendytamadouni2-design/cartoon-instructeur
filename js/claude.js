@@ -169,7 +169,10 @@ function planSchema() {
         sc.properties.scenes.items.properties.image = { type: 'string', enum: ['none'].concat(imgs.map(x => x.id)) };
         sc.properties.scenes.items.required.push('image');
     }
-    if (state.poses.length && !referenceImage()) {
+    if (typeof stableActive === 'function' && stableActive()) {
+        sc.properties.scenes.items.properties.pose = { type: 'string', enum: castPoses().map(p => p.id) };
+        sc.properties.scenes.items.required.push('pose');
+    } else if (state.poses.length && !referenceImage()) {
         sc.properties.scenes.items.properties.pose = { type: 'string', enum: ['main'].concat(state.poses.map(p => p.id)) };
         sc.properties.scenes.items.required.push('pose');
     }
@@ -203,7 +206,8 @@ function planRequestFor(scenes) {
                 : '- "narration" : toujours ""\n') +
             '- "graphic" : ' + (richActive() ? 'pour les scènes qui ont une narration, un graphique animé (motion design) affiché sur le plan illustré QUAND il explique mieux qu\'un dessin : "counter" (un chiffre clé : 1 élément), "bars" (2 à 5 valeurs comparables), "list" (2 à 4 étapes ou idées courtes, "value" = 0), "compare" (2 éléments face à face), "timeline" (frise : 2 à 6 dates dans l\'ordre, "value" = l\'année, ex. 1789, "label" = l\'événement), "chain" (2 à 4 étapes de cause à conséquence, "value" = 0), "beforeafter" (exactement 2 éléments : la situation avant puis après, "value" = 0) ; "title" très court, "unit" (ex. "%", "km", "°C" ou ""), labels de 1 à 4 mots ; "icon" de chaque élément = 1 à 3 mots-clés ANGLAIS d\'un pictogramme simple (ex. "crown", "scale, justice", "factory") ou "". Varie les types d\'une scène à l\'autre. Les chiffres et les dates doivent être EXACTS (ne rien inventer). Au plus une scène sur trois ; sinon type "none" avec des champs vides' : 'toujours type "none", title "", unit "", items []') + '\n' +
             (typeof userImagesPlanLine === 'function' ? userImagesPlanLine() : '') +
-            (state.poses.length && !referenceImage() ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
+            (typeof stableActive === 'function' && stableActive() ? '- "pose" : la pose du personnage pendant la réplique, parmi : ' + castPoses().map(p => '"' + p.id + '" (' + (CAST_POSES.find(c => c.id === p.id)?.label || p.id) + ')').join(', ') + '. Choisis celle qui colle au sens (salue au début, montre pour un exemple, réfléchit pour une question, surpris pour un chiffre étonnant, content pour la conclusion) ; varie, mais garde « main » pour environ une réplique sur trois.\n' : '') +
+            (!(typeof stableActive === 'function' && stableActive()) && state.poses.length && !referenceImage() ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
             wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
         schema: planSchema()
     };
@@ -220,7 +224,7 @@ async function planScenesWithClaude(scenes) {
                 zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '', hook: i === 0 ? String(p.hook || '').trim().slice(0, 48) : '',
                 shot: isWhiteboard() && p.shot === 'board' && i > 0 && i < scenes.length - 1 ? 'board' : 'character', highlight: String(p.highlight || '').slice(0, 40),
                 narration: richActive() && i > 0 && i < scenes.length - 1 ? String(p.narration || '').trim() : (richActive() && splitSentences(text).length > 1 ? splitSentences(text).slice(1).join(' ') : ''), visual: String(p.visual || '').slice(0, 300), graphic: normalizeGraphic(p.graphic), keywords: normKeywords(p.keywords),
-                pose: state.poses.some(x => x.id === p.pose) ? p.pose : 'main',
+                pose: (typeof stableActive === 'function' && stableActive() ? castPoses() : state.poses).some(x => x.id === p.pose) ? p.pose : 'main',
                 image: i > 0 && typeof userImages === 'function' && userImages().some(x => x.id === p.image) ? p.image : 'none' };
         })
     };
