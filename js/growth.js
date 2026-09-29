@@ -4,8 +4,11 @@
 // ══════════════════════════════════════════════════════════════════
 // ASSISTANT DE SCRIPT : formats qui retiennent + vérification des faits
 // ══════════════════════════════════════════════════════════════════
+// Règles d'un Short qui retient : accroche dans les 2 premières secondes, rythme, fin qui relance la vidéo en boucle
+const SHORT_RULES = 'la 1re ligne est une accroche de moins de 10 mots dite en moins de 2 secondes (question intrigante, chiffre choc ou promesse), sans salutation ni présentation ; une seule idée par ligne, phrases très courtes ; aucune introduction, aucun « abonne-toi » ; la dernière ligne se termine de façon à s\'enchaîner naturellement avec la première pour que la vidéo tourne en boucle (ex. elle y répond ou la relance)';
 const SCRIPT_FORMATS = {
-    short: { label: 'Short / TikTok (30 s)', lines: '5 à 6', rules: 'accroche choc dès la 1re ligne, une seule idée, chute surprenante, pas de salutation' },
+    short: { label: 'Short / TikTok (30 s)', lines: '5 à 6', rules: SHORT_RULES },
+    short60: { label: 'Short / TikTok (45 à 60 s)', lines: '8 à 9', rules: SHORT_RULES + ', 2 ou 3 infos maximum, chacune avec un exemple concret' },
     minute: { label: 'Vidéo d\'1 minute', lines: '9 à 11', rules: 'accroche en question ou chiffre étonnant, promesse de ce qu\'on va apprendre, 3 points clés, récapitulatif, appel à s\'abonner' },
     explainer: { label: 'Explication de 3 minutes', lines: '24 à 28', rules: 'accroche, promesse, 3 à 4 parties avec une relance de curiosité à la fin de chaque partie, un exemple concret par partie, récapitulatif, appel à s\'abonner' }
 };

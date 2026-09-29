@@ -93,7 +93,7 @@ const STORAGE = {
     END_QUESTION: 'cartoon_end_question',
     SAFE_ZONES: 'cartoon_safe_zones',
     TEST_MODE: 'cartoon_test_mode',
-    DEFAULTS_V3: 'cartoon_defaults_v3',
+    DEFAULTS_V3: 'cartoon_defaults_v3', DEFAULTS_V8: 'cartoon_defaults_v8',
     RICH: 'cartoon_rich_scenes',
     QA_ON: 'cartoon_qa_on',
     ONE_SHOT: 'cartoon_one_shot',
@@ -118,6 +118,11 @@ const STORAGE = {
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
 const THUMBNAIL_MAX_WIDTH = 200;
 const TARGET_SCENE_DURATION = 7;
+// Cible principale : Shorts / TikTok (vertical, 30 à 60 s) ou YouTube classique
+const SHORT_MAX_SEC = 60;
+function shortsMode() { return state.target !== 'youtube'; }
+// Format de sortie réel : « automatique » donne du vertical quand la cible est Shorts / TikTok
+function outputFormat() { return state.videoFormat === 'auto' && shortsMode() ? 'portrait' : state.videoFormat; }
 
 // ══════════════════════════════════════════════════════════════════
 // ÉTAT GLOBAL
@@ -135,7 +140,7 @@ const state = {
     subtitlesMode: 'on', subtitlesStyle: 'words', syncWords: true,
     language: 'fr-FR', ttsEngine: 'elevenlabs', voiceSource: 'agnes',
     translateEngine: 'claude',
-    chainScenes: true, camera: 'static', transition: 'smart', trimMode: 'auto', videoFormat: 'auto',
+    chainScenes: true, camera: 'static', transition: 'smart', trimMode: 'auto', videoFormat: 'auto', target: 'shorts',
     zoomOn: true, introOn: true, outroOn: true, sectionCards: true, exportQuality: '1080',
     musicSource: 'app', musicVolume: 0.35, sfxOn: true, photoSmall: null, regenerating: false,
     poses: [], storyboardOn: true, storyboardApproved: false, storyboardSig: '', storyboarding: false,

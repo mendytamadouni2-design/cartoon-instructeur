@@ -128,6 +128,7 @@ const PLAN_SCHEMA = {
                     zoom: { type: 'string', enum: ['in', 'none'] },
                     emphasis: { type: 'string' },
                     section: { type: 'string' },
+                    hook: { type: 'string' },
                     shot: { type: 'string', enum: ['character', 'board'] },
                     highlight: { type: 'string' },
                     narration: { type: 'string' },
@@ -142,7 +143,7 @@ const PLAN_SCHEMA = {
                         required: ['type', 'title', 'unit', 'items'], additionalProperties: false
                     }
                 },
-                required: ['spoken', 'action', 'keywords', 'camera', 'bubble', 'zoom', 'emphasis', 'section', 'shot', 'highlight', 'narration', 'visual', 'graphic'], additionalProperties: false
+                required: ['spoken', 'action', 'keywords', 'camera', 'bubble', 'zoom', 'emphasis', 'section', 'hook', 'shot', 'highlight', 'narration', 'visual', 'graphic'], additionalProperties: false
             }
         }
     },
@@ -175,11 +176,12 @@ function planRequestFor(scenes) {
             '- "zoom" : "in" pour les moments forts (environ une scène sur trois, jamais deux de suite), sinon "none"\n' +
             '- "emphasis" : si zoom vaut "in", LE mot de "spoken" (écrit exactement pareil) sur lequel le zoom démarre, sinon ""\n' +
             '- "section" : si cette réplique ouvre une nouvelle partie de la vidéo, un titre très court (2 à 4 mots) ; sinon "". 2 à 4 parties au total, jamais sur la première réplique, aucune partie si la vidéo a moins de 6 répliques\n\n' +
+            '- "hook" : ' + (shortsMode() ? 'pour la PREMIÈRE réplique seulement : l\'accroche écrite en très gros à l\'écran pendant les 2 premières secondes du Short (2 à 5 mots-chocs, dans la langue de la vidéo : question, chiffre, promesse ; elle complète la réplique sans la répéter mot pour mot) ; "" pour toutes les autres' : 'toujours ""') + '\n' +
             '- "shot" : ' + (isWhiteboard() ? '"board" quand le dessin explique mieux que le personnage (environ une réplique sur quatre, jamais la première ni la dernière, jamais deux de suite) : on ne verra alors que le tableau en plein écran ; sinon "character"' : 'toujours "character"') + '\n' +
             '- "highlight" : si la réplique contient un chiffre clé, une date ou une définition courte à retenir, ce texte très court (1 à 5 mots, ex. "70 %", "1789", "H₂O") ; sinon "" (au plus une réplique sur trois)\n' +
             '- "visual" : en français, ce qu\'il faut dessiner pour illustrer PRÉCISÉMENT l\'idée de la réplique' + (richActive() ? ' et de sa narration' : '') + ' : objets concrets, composition simple, sans aucun texte (1 phrase)\n' +
             (richActive()
-                ? '- "narration" : SCÈNES RICHES. Si la réplique contient plusieurs phrases, "spoken" = la première phrase (courte, dite face caméra) et "narration" = la suite, sans la changer. Si elle n\'a qu\'une phrase, "narration" = 1 à 2 phrases (dans la langue de la vidéo) qui approfondissent l\'idée (exemple concret, chiffre juste, comparaison), exactes et faciles à prononcer, dites par la voix off pendant qu\'on montre l\'illustration en plein écran. "narration" vaut "" pour la toute première et la toute dernière réplique.\n'
+                ? (shortsMode() ? 'FORMAT SHORT : "narration" au plus 1 phrase courte, et seulement pour 1 ou 2 répliques qui en ont vraiment besoin (la vidéo doit rester sous 60 secondes). ' : '') + '- "narration" : SCÈNES RICHES. Si la réplique contient plusieurs phrases, "spoken" = la première phrase (courte, dite face caméra) et "narration" = la suite, sans la changer. Si elle n\'a qu\'une phrase, "narration" = 1 à 2 phrases (dans la langue de la vidéo) qui approfondissent l\'idée (exemple concret, chiffre juste, comparaison), exactes et faciles à prononcer, dites par la voix off pendant qu\'on montre l\'illustration en plein écran. "narration" vaut "" pour la toute première et la toute dernière réplique.\n'
                 : '- "narration" : toujours ""\n') +
             '- "graphic" : ' + (richActive() ? 'pour les scènes qui ont une narration, un graphique animé (motion design) affiché sur le plan illustré QUAND il explique mieux qu\'un dessin : "counter" (un chiffre clé : 1 élément), "bars" (2 à 5 valeurs comparables), "list" (2 à 4 étapes ou idées courtes, "value" = 0), "compare" (2 éléments face à face), "timeline" (frise : 2 à 6 dates dans l\'ordre, "value" = l\'année, ex. 1789, "label" = l\'événement), "chain" (2 à 4 étapes de cause à conséquence, "value" = 0), "beforeafter" (exactement 2 éléments : la situation avant puis après, "value" = 0) ; "title" très court, "unit" (ex. "%", "km", "°C" ou ""), labels de 1 à 4 mots ; "icon" de chaque élément = 1 à 3 mots-clés ANGLAIS d\'un pictogramme simple (ex. "crown", "scale, justice", "factory") ou "". Varie les types d\'une scène à l\'autre. Les chiffres et les dates doivent être EXACTS (ne rien inventer). Au plus une scène sur trois ; sinon type "none" avec des champs vides' : 'toujours type "none", title "", unit "", items []') + '\n' +
             (state.poses.length && !referenceImage() ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
@@ -196,7 +198,7 @@ async function planScenesWithClaude(scenes) {
         scenes: scenes.map((text, i) => {
             const p = out.scenes[i] || {};
             return { spoken: p.spoken || text, action: p.action || fb[i].action, camera: p.camera || fb[i].camera, bubble: String(p.bubble || '').slice(0, 60),
-                zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '',
+                zoom: p.zoom === 'in' ? 'in' : 'none', emphasis: String(p.emphasis || '').slice(0, 40), section: i > 0 ? String(p.section || '').slice(0, 40) : '', hook: i === 0 ? String(p.hook || '').trim().slice(0, 48) : '',
                 shot: isWhiteboard() && p.shot === 'board' && i > 0 && i < scenes.length - 1 ? 'board' : 'character', highlight: String(p.highlight || '').slice(0, 40),
                 narration: richActive() && i > 0 && i < scenes.length - 1 ? String(p.narration || '').trim() : (richActive() && splitSentences(text).length > 1 ? splitSentences(text).slice(1).join(' ') : ''), visual: String(p.visual || '').slice(0, 300), graphic: normalizeGraphic(p.graphic), keywords: normKeywords(p.keywords),
                 pose: state.poses.some(x => x.id === p.pose) ? p.pose : 'main' };
@@ -282,6 +284,7 @@ function renderStoryboard() {
                 '<select data-sb-field="zoom" data-i="' + i + '">' + opt([['none', 'Pas de zoom'], ['in', '🔍 Zoom' + (p.emphasis ? ' sur « ' + p.emphasis + ' »' : '')]], p.zoom || 'none') + '</select>' +
                 (state.poses.length ? '<select data-sb-field="pose" data-i="' + i + '">' + opt(poseOpts, p.pose || 'main') + '</select>' : '') +
                 '</div>' +
+                (i === 0 && shortsMode() ? '<input class="text-input" data-sb-field="hook" data-i="0" placeholder="Accroche écrite en gros (2 premières secondes)" value="' + esc(p.hook || '') + '">' : '') +
                 '<input class="text-input" data-sb-field="bubble" data-i="' + i + '" placeholder="Mot-clé écrit (optionnel)" value="' + esc(p.bubble || '') + '">' +
                 '<input class="text-input" data-sb-field="highlight" data-i="' + i + '" placeholder="Chiffre ou définition en grand (optionnel)" value="' + esc(p.highlight || '') + '">' +
                 (i > 0 ? '<input class="text-input" data-sb-field="section" data-i="' + i + '" placeholder="Titre de nouvelle partie (optionnel)" value="' + esc(p.section || '') + '">' : '') +

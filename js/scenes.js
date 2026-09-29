@@ -15,9 +15,12 @@ function updateScriptStats() {
     // Mode test : seulement 3 scènes (début, milieu, fin) pour essayer vite, tout le reste identique
     const idx = state.testMode ? testPick(lines.length) : null;
     const scenes = idx ? idx.map(k => lines[k]) : lines;
-    const estimatedDuration = scenes.length * TARGET_SCENE_DURATION;
+    // Shorts : les scènes sont coupées au rythme de la parole (≈ 14 caractères par seconde)
+    const estimatedDuration = shortsMode() ? Math.round(scenes.reduce((a, l) => a + Math.max(2.5, l.length / 14 + 0.5), 0)) : scenes.length * TARGET_SCENE_DURATION;
     statsEl.textContent = lines.length + ' phrase' + (lines.length > 1 ? 's' : '') + ' · ' + script.length + ' car.' + (idx ? ' · 🧪 test : 3 scènes' : '');
-    durEl.textContent = 'Durée : ' + formatEta(estimatedDuration) + (idx ? ' 🧪' : estimatedDuration < 60 ? ' ⚠️' : ' ✓');
+    durEl.textContent = 'Durée : ' + formatEta(estimatedDuration) + (idx ? ' 🧪'
+        : shortsMode() ? (estimatedDuration <= SHORT_MAX_SEC ? ' ✓ format Short' : ' ⚠️ plus de 60 s : un peu long pour un Short')
+        : estimatedDuration < 60 ? ' ⚠️' : ' ✓');
     state.testIdx = idx;
     state.scenes = scenes; state.script = script;
     updateGenerateBtn();
@@ -155,7 +158,7 @@ function fallbackScenePlan(scenes) {
             // scènes riches : 1re phrase dite face caméra, la suite par la voix off sur un plan illustré
             const parts = rich ? splitSentences(text) : [];
             return {
-            spoken: parts.length > 1 ? parts[0] : text, narration: parts.length > 1 ? parts.slice(1).join(' ') : '', visual: '', graphic: { type: 'none', title: '', unit: '', items: [] }, keywords: [],
+            spoken: parts.length > 1 ? parts[0] : text, hook: '', narration: parts.length > 1 ? parts.slice(1).join(' ') : '', visual: '', graphic: { type: 'none', title: '', unit: '', items: [] }, keywords: [],
             action: state.motion === 'auto' || isWhiteboard() ? actions[i % actions.length] : (MOTION_PROMPTS[state.motion] || AUTO_ACTIONS[0]),
             camera: CAMERA_SHOTS[i % CAMERA_SHOTS.length],
             bubble: i === 0 ? (state.theme || '').slice(0, 40) : '',
@@ -220,8 +223,8 @@ function buildScenePrompt(item, override) {
     parts.push(tone + '.'); parts.push(audience);
     if (fxList.length && !wb) parts.push('Effects: ' + fxList.join(', ') + '.');
     parts.push('STRICTLY NO TEXT anywhere in the image: no letters, words, numbers, captions, subtitles, labels, logos, signs or writing. Speech bubbles, boards and screens stay empty or show simple pictures only.');
-    if (state.videoFormat === 'portrait') parts.push('Vertical 9:16 composition.');
-    else if (state.videoFormat === 'landscape') parts.push('Horizontal 16:9 composition.');
+    if (outputFormat() === 'portrait') parts.push('Vertical 9:16 composition, character centered with room above the head.');
+    else if (outputFormat() === 'landscape') parts.push('Horizontal 16:9 composition.');
     if (effectiveMusicMode() !== 'agnes') parts.push('Audio: only the character\'s clear voice. No background music, no sound effects.');
     parts.push('24fps, no watermark.');
     return parts.join(' ');

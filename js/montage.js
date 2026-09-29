@@ -52,8 +52,9 @@ function pickRecorderMime() {
 }
 function computeOutputSize(v, format) {
     const L = state.exportQuality === '720' ? 1280 : 1920, S = Math.round(L * 9 / 16 / 2) * 2;
-    const f = format || state.videoFormat;
+    const f = format || outputFormat();
     if (f === 'portrait') return { w: S, h: L };
+    if (f === 'fourfive') return { w: S, h: Math.round(S * 1.25 / 2) * 2 };
     if (f === 'landscape') return { w: L, h: S };
     if (f === 'square') return { w: S, h: S };
     const w = v.videoWidth || 720, h = v.videoHeight || 1280;
@@ -592,18 +593,65 @@ function sceneProblem(item) {
     if (item.speech && item.speech.end - item.speech.start < 0.6) return 'voix trop courte';
     return null;
 }
-function buildSegments(items, maxDuration) {
-    const segs = [];
-    if (state.introOn && (state.theme || '').trim() && maxDuration > 20) segs.push({ type: 'intro', dur: 2.4, title: state.theme.trim() });
+// Shorts / TikTok : aucun carton (titre, parties, fin) qui retarde l'accroche ou fait décrocher ;
+// la première image est déjà le personnage, avec l'accroche écrite en gros.
+function buildSegments(items, maxDuration, format) {
+    const segs = [], cards = maxDuration > 20 && !(shortsMode() && (format || outputFormat()) !== 'landscape');
+    if (state.introOn && (state.theme || '').trim() && cards) segs.push({ type: 'intro', dur: 2.4, title: state.theme.trim() });
     items.forEach((item, i) => {
         const plan = scenePlanFor(item.sceneIndex);
         const section = String(plan.section || '').trim();
-        if (section && i > 0 && state.sectionCards && maxDuration > 20) segs.push({ type: 'card', dur: 1.7, title: section });
-        segs.push({ type: 'scene', item, index: i, newSection: !!section && i > 0 });
+        if (section && i > 0 && state.sectionCards && cards) segs.push({ type: 'card', dur: 1.7, title: section });
+        segs.push({ type: 'scene', item, index: i, newSection: !!section && i > 0 && cards });
         if (plan.narration && item.sceneIndex >= 0) segs.push({ type: 'board', item, index: i });
     });
-    if (state.outroOn && maxDuration > 20) segs.push({ type: 'outro', dur: 3.6 });
+    if (state.outroOn && cards) segs.push({ type: 'outro', dur: 3.6 });
     return segs;
+}
+// Texte d'accroche des 2 premières secondes (Shorts) : celui de Claude, sinon le chiffre clé ou les mots-clés
+function hookTextFor(plan) {
+    const t = String(plan.hook || plan.highlight || plan.bubble || (plan.keywords || []).slice(0, 2).join(' · ') || state.theme || '').trim();
+    return t.slice(0, 48);
+}
+function drawHookTitle(ctx, W, H, text, t) {
+    const HOLD = 2.3;
+    if (!text || t > HOLD + 0.3) return;
+    const inA = spring(t, SPRINGS.bouncy), out = t > HOLD ? clamp01((t - HOLD) / 0.3) : 0;
+    const sz = safeZone(W, H), maxW = sz.maxW;
+    let fs = Math.round(Math.min(W, H) * 0.11);
+    ctx.save();
+    const setFont = () => { ctx.font = '900 ' + fs + 'px ' + captionFontFamily(); };
+    setFont();
+    // retour à la ligne sur 2 lignes au plus
+    const words = text.split(/\s+/); let lines = [text];
+    const fit = () => lines.every(l => ctx.measureText(l).width <= maxW);
+    if (!fit() && words.length > 1) { const k = Math.ceil(words.length / 2); lines = [words.slice(0, k).join(' '), words.slice(k).join(' ')]; }
+    while (!fit() && fs > 22) { fs -= 2; setFont(); }
+    const y0 = H * (H > W * 1.2 ? 0.2 : 0.16), lh = fs * 1.12;
+    ctx.globalAlpha = 1 - out;
+    ctx.translate(sz.cx, y0); ctx.scale(0.6 + 0.4 * inA, 0.6 + 0.4 * inA); ctx.rotate(-0.03 * (1 - inA)); ctx.translate(-sz.cx, -y0);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    lines.forEach((l, i) => {
+        const y = y0 + (i - (lines.length - 1) / 2) * lh, w = ctx.measureText(l).width;
+        ctx.fillStyle = accentColor(); roundRectPath(ctx, sz.cx - w / 2 - fs * 0.3, y - fs * 0.62, w + fs * 0.6, fs * 1.24, fs * 0.22); ctx.fill();
+        ctx.fillStyle = '#111'; ctx.fillText(l, sz.cx, y + fs * 0.04);
+    });
+    ctx.restore();
+}
+// Rythme Shorts : un léger « punch-in » (recadrage plus serré) toutes les 2 à 3 s, calé sur les groupes de mots,
+// pour que l'image change souvent sans nouvelle scène à générer.
+function punchSchedule(words, dur) {
+    const cuts = [], MIN = 1.8, TARGET = 2.5;
+    let last = 0;
+    (words || []).forEach(w => { if (w.start - last >= TARGET && dur - w.start > 1.2) { cuts.push(w.start - 0.04); last = w.start; } });
+    if (!cuts.length) for (let x = TARGET; x < dur - 1.2; x += TARGET) cuts.push(x);
+    return cuts.filter((c, i) => i === 0 ? c >= MIN : c - cuts[i - 1] >= MIN);
+}
+function punchZoom(cuts, t) {
+    let k = 0; for (const c of cuts) if (t >= c) k++;
+    if (!k) return 1;
+    const since = t - cuts[k - 1], target = k % 2 ? 1.09 : 1.0, from = k % 2 ? 1.0 : 1.09;
+    return from + (target - from) * easeOut(clamp01(since / 0.12));
 }
 async function loadMusicBuffer() {
     if (effectiveMusicMode() !== 'app') return null;
@@ -662,7 +710,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     // icônes des graphiques (emojis 3D pour les styles colorés), chargées avant la première image
     await preloadVideoIcons(items.flatMap(it => (scenePlanFor(it.sceneIndex).graphic?.items || []).map(x => x.icon)).filter(Boolean));
     const { premium } = await prepareAssets(items, label);
-    const segs = buildSegments(items, maxDuration);
+    const segs = buildSegments(items, maxDuration, format);
     // horloge du montage : en image par image, le son est programmé sur l'instant de l'image calculée
     const clock = { t: 0 };
     const actx = offline ? createOfflineAudio(estimateTimeline(segs, maxDuration), clock) : rtCtx;
@@ -848,6 +896,8 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             }
             // Zoom sur le mot important
             let zoomAt = null;
+            const punches = shortsMode() && !wb && !boardShot && H > W * 1.1 ? punchSchedule(words, dur) : null;
+            const hookText = shortsMode() && seg.index === 0 && H > W * 1.1 ? hookTextFor(plan) : '';
             if (state.zoomOn && plan.zoom === 'in' && !boardShot) {
                 const nw = normWord(plan.emphasis || '');
                 const hit = nw ? words.find(w => normWord(w.text) === nw || normWord(w.text).startsWith(nw)) : null;
@@ -890,9 +940,9 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             const played = await playSegment(dur, t => {
                 // calque « scène » (zoomable)
                 g.save();
-                if (zoomAt !== null) {
-                    const z = 1 + 0.1 * easeOut((t - zoomAt) / 0.35);
-                    const cx = wb && area ? W * 0.42 : W / 2, cy = H * 0.45;
+                if (zoomAt !== null || punches) {
+                    const z = (zoomAt !== null ? 1 + 0.1 * easeOut((t - zoomAt) / 0.35) : 1) * (punches && (zoomAt === null || t < zoomAt) ? punchZoom(punches, t) : 1);
+                    const cx = wb && area ? W * 0.42 : W / 2, cy = H * (punches ? 0.38 : 0.45);
                     g.translate(cx, cy); g.scale(z, z); g.translate(-cx, -cy);
                 }
                 if (boardShot) {
@@ -927,6 +977,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                     g.drawImage(prevCanvas, 0, -H * e);
                 }
                 drawCaptions(g, W, H, sc, t);
+                if (hookText) drawHookTitle(g, W, H, hookText, t);
                 if (logoImg) drawLogo(g, W, H, logoImg);
                 if (qa) qa.tick(canvas, T + t, t, dur, qaInfo);
             }, fsrc ? (t => !usingTts && cut.tin + t >= vDur - 0.02) : (t => !usingTts && v.ended && t > 0.3), fsrc ? (t => fsrc.at(cut.tin + t)) : null);

@@ -122,6 +122,8 @@ function showCloudConfigRow(provider) {
     document.getElementById('logo-input')?.addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { await idbPut('logo', f); setLS(STORAGE.LOGO_SET, '1'); updateLogoStatus(); showToast('Logo ajouté ✓', 'success'); } catch (err) { showToast('Logo impossible à enregistrer', 'error'); } });
     document.getElementById('logo-remove-btn')?.addEventListener('click', async () => { try { await idbDel('logo'); } catch (e) {} localStorage.removeItem(STORAGE.LOGO_SET); updateLogoStatus(); });
     document.getElementById('video-format-select')?.addEventListener('change', e => state.videoFormat = e.target.value);
+    document.getElementById('script-format-select')?.addEventListener('change', e => { e.target.dataset.touched = '1'; });
+    document.getElementById('target-select')?.addEventListener('change', e => { state.target = e.target.value; applyTargetDefaults(); if (typeof saveSettings === 'function') saveSettings(); updateScriptStats(); });
     document.getElementById('extra-exports-select')?.addEventListener('change', e => state.extraExports = Array.from(e.target.selectedOptions).map(o => o.value));
     document.getElementById('subtitles-style-select')?.addEventListener('change', e => { state.subtitlesStyle = e.target.value; state.subtitlesMode = e.target.value === 'off' ? 'off' : 'on'; });
 
@@ -289,6 +291,7 @@ function showCloudConfigRow(provider) {
     updateMusicStatus(); updateLogoStatus();
     applySettings(getJSON(STORAGE.SETTINGS));
     applyQualityDefaults();
+    applyTargetDefaults(true);
     const bindToggle = (id, key, prop, def, after) => {
         const el = document.getElementById(id); if (!el) return;
         state[prop] = getLS(STORAGE[key]) ? getLS(STORAGE[key]) === '1' : def;

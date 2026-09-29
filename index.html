@@ -108,8 +108,9 @@ Merci de m'avoir écouté !"></textarea>
             <label class="control-label">Format du script écrit par Claude</label>
             <select id="script-format-select">
                 <option value="">Classique (10 à 14 lignes)</option>
-                <option value="short">Short / TikTok (30 s) — accroche choc</option>
-                <option value="minute" selected>Vidéo d'1 minute — accroche, 3 points, récap</option>
+                <option value="short">Short / TikTok (30 s) — accroche choc, fin en boucle</option>
+                <option value="short60">Short / TikTok (45 à 60 s) — accroche, 2-3 infos, fin en boucle</option>
+                <option value="minute">Vidéo d'1 minute — accroche, 3 points, récap</option>
                 <option value="explainer">Explication de 3 minutes — parties avec relances</option>
             </select>
         </div>
@@ -851,10 +852,20 @@ Merci de m'avoir écouté !"></textarea>
             </select>
         </div>
         <div class="control-row">
+            <label class="control-label">🎯 Où publies-tu surtout ?</label>
+            <select id="target-select">
+                <option value="shorts" selected>Shorts / TikTok / Reels (vertical, 30 à 60 s)</option>
+                <option value="youtube">YouTube classique (vidéos longues)</option>
+            </select>
+            <div class="prompt-main-hint">Shorts : vidéo verticale, accroche écrite en gros dès la première seconde, image qui change toutes les 2 à 3 s, fin qui relance la vidéo en boucle, pas de carton de titre ni de fin.</div>
+        </div>
+        <div class="control-row">
             <label class="control-label">Format de la vidéo finale</label>
             <select id="video-format-select">
-                <option value="auto" selected>Automatique (même format que les scènes)</option>
+                <option value="auto" selected>Automatique (vertical pour les Shorts, sinon format des scènes)</option>
                 <option value="portrait">Portrait 9:16 (Shorts, TikTok, Reels)</option>
+                <option value="fourfive">Portrait 4:5 (fil Instagram, Facebook)</option>
+                <option value="square">Carré 1:1 (fil Instagram, Facebook, LinkedIn)</option>
                 <option value="landscape">Paysage 16:9 (YouTube)</option>
             </select>
             <div class="prompt-main-hint">Si les scènes ne sont pas au bon format, l'image est centrée avec un fond flouté, sans rien couper.</div>

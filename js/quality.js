@@ -515,3 +515,16 @@ function applyQualityDefaults() {
     if (typeof saveSettings === 'function') saveSettings();
     setLS(STORAGE.DEFAULTS_V3, '1');
 }
+
+// Cible Shorts / TikTok (8.0) : format du script adapté ; la première fois, cible Shorts par défaut
+function applyTargetDefaults(atStart) {
+    if (atStart && !getLS(STORAGE.DEFAULTS_V8)) {
+        state.target = 'shorts'; state.subtitlesStyle = 'words';
+        const ts = document.getElementById('target-select'); if (ts) ts.value = 'shorts';
+        const ss = document.getElementById('subtitles-style-select'); if (ss) ss.value = 'words';
+        if (typeof saveSettings === 'function') saveSettings();
+        setLS(STORAGE.DEFAULTS_V8, '1');
+    }
+    const fs = document.getElementById('script-format-select');
+    if (fs && (!atStart || !fs.dataset.touched)) fs.value = shortsMode() ? 'short60' : 'minute';
+}
