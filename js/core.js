@@ -19,6 +19,7 @@ const MAX_POLL_ATTEMPTS = 100;
 // Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
 // Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
 const APP_VERSIONS = [
+    { num: '7.2', date: '2026-09-29', note: 'Sauvegarde des longues vidéos sur Cloudflare, bouton Partager fiable, journal plus lisible' },
     { num: '7.1', date: '2026-09-28', note: 'Icônes 3D modernes, numéro de version, son de l\'aperçu même en mode silencieux' },
     { num: '7.0', date: '2026-09-28', note: 'Motion design (animations, frises, chaînes, avant/après) et montage image par image' },
     { num: '6.4', date: '2026-09-28', note: 'Plus de blanc entre les scènes, indicateur de voix corrigé' },
@@ -198,7 +199,17 @@ function journal(level, msg) {
     if (b.length > 300) b.splice(0, b.length - 300);
     try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(b.slice(-200))); } catch (e) {}
 }
-window.addEventListener('error', e => journal('ERREUR', (e.message || '') + ' @' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || '')));
+// Erreurs : une même erreur répétée n'est notée qu'une fois toutes les 30 s, et les « Script error. »
+// sans fichier (venues d'en dehors de l'appli : feuille de partage iOS, extensions…) une seule fois.
+const seenErrors = new Map();
+window.addEventListener('error', e => {
+    const external = !e.filename && /^Script error\.?$/i.test(e.message || '');
+    const msg = external ? 'Script error. (erreur extérieure à l\'appli, sans effet)' : (e.message || '') + ' @' + String(e.filename || '').split('/').pop() + ':' + (e.lineno || '');
+    const last = seenErrors.get(msg);
+    if (last && (external || Date.now() - last < 30000)) return;
+    seenErrors.set(msg, Date.now());
+    journal('ERREUR', msg);
+});
 window.addEventListener('unhandledrejection', e => journal('ERREUR', 'promesse : ' + ((e.reason && e.reason.message) || e.reason)));
 const log = msg => { console.log('[Cartoon] ' + msg); journal('info', msg); };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -538,6 +549,7 @@ async function testProxy() {
         if (res.ok && body.includes('Relais OK')) {
             state.proxyJobs = body.includes('jobs');
             state.proxyMedia = body.includes('media');
+            state.proxyParts = body.includes('parts');
             state.proxyTikTok = body.includes('tiktok');
             state.proxyInstagram = body.includes('instagram');
             setProxyStatus('✅ Relais opérationnel' + (state.proxyJobs ? ' · arrière-plan disponible' : ''), true);

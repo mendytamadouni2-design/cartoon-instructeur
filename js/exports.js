@@ -102,15 +102,22 @@ async function generateSEO() {
 }
 
 // Enregistre un fichier : feuille de partage sur iPhone (« Enregistrer la vidéo »), téléchargement ailleurs.
+// Une seule feuille de partage à la fois : un nouvel appui pendant qu'elle s'ouvre est ignoré
+// (sinon iOS répond « share() is already in progress » et bascule sur un téléchargement).
+let sharing = false;
 async function saveBlob(blob, filename) {
+    if (sharing) { showToast('Partage déjà en cours…', 'warn', 2500); return false; }
     try {
         const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file], title: filename });
+            sharing = true;
+            try { await navigator.share({ files: [file], title: filename }); }
+            finally { sharing = false; }
             return true;
         }
     } catch (e) {
         if (e.name === 'AbortError') return false;
+        if (e.name === 'InvalidStateError') return false;
         log('Partage impossible : ' + e.message);
     }
     const url = URL.createObjectURL(blob);

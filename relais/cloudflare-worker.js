@@ -20,6 +20,7 @@
 //
 // 4. Stockage de tes scènes et vidéos (les liens Agnes expirent) :
 //      PUT    /media/:clé      → enregistre un fichier (découpé en morceaux de 1,5 Mo)
+//             ?upload=&part=&parts= → envoi en plusieurs requêtes de 6 Mo (vidéos > 95 Mo)
 //      GET    /media/:clé      → le récupère
 //      DELETE /media/:clé      → le supprime
 //      GET    /media-list?kind=final → liste des vidéos enregistrées
@@ -62,6 +63,9 @@ const TIKTOK_API = 'https://open.tiktokapis.com/v2';
 const TIKTOK_CHUNK = 10 * 1024 * 1024;   // morceaux envoyés à TikTok (5 à 64 Mo)
 const POST_MAX_AHEAD_MS = 60 * 24 * 3600000;
 const IG_GRAPH = 'https://graph.instagram.com/v22.0';
+const MEDIA_CHUNK = 1500000;             // bloc de stockage (Durable Object)
+const MEDIA_PART = 4 * MEDIA_CHUNK;       // morceau d'un envoi découpé (6 Mo)
+const MEDIA_MAX = 600 * 1024 * 1024;      // taille maximale d'un fichier envoyé en morceaux
 const IG_PUB_TTL_MS = 6 * 3600000;       // durée de validité de l'adresse publique donnée à Instagram
 
 export default {
@@ -96,7 +100,9 @@ export default {
             if (url.pathname === '/media-list') { const r = await store.fetch('https://job/media-list?kind=' + encodeURIComponent(url.searchParams.get('kind') || '')); return json(await r.json(), r.status, cors); }
             const key = decodeURIComponent(url.pathname.slice('/media/'.length));
             if (!/^[\w\-\/.]{3,120}$/.test(key)) return json({ error: 'Clé invalide' }, 400, cors);
-            const q = '?key=' + encodeURIComponent(key) + '&kind=' + encodeURIComponent(url.searchParams.get('kind') || 'clip') + '&title=' + encodeURIComponent(url.searchParams.get('title') || '');
+            let q = '?key=' + encodeURIComponent(key) + '&kind=' + encodeURIComponent(url.searchParams.get('kind') || 'clip') + '&title=' + encodeURIComponent(url.searchParams.get('title') || '');
+            // envoi en plusieurs morceaux (une requête Cloudflare est limitée à 100 Mo)
+            ['upload', 'part', 'parts'].forEach(n => { if (url.searchParams.has(n)) q += '&' + n + '=' + encodeURIComponent(url.searchParams.get(n)); });
             if (request.method === 'PUT') { const r = await store.fetch('https://job/media-put' + q, { method: 'POST', body: await request.arrayBuffer(), headers: { 'Content-Type': request.headers.get('Content-Type') || 'application/octet-stream' } }); return json(await r.json(), r.status, cors); }
             if (request.method === 'DELETE') { const r = await store.fetch('https://job/media-del' + q, { method: 'POST' }); return json(await r.json(), r.status, cors); }
             const r = await store.fetch('https://job/media-get' + q);
@@ -110,7 +116,7 @@ export default {
         }
 
         const target = url.searchParams.get('url');
-        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push · media · schedule' + (env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET ? ' · tiktok' : '') + (env.INSTAGRAM_APP_ID && env.INSTAGRAM_APP_SECRET ? ' · instagram' : '') : 'Relais OK', { status: 200, headers: cors });
+        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push · media · parts · schedule' + (env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET ? ' · tiktok' : '') + (env.INSTAGRAM_APP_ID && env.INSTAGRAM_APP_SECRET ? ' · instagram' : '') : 'Relais OK', { status: 200, headers: cors });
         return relay(request, target, cors);
     }
 };
@@ -316,6 +322,7 @@ export class VideoJob {
             const items = [...metas.values()].filter(m => !kind || m.kind === kind).sort((a, b) => b.date - a.date);
             return Response.json({ items });
         }
+        if (action === 'media-put' && u.searchParams.has('upload')) return this.mediaPutPart(u, key, request);
         if (action === 'media-put') {
             const buf = new Uint8Array(await request.arrayBuffer());
             if (!buf.length) return Response.json({ error: 'Fichier vide' }, { status: 400 });
@@ -323,7 +330,7 @@ export class VideoJob {
             await this.deleteMedia(key);
             // ménage : les vidéos déposées pour une publication sont effacées au bout de 70 jours
             try { const old = await this.storage.list({ prefix: 'meta:post/' }); for (const m of old.values()) if (Date.now() - m.date > 70 * 24 * 3600000) await this.deleteMedia(m.key); } catch (e) {}
-            const CH = 1500000, n = Math.ceil(buf.length / CH);
+            const CH = MEDIA_CHUNK, n = Math.ceil(buf.length / CH);
             for (let i = 0; i < n; i++) await this.storage.put('chunk:' + key + ':' + i, buf.slice(i * CH, (i + 1) * CH));
             await this.storage.put('meta:' + key, { key, kind: u.searchParams.get('kind') || 'clip', title: u.searchParams.get('title') || '', type: request.headers.get('Content-Type') || 'application/octet-stream', size: buf.length, chunks: n, date: Date.now() });
             return Response.json({ ok: true, key, size: buf.length });
@@ -331,16 +338,51 @@ export class VideoJob {
         if (action === 'media-del') { await this.deleteMedia(key); return Response.json({ ok: true }); }
         const meta = await this.storage.get('meta:' + key);
         if (!meta) return new Response('Introuvable', { status: 404 });
-        const storage = this.storage;
+        const storage = this.storage, prefix = 'chunk:' + (meta.prefix || key) + ':';
         const body = new ReadableStream({
-            async start(ctrl) { for (let i = 0; i < meta.chunks; i++) ctrl.enqueue(new Uint8Array(await storage.get('chunk:' + key + ':' + i))); ctrl.close(); }
+            async start(ctrl) { for (let i = 0; i < meta.chunks; i++) ctrl.enqueue(new Uint8Array(await storage.get(prefix + i))); ctrl.close(); }
         });
         return new Response(body, { headers: { 'Content-Type': meta.type, 'Content-Length': String(meta.size) } });
     }
     async deleteMedia(key) {
         const meta = await this.storage.get('meta:' + key);
         if (!meta) return;
-        const keys = ['meta:' + key]; for (let i = 0; i < meta.chunks; i++) keys.push('chunk:' + key + ':' + i);
+        const keys = ['meta:' + key]; for (let i = 0; i < meta.chunks; i++) keys.push('chunk:' + (meta.prefix || key) + ':' + i);
+        for (let i = 0; i < keys.length; i += 100) await this.storage.delete(keys.slice(i, i + 100));
+    }
+    // Un morceau d'un envoi découpé. Les morceaux (sauf le dernier) font exactement MEDIA_PART
+    // octets = 4 blocs de stockage ; ils sont rangés sous un préfixe propre à l'envoi, et la vidéo
+    // précédente n'est remplacée qu'une fois le dernier morceau reçu (jamais de fichier à moitié).
+    async mediaPutPart(u, key, request) {
+        const uid = u.searchParams.get('upload') || '', part = +u.searchParams.get('part'), parts = +u.searchParams.get('parts');
+        if (!/^[a-z0-9]{6,32}$/.test(uid) || !Number.isInteger(part) || !Number.isInteger(parts) || parts < 1 || part < 0 || part >= parts || parts * MEDIA_PART > MEDIA_MAX) {
+            return Response.json({ error: 'Envoi découpé invalide (fichier trop lourd ?)' }, { status: 400 });
+        }
+        const buf = new Uint8Array(await request.arrayBuffer());
+        const last = part === parts - 1;
+        if (!buf.length || buf.length > MEDIA_PART || (!last && buf.length !== MEDIA_PART)) return Response.json({ error: 'Morceau de taille inattendue' }, { status: 400 });
+        const upKey = 'up:' + uid;
+        let up = await this.storage.get(upKey);
+        if (!up) {
+            // ménage : envois abandonnés depuis plus d'un jour
+            try { const old = await this.storage.list({ prefix: 'up:' }); for (const [k, o] of old) if (Date.now() - o.date > 24 * 3600000) await this.dropUpload(k, o); } catch (e) {}
+            up = { key, parts, got: [], sizes: {}, date: Date.now() };
+        }
+        if (up.key !== key || up.parts !== parts) return Response.json({ error: 'Envoi découpé incohérent' }, { status: 409 });
+        const prefix = 'chunk:' + key + '@' + uid + ':', per = MEDIA_PART / MEDIA_CHUNK;
+        for (let j = 0; j * MEDIA_CHUNK < buf.length; j++) await this.storage.put(prefix + (part * per + j), buf.slice(j * MEDIA_CHUNK, (j + 1) * MEDIA_CHUNK));
+        if (!up.got.includes(part)) up.got.push(part);
+        up.sizes[part] = buf.length; up.date = Date.now();
+        if (up.got.length < parts) { await this.storage.put(upKey, up); return Response.json({ ok: true, part }); }
+        const size = Object.values(up.sizes).reduce((a, b) => a + b, 0);
+        await this.deleteMedia(key);
+        await this.storage.put('meta:' + key, { key, prefix: key + '@' + uid, kind: u.searchParams.get('kind') || 'clip', title: u.searchParams.get('title') || '', type: request.headers.get('Content-Type') || 'application/octet-stream', size, chunks: Math.ceil(size / MEDIA_CHUNK), date: Date.now() });
+        await this.storage.delete(upKey);
+        return Response.json({ ok: true, key, size });
+    }
+    async dropUpload(upKey, up) {
+        const uid = upKey.slice(3), per = MEDIA_PART / MEDIA_CHUNK, keys = [upKey];
+        for (const p of up.got || []) for (let j = 0; j < per; j++) keys.push('chunk:' + up.key + '@' + uid + ':' + (p * per + j));
         for (let i = 0; i < keys.length; i += 100) await this.storage.delete(keys.slice(i, i + 100));
     }
 

@@ -145,10 +145,32 @@ document.addEventListener('click', async e => {
 // SAUVEGARDE SUR TON CLOUDFLARE (scènes et vidéos finales) + BIBLIOTHÈQUE
 // ══════════════════════════════════════════════════════════════════
 function mediaAvailable() { return !!getProxyUrl() && state.proxyMedia; }
-async function uploadMedia(key, blob, kind, title) {
-    const res = await withTimeout(fetch(getProxyUrl() + '/media/' + encodeURIComponent(key) + '?kind=' + kind + '&title=' + encodeURIComponent(title || ''), { method: 'PUT', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob }), 300000, 'envoi trop long');
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+// Envoi sur le serveur. Au-delà de MEDIA_PART_SIZE, le fichier part en morceaux de 6 Mo
+// (une requête Cloudflare est limitée à 100 Mo : une vidéo de 2 min en 1080p dépasse),
+// chaque morceau étant réessayé en cas de coupure réseau.
+const MEDIA_PART_SIZE = 6000000;
+async function uploadMedia(key, blob, kind, title, onProgress) {
+    const base = getProxyUrl() + '/media/' + encodeURIComponent(key) + '?kind=' + kind + '&title=' + encodeURIComponent(title || '');
+    const put = async (url, body, ms) => {
+        const res = await withTimeout(fetch(url, { method: 'PUT', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body }), ms, 'envoi trop long');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { const err = new Error(data.error || ('HTTP ' + res.status)); err.status = res.status; throw err; }
+        return data;
+    };
+    if (blob.size <= MEDIA_PART_SIZE || !state.proxyParts) {
+        if (blob.size > 95 * 1048576) throw new Error('fichier de ' + Math.round(blob.size / 1048576) + ' Mo, trop lourd pour ton serveur (pas encore à jour)');
+        await put(base, blob, 300000); return key;
+    }
+    const parts = Math.ceil(blob.size / MEDIA_PART_SIZE);
+    const upload = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    for (let i = 0; i < parts; i++) {
+        const body = blob.slice(i * MEDIA_PART_SIZE, (i + 1) * MEDIA_PART_SIZE, blob.type);
+        for (let attempt = 0; ; attempt++) {
+            try { await put(base + '&upload=' + upload + '&part=' + i + '&parts=' + parts, body, 120000); break; }
+            catch (e) { if (attempt >= 2 || (e.status >= 400 && e.status < 500)) throw e; await new Promise(r => setTimeout(r, 2000 * (attempt + 1))); }
+        }
+        if (onProgress) onProgress((i + 1) / parts);
+    }
     return key;
 }
 async function backupScenes() {
@@ -167,7 +189,8 @@ async function backupFinal() {
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Envoi sur ton Cloudflare…'; }
     try {
         const pid = ensureProject();
-        const key = await uploadMedia('final/' + pid, state.finalBlob, 'final', (state.theme || 'Vidéo') + ' · ' + new Date().toLocaleDateString('fr-FR'));
+        const key = await uploadMedia('final/' + pid, state.finalBlob, 'final', (state.theme || 'Vidéo') + ' · ' + new Date().toLocaleDateString('fr-FR'),
+            f => { if (btn) btn.textContent = '⏳ Envoi sur ton Cloudflare… ' + Math.round(f * 100) + ' %'; });
         updateProject(pid, { finalKey: key });
         showToast('Vidéo sauvegardée sur ton Cloudflare ✓', 'success');
         if (btn) btn.textContent = '✅ Vidéo sauvegardée';

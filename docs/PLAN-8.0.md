@@ -6,7 +6,7 @@ l'accord explicite de l'utilisateur, aucune clé API dans le dépôt.
 
 ---
 
-## Avant la 8.0 : version 7.2 (petite mise à jour)
+## Avant la 8.0 : version 7.2 (petite mise à jour) — faite le 29/09
 
 Corrections issues du journal du test du 28–29/09 :
 
