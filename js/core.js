@@ -102,6 +102,7 @@ const STORAGE = {
     ALT_FRAMING: 'cartoon_alt_framing',
     FAST_EXPORT: 'cartoon_fast_export',
     ICON_STYLE: 'cartoon_icon_style',
+    ELEVEN_USAGE: 'cartoon_eleven_usage', ELEVEN_EXHAUSTED: 'cartoon_eleven_exhausted', TTS_INDEX: 'cartoon_tts_index',
     BANK_USE: 'cartoon_bank_use',
     BACKUP_ON: 'cartoon_backup_on',
     BG_SERIES: 'cartoon_background_series',
@@ -602,6 +603,7 @@ function refreshKeyFields() {
     const sum = document.getElementById('keys-summary');
     if (sum) sum.textContent = saved.length ? '✅ Clés enregistrées sur ce téléphone : ' + saved.join(', ') : 'Aucune clé enregistrée pour l\'instant.';
     if (getElevenLabsKey() && !elevenlabsVoices.length && typeof loadElevenLabsVoicesQuiet === 'function') loadElevenLabsVoicesQuiet();
+    if (getElevenLabsKey() && typeof refreshElevenQuota === 'function' && !elevenQuota) refreshElevenQuota();
 }
 function updateGenerateBtn() {
     const btn = document.getElementById('generate-btn');

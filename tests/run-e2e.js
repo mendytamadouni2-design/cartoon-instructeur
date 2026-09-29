@@ -596,6 +596,37 @@ async function testCompositor(browser) {
     check(Math.abs(cut.tin - 0.78) < 0.01 && Math.abs(cut.tout - 2.9) < 0.01, 'scène coupée juste avant le premier mot et juste après le dernier (pas de blanc entre les scènes)');
     const ind = await page.evaluate(() => { localStorage.setItem('elevenlabs_api_key', 'sk_x'); elevenlabsSelectedVoiceId = 'v1'; state.voiceSource = 'premium'; state.ttsEngine = 'elevenlabs'; updateVoiceIndicator(); return document.getElementById('voice-indicator')?.textContent || ''; });
     check(ind.includes('ElevenLabs'), 'voix premium ElevenLabs bien affichée (' + ind.slice(0, 40) + ')');
+    // Budget ElevenLabs : compteur, phrases en mémoire jamais repayées, quota épuisé détecté
+    const budget = await page.evaluate(async () => {
+        const realFetch = window.fetch; let tts = 0, quotaHit = false;
+        window.fetch = async (u, o) => {
+            u = String(u);
+            if (u.endsWith('/user/subscription')) return new Response(JSON.stringify({ character_count: 9200, character_limit: 10000, next_character_count_reset_unix: 1790000000 }), { status: 200 });
+            if (u.includes('/text-to-speech/')) { tts++; if (quotaHit) return new Response('{"detail":{"status":"quota_exceeded"}}', { status: 401 }); return new Response(new Blob([new Uint8Array(64)], { type: 'audio/mpeg' })); }
+            return realFetch(u, o);
+        };
+        try {
+            localStorage.removeItem(STORAGE.ELEVEN_EXHAUSTED);
+            await refreshElevenQuota();
+            const line = elevenQuotaLine(), left = elevenRemaining();
+            await generateElevenLabsAudio('Bonjour à tous, phrase de test.', 'v1', 'eleven_multilingual_v2', '0.5', '0.75', 1);
+            await new Promise(r => setTimeout(r, 200));
+            await generateElevenLabsAudio('Bonjour à tous, phrase de test.', 'v1', 'eleven_multilingual_v2', '0.5', '0.75', 1);
+            const afterCache = tts, leftAfter = elevenRemaining();
+            quotaHit = true;
+            let msg = '';
+            try { await generateElevenLabsAudio('Une autre phrase jamais dite.', 'v1', 'eleven_multilingual_v2', '0.5', '0.75', 1); } catch (e) { msg = e.message; }
+            const before = tts; let blocked = '';
+            try { await generateElevenLabsAudio('Encore une autre phrase.', 'v1', 'eleven_multilingual_v2', '0.5', '0.75', 1); } catch (e) { blocked = e.message; }
+            state.scenes = ['Une phrase de script assez longue pour compter.']; state.voiceSource = 'fit';
+            const need = elevenCharsNeeded();
+            return { line, left, afterCache, leftAfter, msg, noCall: tts === before, blocked, need, exhaustedLine: elevenQuotaLine() };
+        } finally { window.fetch = realFetch; localStorage.removeItem(STORAGE.ELEVEN_EXHAUSTED); }
+    });
+    check(budget.left === 800 && budget.line.includes('800 caractères restants'), 'ElevenLabs : caractères restants du mois affichés (' + budget.line.slice(0, 60) + ')');
+    check(budget.afterCache === 1 && budget.leftAfter === 800 - 'Bonjour à tous, phrase de test.'.length, 'ElevenLabs : une phrase déjà dite est reprise de la mémoire, jamais repayée');
+    check(/épuisé/.test(budget.msg) && budget.noCall && /épuisé/.test(budget.blocked) && /épuisé/.test(budget.exhaustedLine), 'ElevenLabs : quota épuisé détecté, plus aucun appel inutile');
+    check(budget.need >= 40, 'ElevenLabs : caractères nécessaires estimés avant de lancer (' + budget.need + ')');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
 }

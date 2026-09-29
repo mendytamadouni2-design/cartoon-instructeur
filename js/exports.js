@@ -304,6 +304,8 @@ async function startGeneration() {
     unlockAudio();
     downscaleImage(state.images[0].dataUri, 1024, 0.85).then(d => { state.photoSmall = d; });
     if (state.storyboardOn && getClaudeKey() && !state.isSeriesMode && !storyboardValid()) { await prepareStoryboardFlow(); return; }
+    state.elevenOffRun = false;
+    if (!state.isSeriesMode && typeof checkVoiceBudget === 'function' && !(await checkVoiceBudget())) return;
     if (state.genMode === 'background' && !state.isSeriesMode && !state.oneShot) {
         if (getProxyUrl() && state.proxyJobs) { await startBackgroundGeneration(); return; }
         showToast('Arrière-plan indisponible (serveur Cloudflare pas à jour) : génération sur le téléphone', 'warn', 6000);

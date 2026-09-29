@@ -14,7 +14,9 @@ async function prepareFitVoice(item) {
     let buf = await decodeAudioBlob(blob), sp = analyzeSpeech(buf);
     if (target && sp && !sp.silent) {
         const ratio = (sp.end - sp.start) / target;
-        if (Math.abs(ratio - 1) > 0.08) {
+        // 2e prise à la bonne vitesse, seulement si le quota du mois le permet sans se priver d'une autre scène
+        const left = typeof elevenRemaining === 'function' ? elevenRemaining() : null;
+        if (Math.abs(ratio - 1) > 0.08 && (left === null || left > text.length * 4)) {
             blob = await generateElevenLabsAudio(text, voiceId, model, '0.5', '0.75', Math.max(0.7, Math.min(1.2, ratio)));
             buf = await decodeAudioBlob(blob); sp = analyzeSpeech(buf);
         }
@@ -145,6 +147,8 @@ function updateEstimate() {
     const fmt = x => x.toFixed(2).replace('.', ',') + ' €';
     el.textContent = '⏱️ ≈ ' + genMin + ' min de génération' + (bg ? ' (téléphone éteint possible)' : '') + ' + ' + montageMin + ' min de montage · 💶 ≈ ' + fmt(agnes) + ' Agnes' + (claude ? ' + ' + fmt(claude) + ' Claude' : '') +
         (state.syncWords && getElevenLabsKey() ? ' + transcription ElevenLabs' : '') + (state.voiceSource === 'fit' ? ' + voix ElevenLabs' : '') + ' (estimation)';
+    const need = typeof elevenCharsNeeded === 'function' ? elevenCharsNeeded() : 0, left = need && typeof elevenRemaining === 'function' ? elevenRemaining() : null;
+    if (need) el.textContent += ' · 🗣️ ≈ ' + fmtInt(need) + ' caractères ElevenLabs' + (left === null ? '' : left >= need ? ' (il t\'en reste ' + fmtInt(left) + ')' : ' ⚠️ il ne t\'en reste que ' + fmtInt(left));
 }
 
 // ══════════════════════════════════════════════════════════════════

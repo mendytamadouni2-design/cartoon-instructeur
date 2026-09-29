@@ -10,7 +10,7 @@ const ELEVENLABS_API = 'https://api.elevenlabs.io/v1';
 async function saveElevenLabsKey() {
     const key = document.getElementById('elevenlabs-key').value.trim();
     if (!key) { localStorage.removeItem(STORAGE.ELEVENLABS_KEY); updateElevenLabsStatus(); showToast('Clé supprimée', 'warn'); return; }
-    setLS(STORAGE.ELEVENLABS_KEY, key); updateElevenLabsStatus(); showToast('Clé ElevenLabs ✓', 'success'); loadElevenLabsVoices();
+    setLS(STORAGE.ELEVENLABS_KEY, key); updateElevenLabsStatus(); showToast('Clé ElevenLabs ✓', 'success'); loadElevenLabsVoices(); refreshElevenQuota();
 }
 function updateElevenLabsStatus() {
     const el = document.getElementById('elevenlabs-status'), txt = document.getElementById('elevenlabs-status-text');
@@ -69,6 +69,12 @@ async function generateElevenLabsAudio(text, voiceId, modelId, stability, simila
     const key = getElevenLabsKey(); if (!key || !voiceId) throw new Error('Clé/voix manquante');
     const body = { text, model_id: modelId || 'eleven_multilingual_v2', voice_settings: { stability: parseFloat(stability) || 0.5, similarity_boost: parseFloat(similarity) || 0.75, style: 0, use_speaker_boost: true } };
     if (speed && Math.abs(speed - 1) > 0.01) body.voice_settings.speed = Math.round(speed * 100) / 100;
+    // Une phrase déjà dite avec la même voix et les mêmes réglages n'est jamais repayée
+    const cacheKey = await ttsCacheKey([voiceId, body.model_id, body.voice_settings.stability, body.voice_settings.similarity_boost, body.voice_settings.speed || 1, text]);
+    if (state.elevenOffRun) throw new Error('voix Agnes choisie pour cette vidéo');
+    const cached = await idbGet(cacheKey).catch(() => null);
+    if (cached && cached.blob) return cached.blob;
+    if (elevenQuotaShort(text.length)) throw new Error(elevenQuotaMessage());
     const res = await fetch(ELEVENLABS_API + '/text-to-speech/' + voiceId, {
         method: 'POST', headers: { 'xi-api-key': key, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
         body: JSON.stringify(body)
@@ -77,10 +83,144 @@ async function generateElevenLabsAudio(text, voiceId, modelId, stability, simila
         const err = await res.text();
         // voix de la bibliothèque ElevenLabs : réservée aux abonnés payants
         if (res.status === 402 || /paid_plan_required/.test(err)) throw new Error('cette voix ElevenLabs demande un abonnement payant : choisis une voix marquée « gratuite » dans Réglages → Voix et sous-titres');
+        if (/quota_exceeded/.test(err)) { markElevenExhausted(); throw new Error(elevenQuotaMessage()); }
         throw new Error('ElevenLabs ' + res.status + ' ' + err.slice(0, 120));
     }
     if (typeof trackCost === 'function') trackCost('elevenlabs', text.length / 1000 * ELEVENLABS_PRICE_1K);
-    return await res.blob();
+    addElevenUsage(text.length);
+    const blob = await res.blob();
+    storeTtsCache(cacheKey, blob);
+    return blob;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BUDGET ELEVENLABS (offre gratuite : 10 000 caractères par mois)
+// Le compteur vient d'ElevenLabs quand la clé y a droit, sinon d'un décompte local.
+// ══════════════════════════════════════════════════════════════════
+const ELEVEN_FREE_LIMIT = 10000;
+let elevenQuota = null;   // { used, limit, resetAt, source: 'api' | 'local' }
+const monthTag = () => new Date().toISOString().slice(0, 7);
+function elevenLocalUsage() { const u = getJSON(STORAGE.ELEVEN_USAGE); return u && u.month === monthTag() ? u.chars : 0; }
+function addElevenUsage(n) {
+    setJSON(STORAGE.ELEVEN_USAGE, { month: monthTag(), chars: elevenLocalUsage() + n });
+    if (elevenQuota) elevenQuota.used += n;
+    renderElevenQuota();
+}
+function elevenExhaustedFlag() {
+    const f = getJSON(STORAGE.ELEVEN_EXHAUSTED);
+    if (!f) return false;
+    if (f.until ? Date.now() >= f.until : f.month !== monthTag()) { localStorage.removeItem(STORAGE.ELEVEN_EXHAUSTED); return false; }
+    return true;
+}
+function markElevenExhausted() {
+    setJSON(STORAGE.ELEVEN_EXHAUSTED, { month: monthTag(), until: elevenQuota?.resetAt || null });
+    if (elevenQuota) elevenQuota.used = Math.max(elevenQuota.used, elevenQuota.limit);
+    renderElevenQuota();
+}
+async function refreshElevenQuota() {
+    const key = getElevenLabsKey();
+    if (!key) { elevenQuota = null; renderElevenQuota(); return null; }
+    try {
+        const r = await withTimeout(fetch(ELEVENLABS_API + '/user/subscription', { headers: { 'xi-api-key': key } }), 10000, 'pas de réponse');
+        if (r.ok) {
+            const d = await r.json();
+            elevenQuota = { used: d.character_count || 0, limit: d.character_limit || ELEVEN_FREE_LIMIT, resetAt: d.next_character_count_reset_unix ? d.next_character_count_reset_unix * 1000 : null, source: 'api' };
+            if (elevenQuota.used < elevenQuota.limit) localStorage.removeItem(STORAGE.ELEVEN_EXHAUSTED);
+            else markElevenExhausted();
+        }
+    } catch (e) {}
+    if (!elevenQuota || elevenQuota.source !== 'api') {
+        elevenQuota = { used: elevenLocalUsage(), limit: ELEVEN_FREE_LIMIT, resetAt: null, source: 'local' };
+        if (elevenExhaustedFlag()) elevenQuota.used = Math.max(elevenQuota.used, elevenQuota.limit);
+    }
+    renderElevenQuota();
+    return elevenQuota;
+}
+// Caractères restants ce mois-ci (null : inconnu)
+function elevenRemaining() { return elevenQuota ? Math.max(0, elevenQuota.limit - elevenQuota.used) : (elevenExhaustedFlag() ? 0 : null); }
+// Refus avant l'appel seulement quand on en est sûr : compteur d'ElevenLabs, ou quota déjà signalé épuisé
+function elevenQuotaShort(n) {
+    if (elevenExhaustedFlag()) return true;
+    return !!(elevenQuota && elevenQuota.source === 'api' && elevenQuota.limit - elevenQuota.used < n);
+}
+function elevenResetText() {
+    const t = elevenQuota?.resetAt || getJSON(STORAGE.ELEVEN_EXHAUSTED)?.until;
+    if (t) return 'le ' + new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+    const d = new Date(); return 'début ' + new Date(d.getFullYear(), d.getMonth() + 1, 1).toLocaleDateString('fr-FR', { month: 'long' });
+}
+function elevenQuotaMessage() { return 'quota gratuit ElevenLabs du mois épuisé (il se recharge ' + elevenResetText() + ')'; }
+const fmtInt = n => Math.round(n).toLocaleString('fr-FR');
+function elevenQuotaLine() {
+    if (!getElevenLabsKey()) return '';
+    const r = elevenRemaining();
+    if (r === null) return '';
+    if (r <= 0) return '⚠️ Quota ElevenLabs du mois épuisé : voix Agnes jusqu\'au rechargement (' + elevenResetText() + ')';
+    return '🔋 ElevenLabs : ' + fmtInt(r) + ' caractères restants ce mois-ci' + (elevenQuota?.source === 'api' ? '' : ' (décompte de l\'appli)') +
+        ' · ≈ ' + Math.max(0, Math.floor(r / 800)) + ' Shorts d\'une minute · recharge ' + elevenResetText();
+}
+function renderElevenQuota() {
+    document.querySelectorAll('[data-eleven-quota]').forEach(el => { el.textContent = elevenQuotaLine(); el.classList.toggle('hidden', !el.textContent); });
+    if (typeof updateEstimate === 'function') updateEstimate();
+}
+
+// Mémoire des voix déjà générées (IndexedDB, sur le téléphone ; 400 phrases au plus)
+async function ttsCacheKey(parts) { return 'tts:' + (await sha256Hex(parts.join('|'))).slice(0, 40); }
+function storeTtsCache(key, blob) {
+    idbPut(key, { blob, date: Date.now() }).then(() => {
+        const idx = (getJSON(STORAGE.TTS_INDEX) || []).filter(k => k !== key);
+        idx.push(key);
+        const drop = idx.length > 400 ? idx.splice(0, idx.length - 400) : [];
+        setJSON(STORAGE.TTS_INDEX, idx);
+        drop.forEach(k => idbDel(k).catch(() => {}));
+    }).catch(() => {});
+}
+
+// Caractères que la prochaine vidéo fera dire à ElevenLabs (phrases déjà en mémoire non comptées)
+function elevenCharsNeeded() {
+    if (!getElevenLabsKey() || !elevenVoiceId()) return 0;
+    const usesVoice = state.voiceSource === 'fit' || (state.voiceSource === 'premium' && state.ttsEngine === 'elevenlabs');
+    let n = 0;
+    state.scenes.forEach((line, i) => {
+        const p = typeof scenePlanFor === 'function' ? scenePlanFor(i) : {};
+        if (usesVoice) n += (p.spoken || line).length;
+        if (typeof richActive === 'function' && richActive()) n += p.narration ? p.narration.length : Math.round(line.length * 0.6);
+    });
+    return n;
+}
+// Avant de lancer : le quota suffit-il ? Sinon, raccourcir le script ou passer à la voix Agnes.
+// Renvoie false si l'utilisateur préfère modifier son script avant de lancer.
+async function checkVoiceBudget() {
+    const need = elevenCharsNeeded();
+    if (!need) return true;
+    await refreshElevenQuota();
+    const left = elevenRemaining();
+    if (left === null || left >= need) return true;
+    const msg = left <= 0
+        ? '🗣️ Ton quota gratuit ElevenLabs du mois est épuisé (il se recharge ' + elevenResetText() + ').'
+        : '🗣️ Cette vidéo demande environ ' + fmtInt(need) + ' caractères de voix ElevenLabs, il t\'en reste ' + fmtInt(left) + ' ce mois-ci.';
+    if (left > 200 && getClaudeKey() && confirm(msg + '\n\nOK : Claude raccourcit le script pour qu\'il rentre dans ton quota (tu pourras le relire).\nAnnuler : autres choix.')) {
+        await shortenScriptForVoice(left);
+        return false;
+    }
+    if (confirm(msg + '\n\nOK : faire cette vidéo avec la voix Agnes (la même voix sur toute la vidéo).\nAnnuler : je modifie mon script.')) { state.elevenOffRun = true; return true; }
+    return false;
+}
+async function shortenScriptForVoice(maxChars) {
+    const target = Math.max(150, Math.floor(maxChars * 0.85));
+    setStatus('Claude raccourcit le script…');
+    try {
+        const out = await callClaude({
+            prompt: 'Raccourcis ce script de vidéo pour que le texte parlé total fasse au plus ' + target + ' caractères (espaces compris), sans perdre l\'idée principale ni l\'accroche. Garde une phrase par ligne, dans la même langue, au même ton.\n\nScript :\n' + state.script,
+            schema: { type: 'object', properties: { lines: { type: 'array', items: { type: 'string' } } }, required: ['lines'], additionalProperties: false },
+            maxTokens: 4000, effort: 'low'
+        });
+        const lines = (out.lines || []).map(l => String(l).trim()).filter(Boolean);
+        if (!lines.length) throw new Error('réponse vide');
+        const el = document.getElementById('script-input'); if (el) el.value = lines.join('\n');
+        updateScriptStats(); if (typeof renderScenesEditor === 'function') renderScenesEditor();
+        showToast('Script raccourci ✓ (' + fmtInt(lines.join(' ').length) + ' caractères) : relis-le puis relance', 'success', 6000);
+    } catch (e) { showToast('Raccourcissement impossible : ' + e.message, 'error', 5000); }
+    finally { setStatus(null); }
 }
 
 // ══════════════════════════════════════════════════════════════════

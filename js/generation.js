@@ -94,7 +94,7 @@ async function sendBackgroundJob(scenes, theme, script, useStoryboard) {
             drawingRequests: withClaude && needsDrawings() ? scenes.map((t, i) => ({ ...drawingRequestFor('{{SPOKEN}} {{NARRATION}}', i, n, '', '{{VISUAL}}'), fallbackText: t, verify: true })) : [],
             poses: referenceImage() ? [] : await Promise.all(state.poses.map(async p => ({ id: p.id, image: await downscaleImage(p.image, 1024, 0.85) }))),
             // voix off des scènes riches, créée par le serveur (téléphone éteint)
-            eleven: richActive() ? { key: getElevenLabsKey(), voice: elevenVoiceId(), model: document.getElementById('elevenlabs-model-select')?.value || 'eleven_multilingual_v2' } : null,
+            eleven: richActive() && !state.elevenOffRun && !(typeof elevenQuotaShort === 'function' && elevenQuotaShort(1)) ? { key: getElevenLabsKey(), voice: elevenVoiceId(), model: document.getElementById('elevenlabs-model-select')?.value || 'eleven_multilingual_v2' } : null,
             push: getJSON(STORAGE.PUSH_SUB) || null,
             backup: state.backupOn
         };

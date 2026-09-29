@@ -567,6 +567,16 @@ async function prepareAssets(items, label) {
             catch (e) { sttFailed = true; item.sttWords = undefined; log('Transcription : ' + e.message); showToast('Synchronisation au mot indisponible (' + e.message + ') : estimation utilisée', 'warn', 5000); }
         }
     }
+    // Jamais deux voix différentes dans la même vidéo : si ElevenLabs a lâché en route, tout passe en voix Agnes
+    // (les phrases déjà générées restent en mémoire et ne seront pas repayées la prochaine fois)
+    if (ttsFailed && state.voiceSource === 'fit' && items.some(i => i.fitBuffer)) {
+        items.forEach(i => { i.fitBuffer = undefined; i.fitSpeech = undefined; });
+        log('Voix ElevenLabs incomplète : voix Agnes sur toute la vidéo');
+    }
+    if (ttsFailed && premium && items.some(i => i.ttsBuffer)) {
+        items.forEach(i => { i.ttsBlob = undefined; i.ttsBuffer = undefined; i.ttsSpeech = undefined; });
+        log('Voix premium incomplète : voix Agnes sur toute la vidéo');
+    }
     if (premium) {
         const tts = items.map(i => i.ttsBlob).filter(Boolean);
         state.finalAudioBlob = tts.length ? new Blob(tts, { type: 'audio/mpeg' }) : null;
