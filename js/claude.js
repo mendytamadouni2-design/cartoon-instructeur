@@ -292,29 +292,31 @@ function renderStoryboard() {
     const box = document.getElementById('storyboard'); if (!box || !state.scenePlan) return;
     const wb = needsDrawings();
     const poseOpts = [['main', 'Photo principale']].concat(state.poses.map(p => [p.id, POSE_TYPES.find(t => t.id === p.id)?.label || p.id]));
+    // personnage stable : les poses validées au casting
+    const stablePoses = typeof stableActive === 'function' && stableActive() ? castPoses().map(x => [x.id, '🎭 ' + (CAST_POSES.find(c => c.id === x.id)?.label || x.id)]) : null;
     const opt = (list, cur) => list.map(([v, l]) => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>').join('');
     box.innerHTML = '<div class="sb-title">📋 Storyboard — vérifie avant de générer</div>' +
         '<div class="prompt-main-hint" style="margin-bottom:0.7rem;">Rien n\'est encore payé chez Agnes. Modifie ce que tu veux, puis valide le storyboard.</div>' +
+        '<button type="button" class="btn-secondary" id="sb-animatic">🎬 Voir le brouillon animé (≈ 1 min, sans Agnes)</button><div class="preview-box hidden" id="animatic-box"></div>' +
         state.scenes.map((line, i) => {
             const p = scenePlanFor(i);
             return '<div class="sb-card">' +
                 '<div class="sb-head"><b>Scène ' + (i + 1) + '</b>' + (p.section ? '<span class="sb-part">📌 ' + esc(p.section) + '</span>' : '') + '</div>' +
-                (wb ? '<canvas class="sb-draw" data-sb-canvas="' + i + '" width="400" height="300"></canvas><button type="button" class="sb-mini" data-sb-redraw="' + i + '">🔄 Redessiner</button>' : '') +
+                (wb ? '<canvas class="sb-draw' + (state.drawings[i] ? '' : ' hidden') + '" data-sb-canvas="' + i + '" width="400" height="300"></canvas><button type="button" class="sb-mini" data-sb-redraw="' + i + '">' + (state.drawings[i] ? '🔄 Redessiner' : '🖊️ Dessiner cette scène') + '</button>' : '') +
                 '<label class="control-label">Texte dit par le personnage</label><textarea class="sb-text" data-sb-field="spoken" data-i="' + i + '">' + esc(p.spoken || line) + '</textarea>' +
                 '<div class="sb-grid">' +
                 (p.narration || richActive() ? '<label class="control-label">Voix off sur le plan illustré</label><textarea class="sb-text" data-sb-field="narration" data-i="' + i + '" placeholder="(aucune)">' + esc(p.narration || '') + '</textarea>' : '') +
                 (p.visual ? '<div class="prompt-main-hint">🖊️ ' + esc(p.visual) + '</div>' : '') +
                 (isWhiteboard() ? '<select data-sb-field="shot" data-i="' + i + '">' + opt([['character', '🧑 Personnage'], ['board', '🖊️ Tableau seul']], p.shot || 'character') + '</select>' : '') +
                 '<select data-sb-field="zoom" data-i="' + i + '">' + opt([['none', 'Pas de zoom'], ['in', '🔍 Zoom' + (p.emphasis ? ' sur « ' + p.emphasis + ' »' : '')]], p.zoom || 'none') + '</select>' +
-                (state.poses.length ? '<select data-sb-field="pose" data-i="' + i + '">' + opt(poseOpts, p.pose || 'main') + '</select>' : '') +
+                (stablePoses ? '<select data-sb-field="pose" data-i="' + i + '">' + opt(stablePoses, p.pose || 'main') + '</select>' : state.poses.length ? '<select data-sb-field="pose" data-i="' + i + '">' + opt(poseOpts, p.pose || 'main') + '</select>' : '') +
                 '</div>' +
                 (i === 0 && shortsMode() ? '<input class="text-input" data-sb-field="hook" data-i="0" placeholder="Accroche écrite en gros (2 premières secondes)" value="' + esc(p.hook || '') + '">' : '') +
                 '<input class="text-input" data-sb-field="bubble" data-i="' + i + '" placeholder="Mot-clé écrit (optionnel)" value="' + esc(p.bubble || '') + '">' +
                 '<input class="text-input" data-sb-field="highlight" data-i="' + i + '" placeholder="Chiffre ou définition en grand (optionnel)" value="' + esc(p.highlight || '') + '">' +
-                (i > 0 ? '<input class="text-input" data-sb-field="section" data-i="' + i + '" placeholder="Titre de nouvelle partie (optionnel)" value="' + esc(p.section || '') + '">' : '') +
+                (i > 0 && !shortsMode() ? '<input class="text-input" data-sb-field="section" data-i="' + i + '" placeholder="Titre de nouvelle partie (optionnel)" value="' + esc(p.section || '') + '">' : '') +
                 '</div>';
         }).join('') +
-        '<button type="button" class="btn-secondary" id="sb-animatic">🎬 Voir le brouillon animé (≈ 1 min, sans Agnes)</button><div class="preview-box hidden" id="animatic-box"></div>' +
         '<button type="button" class="btn-primary" id="sb-approve">✅ Valider le storyboard</button>' +
         '<button type="button" class="btn-secondary" id="sb-redo" style="margin-top:0.4rem;">↺ Refaire tout le storyboard</button>';
     box.classList.remove('hidden');
@@ -348,7 +350,7 @@ document.addEventListener('click', async e => {
     else if (t.dataset?.sbRedraw !== undefined) {
         const i = parseInt(t.dataset.sbRedraw, 10);
         t.disabled = true; t.textContent = '⏳ Dessin…';
-        try { state.drawings[i] = await generateDrawing(scenePlanFor(i).spoken || state.scenes[i], i, state.scenes.length); drawStoryboardCanvas(i); }
+        try { state.drawings[i] = await generateDrawing(scenePlanFor(i).spoken || state.scenes[i], i, state.scenes.length); document.querySelector('[data-sb-canvas="' + i + '"]')?.classList.remove('hidden'); drawStoryboardCanvas(i); }
         catch (err) { showToast('Dessin impossible : ' + err.message, 'error'); }
         finally { t.disabled = false; t.textContent = '🔄 Redessiner'; }
     } else if (t.dataset?.poseDel) {

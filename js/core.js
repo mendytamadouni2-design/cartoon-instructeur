@@ -19,6 +19,7 @@ const MAX_POLL_ATTEMPTS = 100;
 // Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
 // Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
 const APP_VERSIONS = [
+    { num: '8.1', date: '2026-09-30', note: 'Appli réorganisée : mise en route guidée, écran Script simplifié (format en puces, Claude l\'écrit ou je l\'écris, outils repliables), Ma chaîne dans l\'ordre, personnage stable partout' },
     { num: '8.0', date: '2026-09-29', note: 'Personnage stable (casting de poses, bouche qui suit la voix), priorité Shorts/TikTok, brouillon animé, retouches en discutant, charte de chaîne, mode objectif avec recherche internet, tes images, compteur ElevenLabs, série de Shorts, miniatures' },
     { num: '7.2', date: '2026-09-29', note: 'Sauvegarde des longues vidéos sur Cloudflare, bouton Partager fiable, journal plus lisible' },
     { num: '7.1', date: '2026-09-28', note: 'Icônes 3D modernes, numéro de version, son de l\'aperçu même en mode silencieux' },
@@ -617,6 +618,7 @@ function updateGenerateBtn() {
     if (!btn) return;
     const hasImages = state.images.length > 0, hasKey = !!getAgnesKey(), hasScript = state.scenes.length > 0;
     const busy = state.isRunning || state.storyboarding || (typeof assembling !== 'undefined' && assembling);
+    const direct = hasScript && typeof puppetOnly === 'function' && puppetOnly();
     btn.disabled = !hasImages || !hasKey || !hasScript || busy || state.isLoadingImages;
     if (state.isLoadingImages) btn.textContent = 'Chargement…';
     else if (state.storyboarding) btn.textContent = 'Préparation du storyboard…';
@@ -625,5 +627,6 @@ function updateGenerateBtn() {
     else if (!hasKey) btn.textContent = 'Ajoutez votre clé Agnes';
     else if (!hasImages) btn.textContent = 'Ajoutez une photo';
     else if (!hasScript) btn.textContent = 'Écrivez votre script';
-    else btn.textContent = '🎬 Générer ' + state.scenes.length + ' scène' + (state.scenes.length > 1 ? 's' : '');
+    else btn.textContent = direct ? '🎭 Monter la vidéo (' + state.scenes.length + ' scènes, sans attendre Agnes)' : '🎬 Générer ' + state.scenes.length + ' scène' + (state.scenes.length > 1 ? 's' : '');
+    document.getElementById('gen-mode-row')?.classList.toggle('hidden', direct);
 }

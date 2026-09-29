@@ -89,7 +89,8 @@ async function createReference() {
     finally { state.regenerating = false; state.stopRequested = false; setStatus(null); renderReference(); }
 }
 function renderReference() {
-    if (typeof loadCast === 'function' && (!state.cast || state.cast.sig !== castSig())) loadCast();
+    // poses du personnage stable : rechargées seulement quand la photo ou le style change
+    if (typeof loadCast === 'function' && state.castSigLoaded !== castSig()) { state.castSigLoaded = castSig(); loadCast(); }
     const style = CARTOON_STYLES.find(s => s.id === state.selectedStyle)?.name || state.selectedStyle;
     const ref = referenceImage(), outdated = state.reference && !ref;
     const box = document.getElementById('reference-box');
@@ -98,9 +99,13 @@ function renderReference() {
         '<button type="button" class="btn-secondary" id="ref-import-btn"' + (state.regenerating ? ' disabled' : '') + '>📥 Utiliser ma propre image de référence</button>' +
         '<input type="file" id="ref-import-input" accept="image/*" style="display:none">';
     const hint = document.getElementById('ref-hint');
-    if (hint) {
+    if (hint && typeof castReady === 'function' && castReady() && state.stableChar !== 'off') {
+        const sp = castPoses(), direct = puppetOnly();
+        hint.innerHTML = '<div class="char-chip"><img src="' + sp[0].closed + '" alt=""><div class="grow"><b>🎭 Personnage stable · ' + sp.length + ' poses</b><br><span class="hmuted">' +
+            (direct ? 'Avec ta voix ElevenLabs : aucune scène à attendre chez Agnes, la vidéo se monte directement.' : 'Il reste identique dans toutes les scènes ; Agnes fournit la voix.') + '</span></div></div>';
+    } else if (hint) {
         hint.innerHTML = ref ? '<div class="char-chip"><img src="' + ref + '" alt=""><div class="grow"><b>Image de référence</b><br><span class="hmuted">Toutes les scènes partent de cette image</span></div></div>'
-            : '<div class="char-chip missing"><div class="grow"><b>Pas d\'image de référence' + (outdated ? ' à jour' : '') + '</b><br><span class="hmuted">Sans elle, le personnage peut changer d\'une scène à l\'autre. À faire une fois par style.</span></div><button type="button" data-ref-create="1">Créer</button></div>';
+            : '<div class="char-chip missing"><div class="grow"><b>Ton personnage peut changer d\'une scène à l\'autre</b><br><span class="hmuted">Fais le casting une fois : il restera identique dans toutes tes vidéos.</span></div><button type="button" data-open="settings:set-brand">Casting</button></div>';
     }
 }
 // Image de référence fournie (déjà prête, par ex. le personnage sur fond vert) : gratuit et immédiat
@@ -528,4 +533,5 @@ function applyTargetDefaults(atStart) {
     }
     const fs = document.getElementById('script-format-select');
     if (fs && (!atStart || !fs.dataset.touched)) fs.value = shortsMode() ? 'short60' : 'minute';
+    if (typeof syncFmtChips === 'function') syncFmtChips();
 }

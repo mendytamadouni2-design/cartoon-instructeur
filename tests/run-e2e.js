@@ -214,6 +214,9 @@ async function testPhoneMontage(browser) {
     check(await page.evaluate(() => !!getTikTokToken() && location.search === '' && document.getElementById('tiktok-status').textContent.includes('connecté')), 'connexion TikTok réussie (jeton gardé, adresse nettoyée)');
     await fillProject(page);
     await page.evaluate(() => navOpen('settings', 'set-brand'));
+    // 8.1 : l'image de référence est rangée dans « Avancé », repliée : on l'ouvre comme un utilisateur
+    await page.evaluate(() => { const sec = document.getElementById('section-reference'); if (!sec.classList.contains('open')) sec.querySelector('.section-header').click(); });
+    await page.waitForTimeout(400);
     await page.click('#ref-create-btn');
     await page.waitForFunction(() => !!referenceImage() && !!document.querySelector('#reference-box img'), null, { timeout: 60000 });
     check(counters.agnes.length === 1 && /Reference shot/.test(counters.agnes[0].prompt) && await page.evaluate(() => referenceImage().startsWith('data:image/jpeg') && !!document.querySelector('#reference-box img')), 'image de référence créée (une scène Agnes, image gardée)');
@@ -303,6 +306,7 @@ async function testPhoneMontage(browser) {
 
     // Assistant de script + mode simple
     await page.evaluate(() => wizardGo(1));
+    await page.evaluate(() => document.querySelectorAll('details.fold').forEach(d => { d.open = true; }));   // volets « Améliorer avec Claude »… ouverts comme par l'utilisateur
     await page.click('#factcheck-btn');
     await page.waitForSelector('#fc-apply', { timeout: 30000 });
     await page.click('#fc-apply');
@@ -356,6 +360,7 @@ async function testPhoneMontage(browser) {
     check((yt.captions || 0) >= 2, 'sous-titres traduits ajoutés à la vidéo YouTube');
     check(await page.evaluate(() => computeParts(4).length > 1 && computeParts().length === 1 && safeZone(1080, 1920).on && !safeZone(1920, 1080).on), 'découpage en parties et zones TikTok');
     await page.evaluate(() => wizardGo(1));
+    await page.evaluate(() => document.querySelectorAll('details.fold').forEach(d => { d.open = true; }));   // volets « Améliorer avec Claude »… ouverts comme par l'utilisateur
     await page.click('#hooks-btn'); await page.waitForSelector('[data-hook="0"]', { timeout: 20000 }); await page.click('[data-hook="0"]');
     check((await page.inputValue('#script-input')).startsWith('Savais-tu'), 'accroche choisie appliquée');
     await page.click('#end-question-btn');

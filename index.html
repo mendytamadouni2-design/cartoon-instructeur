@@ -14,7 +14,7 @@
 <title>Cartoon Instructeur</title>
 <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Cartoon%20Instructeur%20ULTIMATE%22%2C%22short_name%22%3A%22Cartoon%20Inst%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22theme_color%22%3A%22%236c5ce7%22%2C%22background_color%22%3A%22%23fafafa%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22portrait%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%3Bcharset%3Dutf-8%2C%253Csvg%2520xmlns%253D%2527http%253A%2F%2Fwww.w3.org%2F2000%2Fsvg%2527%2520viewBox%253D%25270%25200%2520512%2520512%2527%253E%253Crect%2520width%253D%2527512%2527%2520height%253D%2527512%2527%2520rx%253D%2527100%2527%2520fill%253D%2527%25236c5ce7%2527%2F%253E%253Ctext%2520x%253D%2527256%2527%2520y%253D%2527340%2527%2520font-size%253D%2527280%2527%2520text-anchor%253D%2527middle%2527%2520fill%253D%2527white%2527%253E%25F0%259F%258E%2593%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
 <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20rx%3D%27100%27%20fill%3D%27%236c5ce7%27%2F%3E%3Ctext%20x%3D%27256%27%20y%3D%27340%27%20font-size%3D%27280%27%20text-anchor%3D%27middle%27%20fill%3D%27white%27%3E%F0%9F%8E%93%3C%2Ftext%3E%3C%2Fsvg%3E">
-<link rel="stylesheet" href="css/app.css?v=202609292200">
+<link rel="stylesheet" href="css/app.css?v=202609300900">
 </head>
 <body>
 
@@ -35,6 +35,7 @@
 <div class="bg-panel hidden" id="schedule-list"></div>
     <div id="home-last"></div>
     <div id="home-costs"></div>
+    <div class="hmuted hidden" data-eleven-quota style="text-align:center"></div>
     <p class="app-version" id="app-version"></p>
 </section>
 
@@ -48,7 +49,7 @@
         <label class="control-label" style="margin-top:0.6rem;">Heure</label>
         <input type="time" class="text-input" id="ap-hour" value="18:00">
         <label class="control-label" style="margin-top:0.6rem;">Format</label>
-        <select id="ap-format"><option value="short">Short / TikTok (30 s)</option><option value="minute" selected>Vidéo d'1 minute</option><option value="explainer">Explication de 3 minutes</option></select>
+        <select id="ap-format"><option value="short">Short / TikTok (30 s)</option><option value="short60" selected>Short / TikTok (45 à 60 s)</option><option value="minute">Vidéo d'1 minute</option><option value="explainer">Explication de 3 minutes</option></select>
         <label class="control-label" style="margin-top:0.6rem;">Publier sur</label>
         <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="ap-yt" checked> ▶️ YouTube</label>
         <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="ap-ys"> ▶️ YouTube Shorts</label>
@@ -70,76 +71,77 @@
     <div class="wstep" data-step="1">
         <h2 class="step-title">Sujet et script</h2>
         <div id="char-chip"></div>
-<div class="section open" id="section-script">
-    <div class="section-header" data-toggle="section-script">
-        <span class="section-title">📝 Thème & Script <span class="tag req">obligatoire</span></span>
-        <span class="chevron">▼</span>
-    </div>
-    <div class="section-body"><div class="section-content">
-        <div class="control-row">
-            <label class="control-label">Thème</label>
-            <input type="text" class="text-input" id="theme-input" placeholder="Ex : Le cycle de l'eau...">
-        </div>
-        <div class="hcard" id="objective-box" style="margin-bottom:0.8rem;">
-            <label class="control-label">🎯 Ou donne juste ton objectif : Claude écrit le script</label>
-            <textarea class="text-input" id="objective-input" rows="2" placeholder="Ex : expliquer les intérêts composés à des débutants, ton fun, avec un exemple concret"></textarea>
-            <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.4rem;"><input type="checkbox" id="objective-research" checked> 🔎 Chercher des infos à jour sur internet (≈ 1 à 4 centimes)</label>
-            <button type="button" class="btn-secondary" id="objective-btn" style="margin-top:0.4rem;">✍️ Écrire mon script à partir de l'objectif</button>
-            <div class="hidden" id="objective-questions" style="margin-top:0.6rem;"></div>
-        </div>
-        <div class="control-row">
-            <label class="control-label">Script (une phrase = une scène)</label>
-            <textarea class="prompt-main" id="script-input" placeholder="Écrivez ou collez votre script...
-
-Bonjour les amis ! Aujourd'hui, découvrons le cycle de l'eau.
-L'eau des océans s'évapore sous l'effet du soleil.
-La vapeur monte et forme des nuages.
-Quand les nuages sont lourds, la pluie tombe.
-L'eau retourne dans les rivières puis les océans.
-Et le cycle recommence !
-Grâce à ce phénomène, la vie est possible.
-L'eau que tu bois a peut-être été bue par un dinosaure !
-Il faut donc la protéger.
-Merci de m'avoir écouté !"></textarea>
-            <div class="prompt-main-hint">💡 <strong>10 phrases minimum</strong> pour une vidéo &gt; 1 minute. Le thème est optionnel (il sert au titre, à la miniature et au SEO).</div>
-        </div>
-        <div class="prompt-presets" id="prompt-presets"></div>
-        <div class="control-row" style="margin-top:0.6rem;">
-            <label class="control-label">🖼️ Tes images dans la vidéo (logo, capture d'écran, photo)</label>
-            <input type="file" id="user-images-input" accept="image/*" multiple style="display:none;">
-            <div id="user-images-list"></div>
-            <button type="button" class="btn-secondary" id="user-images-btn" style="margin-top:0.4rem;">➕ Ajouter des images</button>
-            <div class="prompt-main-hint">Claude les place sur les phrases qui en parlent ; elles apparaissent en carte animée.</div>
-        </div>
-        <div class="stat-line" style="margin-top:0.7rem;">
-            <span>📏 <span id="script-stats">0 phrase · 0 caractère</span></span>
-            <span id="script-duration">Durée : 0s</span>
-        </div>
-        <label class="control-label test-mode" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.6rem;"><input type="checkbox" id="test-mode-toggle"> 🧪 Mode test rapide : seulement 3 scènes (début, milieu, fin), ≈ 5 min</label>
-        <button type="button" class="btn-secondary" id="edit-scenes-btn" style="margin-top:0.6rem;">✏️ Éditer scène par scène</button>
-        <div id="scenes-editor" class="hidden" style="margin-top:0.6rem;"></div>
-        <div class="control-row" style="margin-top:0.6rem;">
-            <label class="control-label">Format du script écrit par Claude</label>
-            <select id="script-format-select">
+        <div class="create-block">
+            <div class="block-label">1 · Format</div>
+            <div class="chips fmt-chips" id="fmt-chips">
+                <button type="button" class="chip" data-fmt="short">⚡ Short 30 s</button>
+                <button type="button" class="chip" data-fmt="short60">📱 Short 60 s</button>
+                <button type="button" class="chip" data-fmt="minute">▶️ 1 minute</button>
+                <button type="button" class="chip" data-fmt="explainer">🎓 3 minutes</button>
+            </div>
+            <select id="script-format-select" hidden>
                 <option value="">Classique (10 à 14 lignes)</option>
-                <option value="short">Short / TikTok (30 s) — accroche choc, fin en boucle</option>
-                <option value="short60">Short / TikTok (45 à 60 s) — accroche, 2-3 infos, fin en boucle</option>
-                <option value="minute">Vidéo d'1 minute — accroche, 3 points, récap</option>
-                <option value="explainer">Explication de 3 minutes — parties avec relances</option>
+                <option value="short">Short / TikTok (30 s)</option>
+                <option value="short60">Short / TikTok (45 à 60 s)</option>
+                <option value="minute">Vidéo d'1 minute</option>
+                <option value="explainer">Explication de 3 minutes</option>
             </select>
         </div>
-        <button type="button" class="btn-secondary" id="generate-script-ai-btn" style="margin-top:0.2rem;">🤖 Écrire le script avec Claude (à partir du thème)</button>
-        <button type="button" class="btn-secondary" id="improve-script-btn" style="margin-top:0.4rem;">🗣️ Rendre le script plus facile à prononcer (Claude)</button>
-        <button type="button" class="btn-secondary" id="factcheck-btn" style="margin-top:0.4rem;">🔍 Vérifier les faits (Claude)</button>
-        <div class="factcheck-box hidden" id="factcheck-box"></div>
-        <button type="button" class="btn-secondary" id="hooks-btn" style="margin-top:0.4rem;">🎣 Proposer 3 accroches à tester (Claude)</button>
-        <div class="factcheck-box hidden" id="hooks-box"></div>
-        <button type="button" class="btn-secondary" id="end-question-btn" style="margin-top:0.4rem;">💬 Ajouter une question de fin pour les commentaires</button>
-        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;"><input type="checkbox" id="end-question-toggle" checked> Claude termine ses scripts par une question pour les commentaires</label>
-        <label class="control-label hidden" id="insights-line" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="use-insights" checked> <span>Utiliser les leçons de mes statistiques</span></label>
-        <button type="button" class="btn-secondary" id="translate-script-btn" style="margin-top:0.4rem;">🌍 Traduire le script</button>
-    </div></div>
-</div>
+        <div class="create-block">
+            <div class="block-label">2 · Ton script</div>
+            <div class="seg" id="write-mode">
+                <button type="button" data-write="ai" aria-pressed="true">✨ Claude l'écrit</button>
+                <button type="button" data-write="me" aria-pressed="false">✍️ Je l'écris</button>
+            </div>
+            <div class="hcard" id="objective-box">
+                <textarea class="text-input" id="objective-input" rows="3" placeholder="Ton objectif en une phrase. Ex : expliquer les intérêts composés à des débutants, ton fun, avec un exemple concret"></textarea>
+                <label class="control-label check-line"><input type="checkbox" id="objective-research" checked> 🔎 Chercher des infos à jour sur internet (≈ 1 à 4 centimes)</label>
+                <button type="button" class="btn-primary" id="objective-btn">✨ Écrire mon script</button>
+                <div class="hidden" id="objective-questions"></div>
+            </div>
+            <div class="hcard" id="script-card">
+                <input type="text" class="text-input" id="theme-input" placeholder="Titre de la vidéo (optionnel)">
+                <textarea class="prompt-main" id="script-input" ></textarea>
+                <div class="stat-line">
+                    <span>📏 <span id="script-stats">0 phrase · 0 caractère</span></span>
+                    <span id="script-duration">Durée : 0s</span>
+                </div>
+                <div class="prompt-main-hint">Une phrase par ligne = une scène.</div>
+                <div class="prompt-presets" id="prompt-presets"></div>
+            </div>
+        </div>
+        <details class="fold">
+            <summary>🪄 Améliorer avec Claude</summary>
+            <div class="fold-body">
+                <button type="button" class="btn-secondary" id="hooks-btn">🎣 3 accroches à tester</button>
+                <div class="factcheck-box hidden" id="hooks-box"></div>
+                <button type="button" class="btn-secondary" id="factcheck-btn">🔍 Vérifier les faits</button>
+                <div class="factcheck-box hidden" id="factcheck-box"></div>
+                <button type="button" class="btn-secondary" id="improve-script-btn">🗣️ Plus facile à prononcer</button>
+                <button type="button" class="btn-secondary" id="end-question-btn">💬 Question de fin pour les commentaires</button>
+                <button type="button" class="btn-secondary" id="translate-script-btn">🌍 Traduire le script</button>
+                <button type="button" class="btn-secondary" id="generate-script-ai-btn">🤖 Réécrire tout à partir du titre</button>
+                <label class="control-label check-line"><input type="checkbox" id="end-question-toggle" checked> Toujours finir par une question pour les commentaires</label>
+                <label class="control-label check-line hidden" id="insights-line"><input type="checkbox" id="use-insights" checked> <span>Utiliser les leçons de mes statistiques</span></label>
+            </div>
+        </details>
+        <details class="fold">
+            <summary>🖼️ Mes images dans la vidéo <span class="fold-count" id="user-images-count"></span></summary>
+            <div class="fold-body">
+                <input type="file" id="user-images-input" accept="image/*" multiple style="display:none;">
+                <div id="user-images-list"></div>
+                <button type="button" class="btn-secondary" id="user-images-btn">➕ Ajouter logo, capture d'écran ou photo</button>
+                <div class="prompt-main-hint">Claude les place sur les phrases qui en parlent ; elles apparaissent en carte animée.</div>
+            </div>
+        </details>
+        <details class="fold">
+            <summary>🧰 Scène par scène et mode test</summary>
+            <div class="fold-body">
+                <label class="control-label check-line test-mode"><input type="checkbox" id="test-mode-toggle"> 🧪 Mode test rapide : seulement 3 scènes (début, milieu, fin)</label>
+                <button type="button" class="btn-secondary" id="edit-scenes-btn">✏️ Éditer scène par scène</button>
+                <div id="scenes-editor" class="hidden"></div>
+            </div>
+        </details>
         <button type="button" class="linkbtn" data-sheet="1">⚙️ Plus d'options (style, langue, public, série)</button>
     </div>
     <div class="wstep" data-step="2" hidden>
@@ -369,7 +371,7 @@ Merci de m'avoir écouté !"></textarea>
 <section class="screen" data-screen="settings" data-title="Réglages" hidden>
     <div class="list">
         <button type="button" class="list-item" data-push="set-keys"><span class="ico">🔑</span><span class="grow">Clés et serveur<small>Agnes, Claude, Cloudflare</small></span><span class="pill" id="keys-pill"></span><span class="chev">›</span></button>
-        <button type="button" class="list-item" data-push="set-brand"><span class="ico">🎨</span><span class="grow">Ma chaîne<small>Personnage, poses, logo, couleur, musique, intro et fin</small></span><span class="pill" id="brand-pill"></span><span class="chev">›</span></button>
+        <button type="button" class="list-item" data-push="set-brand"><span class="ico">🎨</span><span class="grow">Ma chaîne<small>Personnage stable, charte, couleurs, musique, intro et fin</small></span><span class="pill" id="brand-pill"></span><span class="chev">›</span></button>
         <button type="button" class="list-item" data-push="set-voice"><span class="ico">🗣️</span><span class="grow">Voix et sous-titres<small>ElevenLabs, style des sous-titres, avatar</small></span><span class="chev">›</span></button>
         <button type="button" class="list-item" data-push="set-style"><span class="ico">🎞️</span><span class="grow">Style et montage<small>Mise en scène, transitions, storyboard, exports</small></span><span class="chev">›</span></button>
         <button type="button" class="list-item" data-push="set-accounts"><span class="ico">📺</span><span class="grow">Comptes<small>YouTube, TikTok, notifications, sauvegarde</small></span><span class="chev">›</span></button>
@@ -434,16 +436,6 @@ Merci de m'avoir écouté !"></textarea>
 </div>
 </section>
 <section class="screen" data-screen="set-brand" data-title="Ma chaîne" hidden>
-<div class="section open" id="section-reference">
-    <div class="section-header"><span class="section-title">🎯 Image de référence <span class="tag rec">recommandé</span></span></div>
-    <div class="section-body"><div class="section-content">
-        <div class="hmuted" style="margin-bottom:0.6rem;">Ton personnage, dans le style choisi, sur son décor. Toutes les scènes partent de cette image : le personnage, le décor et le cadrage restent identiques d'une scène à l'autre. Une seule fois par style (1 à 2 min, appli ouverte), puis elle sert pour toutes tes vidéos, même en arrière-plan.</div>
-        <div id="reference-box" class="screen" style="gap:0.6rem"></div>
-        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.8rem;"><input type="checkbox" id="green-toggle"> 🟩 Mode incrustation (fond vert) : le personnage est posé sur un décor fixe, identique dans toute la vidéo</label>
-        <div class="prompt-main-hint">Agnes génère le personnage sur fond vert, l'appli le détoure et le pose sur le décor ci-dessous. Refais l'image de référence après l'avoir activé.</div>
-        <div id="decor-box" class="screen hidden" style="gap:0.6rem;margin-top:0.6rem"></div>
-    </div></div>
-</div>
 <div class="section open" id="section-character">
     <div class="section-header" data-toggle="section-character">
         <span class="section-title">👤 Personnage <span class="tag req">obligatoire</span></span>
@@ -457,8 +449,18 @@ Merci de m'avoir écouté !"></textarea>
             <div class="upload-hint">La première image est la photo principale du personnage</div>
         </div>
         <div class="images-grid" id="images-grid"></div>
-        <div class="control-row" style="margin-top:0.9rem;">
-            <label class="control-label">Poses supplémentaires <span class="tag opt">optionnel</span></label>
+        <div class="hcard" style="margin-top:0.9rem;">
+            <div class="t">🎭 Personnage stable <span class="tag rec">recommandé</span></div>
+            <div class="hmuted">Il ne change plus jamais d'une scène à l'autre, et la bouche suit la voix.</div>
+            <select id="stable-select">
+                <option value="auto" selected>Activé dès que les poses sont validées</option>
+                <option value="off">Désactivé (Agnes redessine le personnage)</option>
+            </select>
+            <div id="cast-box"></div>
+        </div>
+        <details class="fold" style="margin-top:0.6rem;">
+            <summary>🖼️ Poses manuelles (ancienne méthode)</summary>
+            <div class="fold-body">
             <div class="prompt-main-hint" style="margin:0 0 0.5rem;">Ajoute les poses de ta planche (sur fond blanc) : Claude choisira la meilleure pose de départ pour chaque scène.</div>
             <select id="pose-type-select">
                 <option value="explique">Explique (mains ouvertes)</option>
@@ -472,38 +474,18 @@ Merci de m'avoir écouté !"></textarea>
             <input type="file" id="pose-input" accept="image/*" style="display:none;">
             <button type="button" class="btn-secondary" id="pose-add-btn" style="margin-top:0.4rem;">＋ Ajouter cette pose</button>
             <div id="poses-list" style="margin-top:0.6rem;"></div>
-        </div>
-        <div class="hcard" style="margin-top:0.9rem;">
-            <label class="control-label">🎭 Personnage stable (il ne change plus jamais d'une scène à l'autre)</label>
-            <select id="stable-select">
-                <option value="auto" selected>Utiliser les poses validées dès qu'elles sont prêtes</option>
-                <option value="off">Désactivé (Agnes anime le personnage à chaque scène)</option>
-            </select>
-            <div id="cast-box"></div>
-        </div>
+            </div>
+        </details>
     </div></div>
 </div>
 <div class="section open" id="section-kit">
     <div class="section-header" data-toggle="section-kit">
-        <span class="section-title">🎨 Kit de ma chaîne <span class="tag opt">optionnel</span></span>
+        <span class="section-title">📺 Charte et couleurs de ma chaîne</span>
         <span class="chevron">▼</span>
     </div>
     <div class="section-body"><div class="section-content">
-        <div class="prompt-main-hint" style="margin-bottom:0.7rem;">Tous tes réglages sont retenus automatiquement. Le kit rassemble ton style, ta couleur, ta police, ta musique, ton logo et tes poses dans un fichier, pour les retrouver partout.</div>
-        <div class="control-row">
-            <label class="control-label">Couleur de ta chaîne (mots allumés, titres, chiffres)</label>
-            <input type="color" id="brand-color-input" value="#ffd23f" style="width:100%;height:44px;border:1px solid var(--border);border-radius:8px;background:#fff;">
-        </div>
-        <div class="control-row">
-            <label class="control-label">Police des sous-titres</label>
-            <select id="caption-font-select">
-                <option value="rounded" selected>Moderne (grasse)</option>
-                <option value="marker">Feutre (écrit à la main)</option>
-                <option value="impact">Impact (très épaisse)</option>
-            </select>
-        </div>
         <div class="hcard" style="margin:0.6rem 0;">
-            <label class="control-label">📺 Charte de ma chaîne (Claude la relit à chaque vidéo)</label>
+            <div class="hmuted">Claude la relit à chaque vidéo : ton, public, choses à éviter.</div>
             <div class="prompt-presets">
                 <button type="button" class="prompt-preset" data-charter-preset="sobre">🧊 Sobre</button>
                 <button type="button" class="prompt-preset" data-charter-preset="energique">⚡ Énergique</button>
@@ -526,9 +508,27 @@ Merci de m'avoir écouté !"></textarea>
             <button type="button" class="btn-secondary" id="charter-ref-btn" style="margin-top:0.6rem;">🎬 Fais comme cette vidéo (1 à 4 captures d'écran)</button>
             <div class="prompt-main-hint hidden" id="charter-ref-summary"></div>
         </div>
+        <div class="control-row">
+            <label class="control-label">Couleur de ta chaîne (mots allumés, titres, chiffres)</label>
+            <input type="color" id="brand-color-input" value="#ffd23f" style="width:100%;height:44px;border:1px solid var(--border);border-radius:8px;background:#fff;">
+        </div>
+        <div class="control-row">
+            <label class="control-label">Police des sous-titres</label>
+            <select id="caption-font-select">
+                <option value="rounded" selected>Moderne (grasse)</option>
+                <option value="marker">Feutre (écrit à la main)</option>
+                <option value="impact">Impact (très épaisse)</option>
+            </select>
+        </div>
+        <details class="fold" style="margin-top:0.6rem;">
+            <summary>💾 Sauvegarder / importer mon kit</summary>
+            <div class="fold-body">
+                <div class="hmuted">Rassemble style, couleur, police, charte, musique, logo et poses dans un fichier, pour les retrouver sur un autre téléphone.</div>
         <input type="file" id="kit-input" accept=".json,application/json" style="display:none;">
         <button type="button" class="btn-secondary" id="kit-export-btn">💾 Exporter mon kit de chaîne</button>
-        <button type="button" class="btn-secondary" id="kit-import-btn" style="margin-top:0.4rem;">📂 Importer un kit</button>
+        <button type="button" class="btn-secondary" id="kit-import-btn">📂 Importer un kit</button>
+            </div>
+        </details>
     </div></div>
 </div>
 <div class="section open" id="section-music">
@@ -586,6 +586,16 @@ Merci de m'avoir écouté !"></textarea>
         <div class="prompt-main-hint" style="margin-bottom:0.6rem;">Ton personnage dit une phrase d'accueil et une phrase de fin. Elles sont créées une seule fois (1 scène Agnes chacune) puis ajoutées à toutes tes vidéos, sans rien payer de plus.</div>
         <div id="bank-list"></div>
         <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="bank-use-toggle" checked> Ajouter l'intro et la fin à mes vidéos</label>
+    </div></div>
+</div>
+<div class="section" id="section-reference">
+    <div class="section-header" data-toggle="section-reference"><span class="section-title">🧪 Avancé : image de référence et fond vert</span><span class="chevron">▼</span></div>
+    <div class="section-body"><div class="section-content">
+        <div class="hmuted" style="margin-bottom:0.6rem;">Ton personnage, dans le style choisi, sur son décor. Toutes les scènes partent de cette image : le personnage, le décor et le cadrage restent identiques d'une scène à l'autre. Une seule fois par style (1 à 2 min, appli ouverte), puis elle sert pour toutes tes vidéos, même en arrière-plan.</div>
+        <div id="reference-box" class="screen" style="gap:0.6rem"></div>
+        <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.8rem;"><input type="checkbox" id="green-toggle"> 🟩 Mode incrustation (fond vert) : le personnage est posé sur un décor fixe, identique dans toute la vidéo</label>
+        <div class="prompt-main-hint">Agnes génère le personnage sur fond vert, l'appli le détoure et le pose sur le décor ci-dessous. Refais l'image de référence après l'avoir activé.</div>
+        <div id="decor-box" class="screen hidden" style="gap:0.6rem;margin-top:0.6rem"></div>
     </div></div>
 </div>
 </section>
@@ -1253,28 +1263,28 @@ Phrase 2..."></textarea>
 <div id="media-stage" aria-hidden="true"></div>
 <canvas id="noSleepCanvas" width="2" height="2"></canvas>
 <video id="noSleepVideo" playsinline muted loop></video>
-<script src="js/core.js?v=202609292200"></script>
-<script src="js/motion.js?v=202609292200"></script>
-<script src="js/voices.js?v=202609292200"></script>
-<script src="js/scenes.js?v=202609292200"></script>
-<script src="js/claude.js?v=202609292200"></script>
-<script src="js/settings.js?v=202609292200"></script>
-<script src="js/media.js?v=202609292200"></script>
-<script src="js/generation.js?v=202609292200"></script>
-<script src="js/render.js?v=202609292200"></script>
-<script src="js/montage.js?v=202609292200"></script>
-<script src="js/exports.js?v=202609292200"></script>
-<script src="js/studio.js?v=202609292200"></script>
-<script src="js/growth.js?v=202609292200"></script>
-<script src="js/navigation.js?v=202609292200"></script>
-<script src="js/projects.js?v=202609292200"></script>
-<script src="js/integrations.js?v=202609292200"></script>
-<script src="js/compositor.js?v=202609292200"></script>
-<script src="js/quality.js?v=202609292200"></script>
-<script src="js/graphics.js?v=202609292200"></script>
-<script src="js/channel.js?v=202609292200"></script>
-<script src="js/puppet.js?v=202609292200"></script>
-<script src="js/director.js?v=202609292200"></script>
-<script src="js/init.js?v=202609292200"></script>
+<script src="js/core.js?v=202609300900"></script>
+<script src="js/motion.js?v=202609300900"></script>
+<script src="js/voices.js?v=202609300900"></script>
+<script src="js/scenes.js?v=202609300900"></script>
+<script src="js/claude.js?v=202609300900"></script>
+<script src="js/settings.js?v=202609300900"></script>
+<script src="js/media.js?v=202609300900"></script>
+<script src="js/generation.js?v=202609300900"></script>
+<script src="js/render.js?v=202609300900"></script>
+<script src="js/montage.js?v=202609300900"></script>
+<script src="js/exports.js?v=202609300900"></script>
+<script src="js/studio.js?v=202609300900"></script>
+<script src="js/growth.js?v=202609300900"></script>
+<script src="js/navigation.js?v=202609300900"></script>
+<script src="js/projects.js?v=202609300900"></script>
+<script src="js/integrations.js?v=202609300900"></script>
+<script src="js/compositor.js?v=202609300900"></script>
+<script src="js/quality.js?v=202609300900"></script>
+<script src="js/graphics.js?v=202609300900"></script>
+<script src="js/channel.js?v=202609300900"></script>
+<script src="js/puppet.js?v=202609300900"></script>
+<script src="js/director.js?v=202609300900"></script>
+<script src="js/init.js?v=202609300900"></script>
 </body>
 </html>

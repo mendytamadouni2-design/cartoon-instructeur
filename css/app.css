@@ -673,3 +673,30 @@ select:focus { outline: none; border-color: var(--ink); }
 .cast-item button { font-size: 0.72rem; padding: 2px 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); }
 .thumb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
 .thumb-grid img { width: 100%; border-radius: 10px; border: 1px solid var(--border); cursor: pointer; }
+/* Mise en route (accueil) */
+.setup-bar { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
+.setup-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s; }
+.setup-step { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: none; border-top: 1px solid var(--border); padding: 10px 2px; font: inherit; color: inherit; cursor: pointer; }
+.setup-step b { display: block; font-size: 0.9rem; }
+.setup-step small { color: var(--ink-dim); font-size: 0.74rem; }
+.setup-step .ss-ico { width: 32px; height: 32px; border-radius: 10px; background: var(--panel-2); display: grid; place-items: center; flex: none; }
+.setup-step.done { opacity: 0.55; }
+.setup-step.done .ss-ico { background: #2fbf71; color: #fff; font-weight: 800; }
+/* Créer › Script : blocs numérotés, format en puces, choix « Claude écrit / j'écris », volets repliables */
+.create-block { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.block-label { font-size: 0.72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-dim); }
+.fmt-chips .chip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel-2); border-radius: 12px; padding: 3px; gap: 3px; }
+.seg button { border: 0; border-radius: 10px; padding: 9px 6px; font: 700 14px inherit; font-family: inherit; background: transparent; color: var(--ink-dim); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.check-line { display: flex; align-items: center; gap: 0.5rem; text-transform: none; letter-spacing: 0; font-weight: 500; }
+#script-card .prompt-main { min-height: 180px; }
+.fold { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); margin-bottom: 10px; }
+.fold > summary { list-style: none; cursor: pointer; padding: 13px 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after { content: '›'; margin-left: auto; color: var(--ink-dim); font-size: 1.2rem; transition: transform .2s; }
+.fold[open] > summary::after { transform: rotate(90deg); }
+.fold-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+.fold-count:not(:empty) { background: var(--brand); color: var(--brand-ink); border-radius: 999px; padding: 1px 8px; font-size: 0.72rem; }
+.fmt-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fmt-chips .chip { text-align: center; padding: 10px 8px; }

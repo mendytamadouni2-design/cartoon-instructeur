@@ -185,6 +185,7 @@ async function removeUserImage(id) { await idbDel('uimg:' + id).catch(() => {});
 function renderUserImages() {
     const box = document.getElementById('user-images-list'); if (!box) return;
     const list = userImages();
+    const cnt = document.getElementById('user-images-count'); if (cnt) cnt.textContent = list.length ? String(list.length) : '';
     box.innerHTML = list.length ? list.map(x => '<div class="series-item"><span>🖼️ <input class="text-input" data-uimg-desc="' + esc(x.id) + '" value="' + esc(x.desc || x.name) + '" style="width:70%;"></span><button type="button" data-uimg-del="' + esc(x.id) + '">🗑️</button></div>').join('')
         : '<div class="prompt-main-hint">Aucune image : ajoute ton logo, une capture d\'écran ou une photo, Claude la placera au bon moment.</div>';
 }
@@ -246,3 +247,30 @@ document.addEventListener('change', e => {
     else if (id === 'user-images-input') { addUserImages(e.target.files).catch(err => showToast('Images : ' + err.message, 'error')); e.target.value = ''; }
     else if (e.target.dataset?.uimgDesc) saveUserImages(userImages().map(x => x.id === e.target.dataset.uimgDesc ? { ...x, desc: e.target.value.trim().slice(0, 160) } : x));
 });
+
+// ══════════════════════════════════════════════════════════════════
+// Créer › Script : format en puces, « Claude l'écrit / je l'écris »
+// ══════════════════════════════════════════════════════════════════
+function syncFmtChips() {
+    const v = document.getElementById('script-format-select')?.value || '';
+    document.querySelectorAll('#fmt-chips [data-fmt]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.fmt === v)));
+}
+function setWriteMode(mode) {
+    try { localStorage.setItem('cartoon_write_mode', mode); } catch (e) {}
+    document.querySelectorAll('#write-mode [data-write]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.write === mode)));
+    document.getElementById('objective-box')?.classList.toggle('hidden', mode !== 'ai');
+}
+document.addEventListener('click', e => {
+    const f = e.target.closest ? e.target.closest('#fmt-chips [data-fmt]') : null;
+    if (f) {
+        const sel = document.getElementById('script-format-select');
+        if (sel) { sel.value = f.dataset.fmt; sel.dataset.touched = '1'; }
+        syncFmtChips();
+    }
+    const w = e.target.closest ? e.target.closest('#write-mode [data-write]') : null;
+    if (w) setWriteMode(w.dataset.write);
+});
+function initCreateUi() {
+    let mode = 'ai'; try { mode = localStorage.getItem('cartoon_write_mode') || (document.getElementById('script-input')?.value.trim() ? 'me' : 'ai'); } catch (e) {}
+    setWriteMode(mode); syncFmtChips();
+}

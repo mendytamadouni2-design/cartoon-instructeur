@@ -37,6 +37,7 @@ function wizardGo(n) {
 }
 function renderWizard() {
     const st = NAV.step;
+    if (st === 3) { updateGenerateBtn(); updateEstimate(); }
     document.getElementById('stepper').innerHTML = WIZ_STEPS.map((s, i) => '<button type="button" class="step ' + (i + 1 < st ? 'done' : i + 1 === st ? 'now' : '') + '" data-step-go="' + (i + 1) + '"><i></i>' + s + '</button>').join('');
     document.querySelectorAll('.wstep').forEach(d => { d.hidden = +d.dataset.step !== st; });
     const prev = document.getElementById('wiz-prev'), next = document.getElementById('wiz-next');
@@ -94,7 +95,7 @@ function renderCharChip() {
     const box = document.getElementById('char-chip'); if (!box) return;
     const img = state.images[0];
     box.innerHTML = img
-        ? '<div class="char-chip"><img src="' + (img.thumbnail || img.dataUri) + '" alt=""><div class="grow"><b>Personnage</b><br><span class="hmuted">' + (state.poses.length ? state.poses.length + ' pose' + (state.poses.length > 1 ? 's' : '') + ' en plus' : 'Photo principale') + '</span></div><button type="button" data-open="settings:set-brand">Changer</button></div>'
+        ? '<div class="char-chip"><img src="' + (img.thumbnail || img.dataUri) + '" alt=""><div class="grow"><b>Personnage</b><br><span class="hmuted">' + (typeof castReady === 'function' && castReady() ? '🎭 Personnage stable · ' + castPoses().length + ' poses' : state.poses.length ? state.poses.length + ' pose' + (state.poses.length > 1 ? 's' : '') + ' en plus' : 'Photo principale · casting pas encore fait') + '</span></div><button type="button" data-open="settings:set-brand">Changer</button></div>'
         : '<div class="char-chip missing"><div class="grow"><b>Ajoute la photo de ton personnage</b><br><span class="hmuted">Obligatoire pour générer (une seule fois, elle est gardée).</span></div><button type="button" data-open="settings:set-brand">Ajouter</button></div>';
 }
 
@@ -103,8 +104,8 @@ function renderAppVersion() {
     const el = document.getElementById('app-version'); if (!el) return;
     const fmt = v => new Date(v.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
     // un appui affiche l'historique des mises à jour
-    el.innerHTML = 'Cartoon Instructeur · <b>version ' + esc(APP_VERSION.num) + '</b> · mise à jour du ' + fmt(APP_VERSION) + '<br>' + esc(APP_VERSION.note) +
-        '<br><button type="button" class="linkish" id="app-version-more">Historique des versions</button><span id="app-version-list" class="hidden">' +
+    el.innerHTML = 'Cartoon Instructeur · <b>version ' + esc(APP_VERSION.num) + '</b> · ' + fmt(APP_VERSION) +
+        '<br><button type="button" class="linkish" id="app-version-more">Quoi de neuf ?</button><span id="app-version-list" class="hidden">' +
         APP_VERSIONS.map(v => '<br><b>' + esc(v.num) + '</b> · ' + fmt(v) + ' · ' + esc(v.note)).join('') + '</span>';
     document.getElementById('app-version-more').onclick = () => document.getElementById('app-version-list').classList.toggle('hidden');
 }
@@ -113,11 +114,18 @@ function renderHome() {
     const setup = document.getElementById('home-setup'), live = document.getElementById('home-live');
     const last = document.getElementById('home-last'), costs = document.getElementById('home-costs');
     if (!setup) return;
-    const missing = [];
-    if (!getAgnesKey()) missing.push(['🔑 Clé Agnes (obligatoire)', 'settings:set-keys']);
-    if (!state.images.length) missing.push(['👤 Photo du personnage (obligatoire)', 'settings:set-brand']);
-    if (!getClaudeKey()) missing.push(['🤖 Clé Claude (recommandée)', 'settings:set-keys']);
-    setup.innerHTML = missing.length ? '<div class="hcard"><div class="t">Pour commencer</div>' + missing.map(([l, t]) => '<button type="button" class="btn-secondary" data-open="' + t + '">' + l + '</button>').join('') + '</div>' : '';
+    // Mise en route : les étapes faites sont cochées ; la carte disparaît quand l'essentiel est prêt
+    const steps = [
+        ['🔑', 'Clé Agnes', 'obligatoire', !!getAgnesKey(), 'settings:set-keys'],
+        ['🤖', 'Clé Claude', 'scripts et mise en scène', !!getClaudeKey(), 'settings:set-keys'],
+        ['👤', 'Photo du personnage', 'obligatoire', !!state.images.length, 'settings:set-brand'],
+        ['🎭', 'Personnage stable', 'il ne changera plus jamais', typeof castReady === 'function' && castReady(), 'settings:set-brand'],
+        ['📺', 'Charte de ta chaîne', 'ton, public, couleurs', typeof getCharter === 'function' && !!(getCharter().voice || getCharter().name), 'settings:set-brand']
+    ];
+    const todo = steps.filter(s => !s[3]).length;
+    setup.innerHTML = steps.slice(0, 4).some(s => !s[3]) ? '<div class="hcard"><div class="row"><div class="grow t">Mise en route</div><span class="pill">' + (steps.length - todo) + '/' + steps.length + '</span></div>' +
+        '<div class="setup-bar"><i style="width:' + Math.round((steps.length - todo) / steps.length * 100) + '%"></i></div>' +
+        steps.map(([ico, l, sub, ok, t]) => '<button type="button" class="setup-step' + (ok ? ' done' : '') + '" data-open="' + t + '"><span class="ss-ico">' + (ok ? '✓' : ico) + '</span><span class="grow"><b>' + l + '</b><small>' + sub + '</small></span>' + (ok ? '' : '<span class="chev">›</span>') + '</button>').join('') + '</div>' : '';
     // En cours
     const cards = [];
     const bg = document.getElementById('bg-panel');
@@ -171,7 +179,11 @@ function onFinalReady() {
 function renderSettingsList() {
     const k = document.getElementById('keys-pill'), b = document.getElementById('brand-pill');
     if (k) { const ok = getAgnesKey() && getProxyUrl(); k.textContent = ok ? 'OK' : 'À configurer'; k.className = 'pill ' + (ok ? 'ok' : 'warn'); }
-    if (b) { b.textContent = state.images.length ? '' : 'Photo manquante'; b.className = 'pill warn'; }
+    if (b) {
+        const stable = typeof castReady === 'function' && castReady();
+        b.textContent = !state.images.length ? 'Photo manquante' : stable ? '🎭 Stable' : 'Casting à faire';
+        b.className = 'pill ' + (!state.images.length ? 'warn' : stable ? 'ok' : '');
+    }
 }
 // Photo principale gardée sur le téléphone (plus besoin de la remettre à chaque fois)
 async function saveMainImages() {

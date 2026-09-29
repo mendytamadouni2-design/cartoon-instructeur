@@ -18,12 +18,21 @@ const CAST_POSES = [
 ];
 function castSig() { return photoSig() + '|' + state.selectedStyle; }
 async function loadCast() {
+    state.castSigLoaded = castSig();
     try { state.cast = (await idbGet('cast:' + castSig())) || null; } catch (e) { state.cast = null; }
     if (state.cast && state.cast.sig !== castSig()) state.cast = null;
     puppetCache = { key: '', sprites: null };
     renderCast();
 }
-async function saveCast() { if (state.cast) await idbPut('cast:' + castSig(), state.cast).catch(() => {}); renderCast(); }
+async function saveCast() {
+    if (state.cast) await idbPut('cast:' + castSig(), state.cast).catch(() => {});
+    state.castSigLoaded = castSig();   // déjà en mémoire : pas de rechargement qui écraserait un changement en cours
+    renderCast();
+    // les écrans qui annoncent le personnage stable se mettent à jour
+    if (typeof renderReference === 'function') renderReference();
+    if (typeof renderCharChip === 'function') renderCharChip();
+    updateGenerateBtn();
+}
 function castPoses() { return (state.cast?.poses || []).filter(p => p.approved && p.closed); }
 function castReady() { return castPoses().some(p => p.id === 'main') && castPoses().length >= 2; }
 // Personnage stable utilisé : poses validées et réglage non désactivé (tous les styles)
