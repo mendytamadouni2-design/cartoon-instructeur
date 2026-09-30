@@ -123,6 +123,8 @@ async function commonRoutes(ctx, clipBufs, relayEnv, W, counters) {
     await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/jspdf/**', r => r.fulfill({ status: 200, contentType: 'application/javascript', body: fs.readFileSync(require.resolve('jspdf/dist/jspdf.umd.min.js')) }));
     await ctx.route(ORIGIN + '/**', serveApp);
     await ctx.route('https://apihub.agnes-ai.com/v1/videos', r => { const b = JSON.parse(r.request().postData()); counters.agnes.push(b); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ video_id: 'v' + (counters.vid++) }) }); });
+    // compte sans Agnes Image : l'appli doit passer à la méthode vidéo
+    await ctx.route('https://apihub.agnes-ai.com/v1/images/generations', r => { counters.images = (counters.images || 0) + 1; r.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"model not found"}' }); });
     await ctx.route('https://apihub.agnes-ai.com/agnesapi**', r => { const id = new URL(r.request().url()).searchParams.get('video_id'); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'completed', metadata: { url: 'https://cdn.test/' + id + '.webm' } }) }); });
     await ctx.route('https://api.anthropic.com/v1/messages', claudeMock);
     await ctx.route('https://api.elevenlabs.io/v1/text-to-speech/**', r => r.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'audio/wav', body: toneWav() }));
@@ -750,7 +752,7 @@ async function testCompositor(browser) {
         window.fetchClipBlob = async () => clip;
         window.ensureIdentity = async () => {};
         window.callClaude = async o => { checks++; return checks === 1 ? { ok: false, why: 'mains différentes' } : { ok: true, why: '' }; };
-        castCreateInterval = 0;
+        castCreateInterval = 0; agnesImageUnsupported = true;   // 1er essai : méthode vidéo (secours)
         const r = {};
         try {
             state.images = [{ id: 'p', dataUri: document.createElement('canvas').toDataURL('image/png') }]; state.cast = null;
@@ -761,9 +763,48 @@ async function testCompositor(browser) {
             r.approved = p?.approved;
             document.querySelector('[data-cast-ok="main"]')?.click(); await new Promise(res => setTimeout(res, 300));
             r.approvedAfter = state.cast.poses.find(x => x.id === 'main').approved;
-        } finally { Object.assign(window, { createVideoTask: saved.cv, pollVideo: saved.pv, fetchClipBlob: saved.fc, callClaude: saved.cc, ensureIdentity: saved.ei }); castCreateInterval = CREATE_INTERVAL_MIN; state.cast = null; }
+            // 8.2 : casting en images (Agnes Image) — bouche fermée d'après la photo, puis la même image bouche ouverte
+            agnesImageUnsupported = false; const before = created, imgCalls = [];
+            const mkImg = open => { const c = document.createElement('canvas'); c.width = 360; c.height = 640; const g = c.getContext('2d'); g.fillStyle = '#00B140'; g.fillRect(0, 0, 360, 640); g.fillStyle = '#ff7a00'; g.fillRect(130, 160, 100, 380); g.fillStyle = '#222'; g.fillRect(160, 230, 40, open ? 30 : 6); return c.toDataURL('image/png'); };
+            const savedImg = window.agnesImage;
+            window.agnesImage = async (pr, imgs, size) => { imgCalls.push({ pr, n: (imgs || []).length, size }); return mkImg(imgCalls.length === 2); };
+            window.callClaude = async () => ({ ok: true, why: '' });
+            try { await runCasting('salue'); } finally { window.agnesImage = savedImg; }
+            const sp = state.cast.poses.find(x => x.id === 'salue');
+            r.img = { video: created - before, calls: imgCalls.length, closed: !!sp?.closed, open: !!sp?.open, pose: /Pose: the character waves/.test(imgCalls[0]?.pr || '') && !/24fps/.test(imgCalls[0]?.pr || ''), edit: /mouth is open/.test(imgCalls[1]?.pr || '') && imgCalls[1]?.n === 1, size: imgCalls[0]?.size };
+        } finally { Object.assign(window, { createVideoTask: saved.cv, pollVideo: saved.pv, fetchClipBlob: saved.fc, callClaude: saved.cc, ensureIdentity: saved.ei }); castCreateInterval = CREATE_INTERVAL_MIN; state.cast = null; agnesImageUnsupported = false; }
         return r;
     });
+    check(cast.img && cast.img.video === 0 && cast.img.calls === 2 && cast.img.closed && cast.img.open && cast.img.pose && cast.img.edit && cast.img.size === '720x1280', 'casting en images Agnes : pose bouche fermée puis la même image bouche ouverte, sans aucune vidéo (' + JSON.stringify(cast.img) + ')');
+    // 8.2 : demandes Agnes (consigne négative, format vertical natif, images clés + repli), réponse d'Agnes Image
+    const ag = await page.evaluate(async () => {
+        const realFetch = window.fetch, bodies = []; let refuse = false;
+        const vert = (() => { const c = document.createElement('canvas'); c.width = 360; c.height = 640; return c.toDataURL('image/png'); })();
+        window.fetch = async (u, o) => {
+            u = String(u);
+            if (u.endsWith('/v1/videos')) { const b = JSON.parse(o.body); bodies.push(b); if (refuse && b.extra_body) return new Response('{"error":"bad mode"}', { status: 400 }); return new Response(JSON.stringify({ video_id: 'v' + bodies.length }), { status: 200 }); }
+            if (u.endsWith('/v1/images/generations')) { bodies.push(JSON.parse(o.body)); return new Response(JSON.stringify({ data: [{ b64_json: vert.split(',')[1] }] }), { status: 200 }); }
+            return realFetch(u, o);
+        };
+        const r = {};
+        try {
+            localStorage.setItem('agnes_api_key', 'sk-test'); keyframesUnsupported = false; agnesImageUnsupported = false;
+            await createVideoTask(vert, 'test');
+            r.neg = /extra fingers/.test(bodies[0].negative_prompt || ''); r.dims = bodies[0].width === 720 && bodies[0].height === 1280;
+            refuse = true;
+            await createVideoTask(vert, 'test', { endImage: vert });
+            r.kf = bodies[1].extra_body?.mode === 'keyframes' && bodies[1].extra_body.image.length === 2 && !bodies[1].image;
+            r.fallback = bodies[2] && bodies[2].image === vert && !bodies[2].extra_body && keyframesUnsupported;
+            const img = await agnesImage('pose', [vert], '720x1280');
+            const ib = bodies[3];
+            r.image = /^data:image\/png;base64,/.test(img) && ib.model === 'agnes-image-2.1-flash' && ib.extra_body.image.length === 1 && ib.extra_body.response_format === 'b64_json' && !ib.image;
+            r.refPrompt = !/24fps|does not speak/.test(referenceImagePrompt()) && /Pose:/.test(referenceImagePrompt()) && /Framing:/.test(referenceImagePrompt());
+        } finally { window.fetch = realFetch; keyframesUnsupported = false; }
+        return r;
+    });
+    check(ag.neg && ag.dims, 'Agnes vidéo : consigne « à éviter » (doigts, couleurs, texte) et format vertical 9:16 natif');
+    check(ag.kf && ag.fallback, 'enchaînement parfait : début et fin imposés (images clés), demande simple si Agnes refuse');
+    check(ag.image && ag.refPrompt, 'Agnes Image : image créée à partir de la photo (image de référence et casting en quelques secondes)');
     check(cast.created === 2 && cast.checks === 2 && cast.green, 'casting : pose sur fond vert, refusée par Claude puis refaite avec la raison');
     check(cast.hasOpen && cast.approved === false && cast.approvedAfter === true, 'casting : bouche fermée et ouverte extraites de la vidéo, validation par un appui');
     // 8.0 : brouillon animé, retouches en discutant, un sujet → série de Shorts, 3 miniatures

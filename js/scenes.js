@@ -258,19 +258,81 @@ async function apiFetch(url, options = {}, label = 'API') {
     }
     return fetch(url, options);
 }
-async function createVideoTask(imageDataUri, prompt) {
-    const body = { model: MODEL_VIDEO, prompt, image: imageDataUri, num_frames: state.durationFrames, frame_rate: FRAME_RATE };
-    const res = await apiFetch(API_BASE + '/videos', {
+// Ce que la vidéo ne doit PAS montrer (Agnes « negative_prompt ») : les défauts vus dans les tests
+function agnesNegativePrompt() {
+    const id = typeof characterIdentity === 'function' ? characterIdentity() : '';
+    const parts = ['text', 'letters', 'subtitles', 'watermark', 'logo', 'extra limbs', 'extra fingers', 'deformed hands', 'changing outfit colors', 'different character', 'objects in hands', 'camera shake', 'blurry', 'distorted face'];
+    if (/glove|mitten|moufle|gant/i.test(id)) parts.push('separate detailed fingers', 'bare hands');
+    return parts.join(', ');
+}
+// Taille de l'image (pour demander une vidéo au même format : 9:16 natif si l'image est verticale)
+function dataUriSize(uri) { return loadImageEl(uri).then(i => ({ w: i.naturalWidth || i.width, h: i.naturalHeight || i.height })).catch(() => null); }
+function videoDimsFor(size) {
+    if (!size || !size.w || !size.h) return null;
+    const r = size.h / size.w;
+    return r > 1.3 ? { width: 720, height: 1280 } : r < 0.77 ? { width: 1280, height: 720 } : r > 1.1 ? { width: 768, height: 1024 } : r < 0.9 ? { width: 1024, height: 768 } : { width: 960, height: 960 };
+}
+let keyframesUnsupported = false;
+// opts.endImage : image d'arrivée (mode « keyframes » : la scène finit exactement sur cette image)
+async function createVideoTask(imageDataUri, prompt, opts = {}) {
+    const body = { model: MODEL_VIDEO, prompt, image: imageDataUri, num_frames: state.durationFrames, frame_rate: FRAME_RATE, negative_prompt: agnesNegativePrompt() };
+    const dims = videoDimsFor(await dataUriSize(imageDataUri));
+    if (dims) Object.assign(body, dims);
+    const keyframes = !!opts.endImage && !keyframesUnsupported;
+    if (keyframes) { delete body.image; body.extra_body = { image: [imageDataUri, opts.endImage], mode: 'keyframes' }; }
+    const send = b => apiFetch(API_BASE + '/videos', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + getAgnesKey(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(b)
     }, 'Création');
+    let res = await send(body);
+    // réglage refusé (ancien compte, paramètre inconnu) : on renvoie la demande simple
+    if (res.status === 400 && (keyframes || body.negative_prompt || dims)) {
+        if (keyframes) { keyframesUnsupported = true; log('Enchaînement parfait refusé par Agnes : scènes normales'); }
+        const plain = { model: MODEL_VIDEO, prompt, image: imageDataUri, num_frames: state.durationFrames, frame_rate: FRAME_RATE };
+        res = await send(plain);
+    }
     if (!res.ok) { const err = await res.text(); throw new Error('HTTP ' + res.status + ' ' + err.slice(0, 150)); }
     const data = await res.json();
     const videoId = data.video_id || data.id || data.task_id;
     if (!videoId) throw new Error('Pas de video_id');
     if (typeof trackCost === 'function') trackCost('agnes', AGNES_SCENE_PRICE);
     return videoId;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AGNES IMAGE (agnes-image-2.1-flash) : images fixes à partir de la photo (référence, poses du casting)
+// Même clé qu'Agnes vidéo ; une image en quelques secondes au lieu d'une vidéo de 1 à 2 min.
+// ══════════════════════════════════════════════════════════════════
+const MODEL_IMAGE = 'agnes-image-2.1-flash';
+let agnesImageUnsupported = false;
+async function agnesImage(prompt, images, size = '720x1280') {
+    if (agnesImageUnsupported) throw new Error('Agnes Image indisponible');
+    const body = { model: MODEL_IMAGE, prompt, size, extra_body: { response_format: 'b64_json' } };
+    if (images && images.length) body.extra_body.image = images.filter(Boolean);
+    else body.return_base64 = true;
+    // une image répond vite : pas de longue série d'essais (on passe à la méthode vidéo si ça ne marche pas)
+    const send = () => withTimeout(fetch(API_BASE + '/images/generations', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getAgnesKey(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    }), 120000, 'Agnes Image ne répond pas');
+    let res = await send();
+    if (res.status === 429 || res.status === 503) { setStatus('Agnes Image occupé… nouvel essai dans 15 s'); await sleep(15000); res = await send(); }
+    if (res.status === 404 || res.status === 403) agnesImageUnsupported = true;
+    if (!res.ok) { const err = await res.text().catch(() => ''); throw new Error('Agnes Image HTTP ' + res.status + ' ' + err.slice(0, 120)); }
+    const d = await res.json();
+    const it = (d.data && d.data[0]) || d;
+    const b64 = it.b64_json || it.base64 || it.image_base64;
+    if (b64) return /^data:/.test(b64) ? b64 : 'data:image/png;base64,' + b64;
+    const url = it.url || it.image_url;
+    if (url) {
+        if (/^data:/.test(url)) return url;
+        let r = await fetch(url).catch(() => null);
+        if ((!r || !r.ok) && getProxyUrl()) r = await fetch(getProxyUrl() + '/?url=' + encodeURIComponent(url)).catch(() => null);
+        if (r && r.ok) return await blobToDataUrl(await r.blob());
+    }
+    throw new Error('Agnes Image : réponse sans image');
 }
 async function pollVideo(videoId, onProgress) {
     const estimatedSec = estimateGenerationTime(state.durationFrames) / 1000;

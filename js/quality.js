@@ -51,6 +51,17 @@ function referencePrompt() {
         'STRICTLY NO TEXT anywhere in the image. 24fps, no watermark.'
     ].filter(Boolean).join(' ');
 }
+// Même consigne en version « image fixe » (Agnes Image) : sans mouvement, sans son
+function referenceImagePrompt() {
+    return referencePrompt()
+        .replace('Reference shot for an educational cartoon series.', 'Reference still image (character model sheet) for an educational cartoon series.')
+        .replace(/Action:[^.]*\./, 'Pose: the character stands in a neutral pose facing the camera, arms relaxed, friendly closed-mouth smile, the whole character visible.')
+        .replace('Camera: locked-off static medium shot, no camera movement at all.', 'Framing: medium-wide shot, character centered, with margin around it.')
+        .replace('The character does not speak. No music, no sound effects.', '')
+        .replace('24fps, no watermark.', 'No watermark.');
+}
+// Format de l'image de référence : vertical pour les Shorts, sinon paysage
+function referenceSize() { return outputFormat() === 'landscape' ? '1280x720' : '720x1280'; }
 async function extractFrameAt(blob, frac, max = 1280, quality = 0.92) {
     const url = URL.createObjectURL(blob);
     let v = null;
@@ -75,12 +86,19 @@ async function createReference() {
     state.regenerating = true; state.stopRequested = false; renderReference();
     await ensureWakeLockActive();
     try {
-        showToast('Image de référence : 1 à 2 min, garde l\'appli ouverte', 'success', 4000);
+        showToast('Image de référence : quelques secondes (jusqu\'à 2 min si Agnes Image ne répond pas), garde l\'appli ouverte', 'success', 4000);
         const small = await downscaleImage(photo, 1280, 0.9);
-        const videoId = await createVideoTask(small, referencePrompt());
-        const url = await pollVideo(videoId, p => setStatus('Image de référence : ' + p));
-        const blob = await fetchClipBlob({ videoUrl: url, sceneIndex: -9 });
-        const image = await extractFrameAt(blob, 0.85);
+        let image = null;
+        // 1) Agnes Image : une image nette en quelques secondes
+        try { setStatus('Image de référence : création de l\'image…'); image = await downscaleImage(await agnesImage(referenceImagePrompt(), [small], referenceSize()), 1280, 0.92); }
+        catch (e) { log('Référence par Agnes Image impossible (' + e.message + ') : méthode vidéo'); }
+        // 2) sinon, l'ancienne méthode : une petite vidéo dont on garde une image
+        if (!image) {
+            const videoId = await createVideoTask(small, referencePrompt());
+            const url = await pollVideo(videoId, p => setStatus('Image de référence : ' + p));
+            const blob = await fetchClipBlob({ videoUrl: url, sceneIndex: -9 });
+            image = await extractFrameAt(blob, 0.85);
+        }
         state.reference = { image, sig: photoSig(), style: state.selectedStyle, green: !!state.greenScreen, date: Date.now() };
         await idbPut(refStorageKey(), state.reference);
         state.storyboardApproved = false;

@@ -403,6 +403,8 @@ export class VideoJob {
             drawingsDone: 0, nextCreateAt: 0, narrDone: 0, drawingRetried: [],
             push: p.push && p.push.endpoint ? p.push : null,
             poseIds: [], backup: p.backup !== false,
+            negative: typeof p.negative === 'string' ? p.negative.slice(0, 600) : '', keyframes: !!p.keyframes,
+            dims: p.dims && p.dims.width && p.dims.height ? { width: Math.min(1920, +p.dims.width), height: Math.min(1920, +p.dims.height) } : null,
             scenes: Array.from({ length: n }, (_, i) => ({ index: i, status: 'pending', videoId: null, videoUrl: null, error: null, startedAt: null, attempts: 0 }))
         };
         await this.storage.put('job', job);
@@ -679,11 +681,13 @@ export class VideoJob {
             const image = (poseId && poseId !== 'main' && job.poseIds.includes(poseId) ? await this.storage.get('pose:' + poseId) : null) || await this.storage.get('image');
             const prompt = fillTemplate(templates[next.index], job.plan?.scenes?.[next.index], job.plan?.setting);
             try {
-                const res = await fetch(AGNES_API + '/videos', {
+                let res = await fetch(AGNES_API + '/videos', {
                     method: 'POST',
                     headers: { Authorization: 'Bearer ' + secrets.agnesKey, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: AGNES_MODEL, prompt, image, num_frames: job.frames, frame_rate: job.frameRate })
+                    body: JSON.stringify(agnesVideoBody(job, prompt, image, true))
                 });
+                // réglages refusés (ancien compte) : demande simple
+                if (res.status === 400 && (job.negative || job.dims || job.keyframes)) res = await fetch(AGNES_API + '/videos', { method: 'POST', headers: { Authorization: 'Bearer ' + secrets.agnesKey, 'Content-Type': 'application/json' }, body: JSON.stringify(agnesVideoBody(job, prompt, image, false)) });
                 if (res.status === 429 || res.status === 503) {
                     job.nextCreateAt = now + 90000;
                     try { await this.env.JOBS.get(this.env.JOBS.idFromName('rate')).fetch('https://job/rate-delay', { method: 'POST' }); } catch (e) {}
@@ -812,6 +816,15 @@ function layoutDrawing(out) {
     return { paths, labels };
 }
 
+// Corps de la demande Agnes : consigne négative, format de l'image de départ, enchaînement parfait (images clés)
+function agnesVideoBody(job, prompt, image, full) {
+    const b = { model: AGNES_MODEL, prompt, image, num_frames: job.frames, frame_rate: job.frameRate };
+    if (!full) return b;
+    if (job.negative) b.negative_prompt = job.negative;
+    if (job.dims) Object.assign(b, job.dims);
+    if (job.keyframes && image) { delete b.image; b.extra_body = { image: [image, image], mode: 'keyframes' }; }
+    return b;
+}
 function mergePlan(out, fallback) {
     if (!out || !Array.isArray(out.scenes) || !out.scenes.length) return fallback;
     const fb = fallback?.scenes || [];

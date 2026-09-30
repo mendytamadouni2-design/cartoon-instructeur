@@ -103,7 +103,23 @@ async function verifyCastFrame(frames) {
     });
     return { ok: !!out.ok, why: String(out.why || '').slice(0, 200) };
 }
-let casting = false, castCreateInterval = CREATE_INTERVAL_MIN;   // Agnes : une création par minute
+let casting = false, castCreateInterval = CREATE_INTERVAL_MIN;   // Agnes vidéo : une création par minute
+// Casting en images (Agnes Image) : la pose bouche fermée à partir de la photo, puis LA MÊME image bouche ouverte
+function castImagePrompt(pose) {
+    return castPrompt(pose)
+        .replace('Character model sheet shot for an educational cartoon series.', 'Character model sheet still image for an educational cartoon series.')
+        .replace(/Action:[^.]*\./, 'Pose: the character ' + pose.action + ', mouth closed with a friendly smile.')
+        .replace('locked-off static camera, no camera movement.', '')
+        .replace('No music, no sound effects.', '')
+        .replace('24fps, no watermark.', 'No watermark.');
+}
+const OPEN_MOUTH_PROMPT = 'Edit this image: keep EVERYTHING identical (same character, pose, body, arms, hands, colors, accessories, green background, framing and size). The ONLY change: the mouth is open, as if saying "ah" while speaking. Nothing else moves.';
+async function castPoseImages(pose, src, refs, why) {
+    const closed = await agnesImage(castImagePrompt(pose) + (why ? ' Previous attempt was rejected because: ' + why + ' Fix this.' : ''), refs, '720x1280');
+    let open = null;
+    try { open = await agnesImage(OPEN_MOUTH_PROMPT, [closed], '720x1280'); } catch (e) { log('Casting « ' + pose.label + ' » : bouche ouverte impossible (' + e.message + ')'); }
+    return { closed: await downscaleImage(closed, 1024, 0.92), mid: null, open: open ? await downscaleImage(open, 1024, 0.92) : null };
+}
 async function runCasting(onlyId) {
     if (casting) return;
     if (!state.images[0]) { showToast('Ajoute d\'abord la photo du personnage', 'error'); return; }
@@ -116,20 +132,31 @@ async function runCasting(onlyId) {
         if (!state.cast || state.cast.sig !== castSig()) state.cast = { sig: castSig(), style: state.selectedStyle, poses: [] };
         const todo = CAST_POSES.filter(p => onlyId ? p.id === onlyId : !state.cast.poses.some(x => x.id === p.id && x.closed));
         const src = await downscaleImage(referenceImage() || state.images[0].dataUri, 1280, 0.9);
-        let lastCreate = 0;
+        // plusieurs images de référence pour Agnes Image : l'image de référence (style) et la photo (personnage)
+        const refs = referenceImage() ? [src, await downscaleImage(state.images[0].dataUri, 1024, 0.9)] : [src];
+        let lastCreate = 0, useImages = !agnesImageUnsupported;
         for (let k = 0; k < todo.length; k++) {
             const pose = todo[k];
             let result = null, why = '';
             for (let attempt = 0; attempt < 2 && !result; attempt++) {
                 if (state.stopRequested) throw new Error('Arrêt demandé');
+                let frames = null;
+                if (useImages) {
+                    try {
+                        setStatus('Casting ' + (k + 1) + '/' + todo.length + ' « ' + pose.label + ' » : création des images…');
+                        frames = await castPoseImages(pose, src, refs, why);
+                    } catch (e) { useImages = false; log('Casting par Agnes Image impossible (' + e.message + ') : méthode vidéo'); }
+                }
+                if (!frames) {
                 const wait = lastCreate ? castCreateInterval - (Date.now() - lastCreate) : 0;
                 for (let s = Math.ceil(wait / 1000); s > 0; s--) { setStatus('Casting : pose « ' + pose.label + ' » dans ' + s + ' s (1 création par minute)'); await sleep(1000); if (state.stopRequested) throw new Error('Arrêt demandé'); }
                 lastCreate = Date.now();
                 const videoId = await createVideoTask(src, castPrompt(pose) + (why ? ' Previous attempt was rejected because: ' + why + ' Fix this.' : ''));
                 const url = await pollVideo(videoId, p => setStatus('Casting ' + (k + 1) + '/' + todo.length + ' « ' + pose.label + ' » : ' + p));
                 const blob = await fetchClipBlob({ videoUrl: url, sceneIndex: -20 - k });
+                frames = await extractCastFrames(blob);
+                }
                 setStatus('Casting : vérification de la pose « ' + pose.label + ' »…');
-                const frames = await extractCastFrames(blob);
                 const check = await verifyCastFrame(frames).catch(() => ({ ok: true, why: '' }));
                 if (check.ok || attempt === 1) result = { id: pose.id, ...frames, approved: false, check: check.ok ? '' : check.why, date: Date.now() };
                 else { why = check.why; log('Casting « ' + pose.label + ' » refait : ' + why); }
@@ -147,7 +174,7 @@ function renderCast() {
     const ready = castReady();
     box.innerHTML =
         '<div class="hmuted">' + (ready ? '✅ Personnage stable prêt : ' + castPoses().length + ' pose(s) validée(s). Ton personnage ne changera plus jamais d\'une scène à l\'autre' + (getElevenLabsKey() ? ', et avec ta voix ElevenLabs la vidéo se fait sans attendre Agnes.' : '.')
-            : 'Fabrique une fois les poses de ton personnage (≈ 7 petites vidéos Agnes, ≈ 10 min). Tu valides les réussies : l\'appli anime ensuite toujours les mêmes images, la bouche suit la voix.') + '</div>' +
+            : 'Fabrique une fois les poses de ton personnage (≈ 1 à 2 min avec Agnes Image, sinon ≈ 10 min en petites vidéos). Tu valides les réussies : l\'appli anime ensuite toujours les mêmes images, la bouche suit la voix.') + '</div>' +
         (poses.length ? '<div class="cast-grid">' + CAST_POSES.map(p => {
             const x = poses.find(q => q.id === p.id); if (!x) return '';
             return '<div class="cast-item' + (x.approved ? ' ok' : '') + '"><img src="' + x.closed + '" alt="">' + (x.open ? '<img class="cast-open" src="' + x.open + '" alt="">' : '') +
