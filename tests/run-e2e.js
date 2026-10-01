@@ -443,8 +443,10 @@ async function testStyles(browser) {
             const problems = [];
             prompts.forEach((p, i) => {
                 if (!p.includes('MUST stay IDENTICAL')) problems.push('identité');
-                if (!p.includes('STRICTLY NO TEXT')) problems.push('pas de texte');
-                if (!p.includes('says (spoken audio only, never written): "' + lines[i].replace(/"/g, "'") + '"')) problems.push('réplique exacte');
+                if (!p.includes('No text anywhere')) problems.push('pas de texte');
+                if (!p.includes('says in French: "' + lines[i].replace(/"/g, "'") + '"')) problems.push('réplique exacte');
+                // 8.3 : consigne « à la façon LTX » : l'action principale en premier, moins de ~230 mots
+                if (!p.startsWith('The cartoon character from the input image talks directly to the camera') || p.split(/\s+/).length > 210) problems.push('format LTX (' + p.split(/\s+/).length + ' mots)');
                 if (effectiveMusicMode() !== 'agnes' && !p.includes('No background music')) problems.push('voix seule');
                 if (!p.includes(st.prompt)) problems.push('style');
                 if (/diagram|progress bar/i.test(p)) problems.push('effets qui écrivent du faux texte');

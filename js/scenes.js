@@ -178,55 +178,50 @@ function buildScenePrompt(item, override) {
     const style = CARTOON_STYLES.find(s => s.id === state.selectedStyle);
     const audience = AUDIENCE_PROMPTS[state.audience], tone = TONE_PROMPTS[state.tone];
     const lipsync = LIPSYNC_PROMPTS[state.lipsync];
-    const fxList = state.pedagoFx.map(fx => PEDAGO_FX_PROMPTS[fx]).filter(Boolean);
     const langName = LANG_NAMES[state.language] || 'French';
     const spoken = String(plan.spoken || item.sceneText).replace(/"/g, "'");
-    const parts = [];
-    parts.push('Educational cartoon animation. This is shot ' + (sceneIndex + 1) + ' of ' + totalScenes + ' of ONE continuous video.');
-    parts.push('The character from the input image MUST stay IDENTICAL: same face, hairstyle, body shape, clothing and colors.');
-    const idText = characterIdentity();
-    if (idText) parts.push('Character identity, visible and unchanged in EVERY frame: ' + idText + '. Never add, remove or change any of these features, never add clothes or accessories, never add extra limbs.');
     const wb = isWhiteboard();
-    // Image de référence : le style, le décor et le cadrage sont déjà dans l'image de départ
     const ref = !item.chained && typeof referenceImage === 'function' && !!referenceImage();
     const chained = !!item.chained;
+    const idText = characterIdentity();
+    // Consigne écrite « à la façon LTX » (modèle probable derrière Agnes) : un seul paragraphe, au présent,
+    // dans l'ordre chronologique : action principale, gestes et parole, apparence, décor, caméra, lumière, son.
+    // Les interdits (texte, objets, doigts en trop…) partent dans la consigne négative (agnesNegativePrompt).
+    const parts = [];
+    // 1. action principale
+    parts.push('The cartoon character from the input image talks directly to the camera' + (plan.action ? ' and ' + plan.action : '') + '.');
+    // 2. parole, lèvres, gestes
+    parts.push('In a ' + (tone || 'friendly').split(',')[0] + ' voice, the character says in ' + langName + ': "' + spoken + '" ' + (state.lipsync === 'off' ? 'The mouth stays mostly closed' : 'The mouth forms every word clearly') + ', with natural nods and blinks.');
+    if (sceneIndex === 0) parts.push('This is the opening shot: the character greets the viewer.');
+    if (sceneIndex === totalScenes - 1 && totalScenes > 1) parts.push('This is the final shot: the character wraps up warmly.');
+    // 3. raccords : départ et retour sur la même pose neutre
+    if (chained) parts.push('The shot directly continues the previous one, the character already in motion, in the same place and lighting, with no intro.');
+    else parts.push('The shot starts exactly on the input image in the neutral pose; in the last second the character returns to the same neutral pose (facing the camera, arms relaxed) so shots join seamlessly.');
+    // 4. apparence
+    parts.push('The character MUST stay IDENTICAL to the input image (face, body, clothing, accessories, colors).' + (idText ? ' Character identity, unchanged in every frame: ' + idText + '.' : '') + ' The character holds nothing.');
+    // 5. décor
     if (ref) {
-        parts.push('The input image is the exact reference frame of this video: keep its art style, colors, character design, background, lighting and framing EXACTLY. Do not restyle, redraw or change anything in it.');
+        parts.push('The input image is the exact reference frame: art style, colors, background, lighting and framing stay the same.');
         if (state.greenScreen) parts.push('The background stays flat, evenly lit chroma-key green in every frame.');
-    } else {
-    if (style) parts.push('Visual style: ' + stylePromptFor(style));
-    if (state.greenScreen) {
-        parts.push('Background: flat, evenly lit pure chroma-key green (#00B140) backdrop filling the whole frame: no shadows on it, no gradient, no floor, no objects. The character keeps its own colors exactly (including any green or teal accessory); the backdrop never tints the character.');
-        if (wb) parts.push('Composition: the character stays on the LEFT side of the frame (left third).');
+    } else if (state.greenScreen) {
+        parts.push('Background: flat, evenly lit pure chroma-key green (#00B140), no shadows, no floor, no objects; the character keeps its own colors.' + (wb ? ' The character stays on the LEFT third.' : ''));
     } else if (wb) {
-        parts.push('Background: pure plain white (#FFFFFF), completely empty in every shot: no floor, no furniture, no objects, no decoration, no scenery. Replace the background of the input image with pure white.');
-        parts.push('Composition: the character stays on the LEFT side of the frame (left third). The rest of the frame stays EMPTY white space, where drawings will be added later.');
+        parts.push('Background: pure plain white (#FFFFFF), completely empty. The character stays on the LEFT third; the rest stays empty white space.');
     } else {
         const setting = override ? override.setting : state.scenePlan?.setting;
-        if (setting) parts.push('Setting, identical in every shot: ' + setting + '.');
-        parts.push('Background: simple and uncluttered, few details, exactly the same place, colors and lighting in every shot.');
+        parts.push((setting ? 'Setting, identical in every shot: ' + setting + '. ' : '') + 'Background: simple and uncluttered, few details, the same place, colors and lighting in every shot.');
     }
-    }
-    // Raccords : chaque plan part de l'image de départ et revient à la même pose neutre (sauf en plan-séquence)
-    if (chained) parts.push('This shot directly continues the previous one: it starts with the character already in motion, in the same place and the same lighting, with no intro.');
-    else parts.push('The shot starts exactly on the input image, with the character in its neutral pose.');
-    if (sceneIndex === 0) parts.push('Opening shot: the character greets the viewer.');
-    if (sceneIndex === totalScenes - 1 && totalScenes > 1) parts.push('Final shot: the character wraps up warmly.');
-    if (plan.action) parts.push('Action: the character ' + plan.action + '.');
-    parts.push('The character holds nothing. No objects, props, documents, maps, signs, screens, tools, glow, arrows, particles, icons or visual effects appear anywhere: only the character moves, with simple natural gestures.');
-    if (!chained) parts.push('In the last second, the character returns to the same neutral pose as at the start (facing the camera, arms relaxed), so that consecutive shots join seamlessly.');
-    if (wb) parts.push('Camera: locked-off static medium-wide shot, identical framing in every shot. No zoom, no push-in, no camera movement at all.');
-    else if (ref || state.camera === 'static') parts.push('Camera: locked-off static shot with exactly the same framing as the input image. No zoom, no push-in, no camera movement at all.');
+    // 6. caméra
+    if (wb) parts.push('Camera: locked-off static medium-wide shot, identical framing in every shot, no zoom and no movement.');
+    else if (ref || state.camera === 'static') parts.push('Camera: locked-off static shot with exactly the same framing as the input image, no zoom and no movement.');
     else parts.push('Camera: ' + (plan.camera || 'medium shot') + ', steady. No zoom-in at the start, no push-in intro, no dolly.');
-    parts.push('The character talks to the viewer in ' + langName + ' and says (spoken audio only, never written): "' + spoken + '"');
-    if (lipsync) parts.push(lipsync + '.');
-    parts.push(tone + '.'); parts.push(audience);
-    if (fxList.length && !wb) parts.push('Effects: ' + fxList.join(', ') + '.');
-    parts.push('STRICTLY NO TEXT anywhere in the image: no letters, words, numbers, captions, subtitles, labels, logos, signs or writing. Speech bubbles, boards and screens stay empty or show simple pictures only.');
-    if (outputFormat() === 'portrait') parts.push('Vertical 9:16 composition, character centered with room above the head.');
-    else if (outputFormat() === 'landscape') parts.push('Horizontal 16:9 composition.');
-    if (effectiveMusicMode() !== 'agnes') parts.push('Audio: only the character\'s clear voice. No background music, no sound effects.');
-    parts.push('24fps, no watermark.');
+    // 7. style et lumière (inutile avec une image de référence : ils y sont déjà)
+    if (!ref && style) parts.push('Visual style and lighting: ' + stylePromptFor(style));
+    if (outputFormat() === 'portrait') parts.push('Vertical 9:16 framing.');
+    else if (outputFormat() === 'landscape') parts.push('Horizontal 16:9 framing.');
+    // 8. son (le modèle fabrique le son en même temps que l'image)
+    parts.push(effectiveMusicMode() !== 'agnes' ? 'Audio: only the character\'s clear voice. No background music, no sound effects.' : 'Audio: the character\'s clear voice over soft background music.');
+    parts.push('No text anywhere in the image, no watermark.');
     return parts.join(' ');
 }
 
@@ -261,7 +256,7 @@ async function apiFetch(url, options = {}, label = 'API') {
 // Ce que la vidéo ne doit PAS montrer (Agnes « negative_prompt ») : les défauts vus dans les tests
 function agnesNegativePrompt() {
     const id = typeof characterIdentity === 'function' ? characterIdentity() : '';
-    const parts = ['text', 'letters', 'subtitles', 'watermark', 'logo', 'extra limbs', 'extra fingers', 'deformed hands', 'changing outfit colors', 'different character', 'objects in hands', 'camera shake', 'blurry', 'distorted face'];
+    const parts = ['text', 'letters', 'subtitles', 'watermark', 'logo', 'extra limbs', 'extra fingers', 'deformed hands', 'changing outfit colors', 'different character', 'objects in hands', 'props', 'documents', 'screens', 'arrows', 'particles', 'glowing effects', 'speech bubbles', 'camera shake', 'zoom-in intro', 'blurry', 'distorted face', 'frozen mouth'];
     if (/glove|mitten|moufle|gant/i.test(id)) parts.push('separate detailed fingers', 'bare hands');
     return parts.join(', ');
 }
