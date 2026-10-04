@@ -46,7 +46,8 @@ const easeInOutCubic = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3
 // WEBGL : les 14 effets de HyperFrames (même code de shaders), un seul contexte réutilisé
 // ══════════════════════════════════════════════════════════════════
 const TX_VERT = 'attribute vec2 a_pos; varying vec2 v_uv; void main(){v_uv=a_pos*0.5+0.5; v_uv.y=1.0-v_uv.y; gl_Position=vec4(a_pos,0,1);}';
-const TX_H = 'precision mediump float;varying vec2 v_uv;uniform sampler2D u_from, u_to;uniform float u_progress;uniform vec2 u_resolution;uniform vec3 u_accent;uniform vec3 u_accent_dark;uniform vec3 u_accent_bright;\n';
+// haute précision quand l'appareil l'a (en « mediump », l'iPhone calcule sur 16 bits et le bruit des effets s'effondre)
+const TX_H = '#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\nvarying vec2 v_uv;uniform sampler2D u_from, u_to;uniform float u_progress;uniform vec2 u_resolution;uniform vec3 u_accent;uniform vec3 u_accent_dark;uniform vec3 u_accent_bright;\n';
 const TX_NQ = 'float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}float fbm(vec2 p){float v=0.,a=.5;mat2 R=mat2(.8,.6,-.6,.8);for(int i=0;i<5;i++){v+=a*vnoise(p);p=R*p*2.02;a*=.5;}return v;}';
 const TX_FRAG = {
     'domain-warp': TX_H + TX_NQ + 'void main(){vec2 q=vec2(fbm(v_uv*3.),fbm(v_uv*3.+vec2(5.2,1.3)));vec2 r=vec2(fbm(v_uv*3.+q*4.+vec2(1.7,9.2)),fbm(v_uv*3.+q*4.+vec2(8.3,2.8)));float n=fbm(v_uv*3.+r*2.);vec2 warpDir=(q-.5)*.4;vec4 A=texture2D(u_from,clamp(v_uv+warpDir*u_progress,0.,1.));vec4 B=texture2D(u_to,clamp(v_uv-warpDir*(1.-u_progress),0.,1.));float e=smoothstep(u_progress-.08,u_progress+.08,n);float ed=abs(n-u_progress);float em=smoothstep(.1,0.,ed)*(1.-step(1.,u_progress));vec3 ec=mix(u_accent_dark,u_accent_bright,smoothstep(0.,.1,ed));gl_FragColor=vec4(mix(B,A,e).rgb+ec*em*2.,1.);}',
@@ -69,12 +70,13 @@ function transitionGl() {
     if (txGl !== null) return txGl;
     try {
         const canvas = document.createElement('canvas');
-        const gl = canvas.getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: true });
+        const gl = canvas.getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: true, antialias: false, depth: false, stencil: false });
         if (!gl) throw new Error('pas de WebGL');
         const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
         const tex = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE)); [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.LINEAR)); return t; };
-        txGl = { canvas, gl, buf, progs: {}, texFrom: tex(), texTo: tex() };
+        const small = () => document.createElement('canvas');
+        txGl = { canvas, gl, buf, progs: {}, texFrom: tex(), texTo: tex(), smallA: small(), smallB: small(), fromKey: null };
     } catch (e) { log('Transitions WebGL indisponibles : ' + e.message); txGl = false; }
     return txGl;
 }
@@ -94,25 +96,32 @@ function transitionProgram(name) {
     return T.progs[name];
 }
 const hexRgb = h => { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); const n = m ? parseInt(m[1], 16) : 0xffd23f; return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
-function renderGlTransition(name, ctx, A, B, p, W, H) {
+function renderGlTransition(name, ctx, A, B, p, W, H, key) {
+    if (txGl && txGl.gl.isContextLost()) txGl = null;   // contexte perdu (mémoire, retour d'arrière-plan) : on en recrée un
     const prog = transitionProgram(name); if (!prog) return false;
     const T = txGl, gl = T.gl;
     // calcul à résolution réduite en vertical 1080×1920 (fluide sur iPhone), puis agrandi
     const scale = Math.min(1, 1280 / Math.max(W, H)), w = Math.round(W * scale), h = Math.round(H * scale);
-    if (T.canvas.width !== w || T.canvas.height !== h) { T.canvas.width = w; T.canvas.height = h; }
+    if (T.canvas.width !== w || T.canvas.height !== h) { T.canvas.width = w; T.canvas.height = h; T.fromKey = null; }
     gl.viewport(0, 0, w, h);
     gl.useProgram(prog.p);
     gl.bindBuffer(gl.ARRAY_BUFFER, T.buf);
     gl.enableVertexAttribArray(prog.apos); gl.vertexAttribPointer(prog.apos, 2, gl.FLOAT, false, 0, 0);
+    // textures envoyées à la taille du calcul ; le plan A (fixe pendant tout l'effet) une seule fois par transition
+    const shrink = (c, src) => { if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } c.getContext('2d').drawImage(src, 0, 0, w, h); return c; };
     try {
-        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.texFrom); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, A);
-        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, T.texTo); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, B);
+        if (key == null || T.fromKey !== key) {
+            gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.texFrom); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, shrink(T.smallA, A));
+            T.fromKey = key == null ? null : key;
+        } else { gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.texFrom); }
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, T.texTo); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, shrink(T.smallB, B));
     } catch (e) { return false; }
     const acc = hexRgb(accentColor());
     gl.uniform1i(prog.loc.u_from, 0); gl.uniform1i(prog.loc.u_to, 1);
     gl.uniform1f(prog.loc.u_progress, p); gl.uniform2f(prog.loc.u_resolution, w, h);
     gl.uniform3fv(prog.loc.u_accent, acc); gl.uniform3fv(prog.loc.u_accent_dark, acc.map(c => c * 0.35)); gl.uniform3fv(prog.loc.u_accent_bright, acc.map(c => Math.min(1, c * 0.6 + 0.4)));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (gl.isContextLost()) { txGl = null; return false; }
     ctx.drawImage(T.canvas, 0, 0, W, H);
     return true;
 }
@@ -132,7 +141,9 @@ function render2dTransition(name, ctx, A, B, p, W, H) {
         case 'push-down': both(0, H * e, 0, -H * (1 - e)); return true;
         case 'slide-cover': {
             ctx.drawImage(A, 0, 0, W, H); ctx.fillStyle = 'rgba(0,0,0,' + 0.35 * e + ')'; ctx.fillRect(0, 0, W, H);
-            ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = W * 0.04; ctx.drawImage(B, W * (1 - e), 0, W, H); ctx.restore(); return true;
+            const bx = W * (1 - e), sw = W * 0.05, gr = ctx.createLinearGradient(bx - sw, 0, bx, 0);
+            gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.35)');
+            ctx.fillStyle = gr; ctx.fillRect(bx - sw, 0, sw, H); ctx.drawImage(B, bx, 0, W, H); return true;
         }
         case 'blocks-wipe': {
             ctx.drawImage(A, 0, 0, W, H);
@@ -197,9 +208,11 @@ function render2dTransition(name, ctx, A, B, p, W, H) {
             return true;
         }
         case 'pixelate': {
-            const k = Math.sin(p * Math.PI), cell = Math.max(1, Math.round(k * Math.min(W, H) / 28)), sw = Math.max(2, Math.round(W / cell)), sh = Math.max(2, Math.round(H / cell));
-            const s = scratchCanvas(sw, sh), sg = s.getContext('2d');
-            sg.imageSmoothingEnabled = true; sg.globalAlpha = 1; sg.drawImage(p < 0.5 ? A : B, 0, 0, sw, sh);
+            const k = Math.sin(p * Math.PI), cell = Math.max(1, Math.round(k * Math.min(W, H) / 28)), src = p < 0.5 ? A : B;
+            if (cell <= 2) { ctx.drawImage(src, 0, 0, W, H); return true; }
+            const sw = Math.max(2, Math.round(W / cell)), sh = Math.max(2, Math.round(H / cell));
+            const s = scratchCanvas(Math.ceil(W / 2), Math.ceil(H / 2)), sg = s.getContext('2d');
+            sg.imageSmoothingEnabled = true; sg.globalAlpha = 1; sg.drawImage(src, 0, 0, sw, sh);
             ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(s, 0, 0, sw, sh, 0, 0, W, H); ctx.restore();
             return true;
         }
@@ -216,11 +229,16 @@ function render2dTransition(name, ctx, A, B, p, W, H) {
     return false;
 }
 
+// Compile à l'avance les effets WebGL que le montage va utiliser (plan de Claude + choix automatiques possibles)
+function warmTransitions(plans) {
+    const names = new Set(plans.map(p => p && p.transition).concat(TX_AUTO, ['flash-through-white', 'sdf-iris', 'cross-warp-morph']));
+    names.forEach(n => { if (TRANSITIONS[n]?.gl) transitionProgram(n); });
+}
 // Dessine la transition (repli : fondu enchaîné si l'effet n'est pas disponible sur cet appareil)
-function renderTransition(name, ctx, A, B, p, W, H) {
+function renderTransition(name, ctx, A, B, p, W, H, key) {
     p = clamp01(p);
     const t = TRANSITIONS[name];
-    const ok = t && (t.gl ? renderGlTransition(name, ctx, A, B, p, W, H) : render2dTransition(name, ctx, A, B, p, W, H));
+    const ok = t && (t.gl ? renderGlTransition(name, ctx, A, B, p, W, H, key) : render2dTransition(name, ctx, A, B, p, W, H));
     if (!ok) { ctx.drawImage(A, 0, 0, W, H); ctx.save(); ctx.globalAlpha = easeInOutCubic(p); ctx.drawImage(B, 0, 0, W, H); ctx.restore(); }
 }
 // Choix automatique si Claude n'a rien choisi : selon le contenu de la réplique, sans répéter deux fois la même

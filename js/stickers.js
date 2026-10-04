@@ -18,6 +18,21 @@ const STICKERS = {
 };
 const STICKER_NAMES = Object.keys(STICKERS);
 const STICKER_HOLD = 2.6;
+// Textes fixes dessinés DANS la vidéo : dans la langue de la vidéo (state.language), pas dans celle de l'interface
+const STICKER_UI = {
+    fr: { didyouknow: 'Le savais-tu ?', now: 'maintenant', wrong: 'FAUX', cta: 'Abonne-toi pour la suite', follow: 'Suivre', following: 'Abonné ✓' },
+    en: { didyouknow: 'Did you know?', now: 'now', wrong: 'FALSE', cta: 'Follow for more', follow: 'Follow', following: 'Following ✓' },
+    es: { didyouknow: '¿Sabías que…?', now: 'ahora', wrong: 'FALSO', cta: 'Sígueme para más', follow: 'Seguir', following: 'Siguiendo ✓' },
+    de: { didyouknow: 'Schon gewusst?', now: 'jetzt', wrong: 'FALSCH', cta: 'Folge mir für mehr', follow: 'Folgen', following: 'Gefolgt ✓' },
+    it: { didyouknow: 'Lo sapevi?', now: 'ora', wrong: 'FALSO', cta: 'Seguimi per altri video', follow: 'Segui', following: 'Seguito ✓' },
+    pt: { didyouknow: 'Você sabia?', now: 'agora', wrong: 'FALSO', cta: 'Siga para ver mais', follow: 'Seguir', following: 'Seguindo ✓' },
+    ar: { didyouknow: 'هل تعلم؟', now: 'الآن', wrong: 'خطأ', cta: 'تابعني للمزيد', follow: 'متابعة', following: 'تمت المتابعة ✓' },
+    zh: { didyouknow: '你知道吗？', now: '现在', wrong: '错误', cta: '关注我看更多', follow: '关注', following: '已关注 ✓' },
+    ja: { didyouknow: '知ってた？', now: '今', wrong: 'ウソ', cta: 'フォローして続きを見てね', follow: 'フォロー', following: 'フォロー中 ✓' },
+    ko: { didyouknow: '알고 있었나요?', now: '지금', wrong: '거짓', cta: '팔로우하고 더 보기', follow: '팔로우', following: '팔로잉 ✓' },
+    ru: { didyouknow: 'А ты знал?', now: 'сейчас', wrong: 'ЛОЖЬ', cta: 'Подпишись на продолжение', follow: 'Подписаться', following: 'Ты подписан ✓' }
+};
+function stickerUi(key) { return (STICKER_UI[String(state.language || 'fr-FR').slice(0, 2).toLowerCase()] || STICKER_UI.en)[key]; }
 
 function stickerPlanLine() {
     return '- "sticker" : un autocollant animé façon TikTok sur environ une réplique sur trois (jamais deux de suite, jamais la première, jamais sur une réplique qui a déjà une bulle "bubble" ou un "highlight"), sinon "none". Choix : ' +
@@ -79,17 +94,16 @@ function drawConfetti(ctx, W, H, t, cx, cy) {
 
 // Dessine l'autocollant de la réplique ; t = temps depuis son apparition (s), left = temps restant dans la réplique
 function drawSticker(ctx, W, H, kind, text, t, left) {
-    if (!STICKERS[kind] || t < 0) return;
+    if (!STICKERS[kind] || t < 0 || !(left > -1)) return;
     const hold = Math.min(STICKER_HOLD, t + left);
     if (t > hold + 0.25) return;
     const out = t > hold ? clamp01((t - hold) / 0.25) : 0;
     const b = stickerBox(W, H), base = b.base, acc = accentColor();
-    text = String(text || '').trim();
+    text = String(text || '').trim().slice(0, 70);   // le plan peut venir du serveur sans avoir été borné
     ctx.save(); ctx.globalAlpha = 1 - out;
     switch (kind) {
         case 'arrow': case 'circle': case 'underline': {
-            const fs = Math.round(base * 0.075), y = b.top + fs * 1.1;
-            ctx.font = '900 ' + fs + 'px ' + MARKER_FONT;
+            const fs = fitFont(ctx, text, '900', MARKER_FONT, b.maxW, base * 0.075, Math.round(base * 0.035)), y = b.top + fs * 1.1;
             const w = Math.min(b.maxW, ctx.measureText(text).width);
             writeMarker(ctx, text, b.cx, y, fs, t / 0.45, kind === 'circle' ? '#e5322d' : '#1f1f1f');
             if (kind === 'circle') {
@@ -116,7 +130,7 @@ function drawSticker(ctx, W, H, kind, text, t, left) {
             // notification façon iPhone qui glisse depuis le haut
             const fs = Math.round(base * 0.04), bw = Math.min(b.maxW * 1.05, W * 0.86), pad = fs * 0.8;
             ctx.font = '600 ' + fs + 'px ' + UI_FONT;
-            const lines = wrapLines(ctx, text, bw - pad * 2 - fs * 2.6).slice(0, 3), bh = pad * 2 + fs * 1.4 + lines.length * fs * 1.25;
+            const lines = wrapText(ctx, text, bw - pad * 2 - fs * 2.6).slice(0, 3), bh = pad * 2 + fs * 1.4 + lines.length * fs * 1.25;
             const slide = t > hold ? 1 - EASE.exit(out) : spring(t, SPRINGS.natural);
             const x = b.cx - bw / 2, y = b.top - (bh + b.top) * (1 - slide);
             ctx.shadowColor = 'rgba(0,0,0,0.3)'; ctx.shadowBlur = fs; ctx.shadowOffsetY = fs * 0.2;
@@ -124,10 +138,11 @@ function drawSticker(ctx, W, H, kind, text, t, left) {
             ctx.shadowColor = 'transparent';
             ctx.fillStyle = acc; roundRectPath(ctx, x + pad, y + pad, fs * 2, fs * 2, fs * 0.5); ctx.fill();
             ctx.font = fs * 1.2 + 'px ' + UI_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('💡', x + pad + fs, y + pad + fs * 1.05);
-            ctx.textAlign = 'left'; ctx.fillStyle = '#111'; ctx.font = '800 ' + fs + 'px ' + UI_FONT;
-            ctx.fillText('Le savais-tu ?', x + pad + fs * 2.6, y + pad + fs * 0.6);
             ctx.fillStyle = '#8e8e93'; ctx.font = '500 ' + Math.round(fs * 0.8) + 'px ' + UI_FONT; ctx.textAlign = 'right';
-            ctx.fillText('maintenant', x + bw - pad, y + pad + fs * 0.6);
+            ctx.fillText(stickerUi('now'), x + bw - pad, y + pad + fs * 0.6);
+            const nowW = ctx.measureText(stickerUi('now')).width;
+            ctx.textAlign = 'left'; ctx.fillStyle = '#111'; fitFont(ctx, stickerUi('didyouknow'), '800', UI_FONT, bw - pad * 3 - fs * 2.6 - nowW, fs, 10);
+            ctx.fillText(stickerUi('didyouknow'), x + pad + fs * 2.6, y + pad + fs * 0.6);
             ctx.textAlign = 'left'; ctx.fillStyle = '#222'; ctx.font = '500 ' + fs + 'px ' + UI_FONT;
             lines.forEach((l, i) => ctx.fillText(l, x + pad + fs * 2.6, y + pad + fs * 1.9 + i * fs * 1.25));
             break;
@@ -141,10 +156,10 @@ function drawSticker(ctx, W, H, kind, text, t, left) {
             else { ctx.strokeStyle = '#e5322d'; ctx.lineWidth = r * 0.14; roundRectPath(ctx, -r * 1.6, -r * 0.65, r * 3.2, r * 1.3, r * 0.2); ctx.stroke(); }
             ctx.shadowColor = 'transparent';
             if (ok) handStroke(ctx, [[-r * 0.45, 0], [-r * 0.1, r * 0.35], [r * 0.5, -r * 0.35]], (t - 0.15) / 0.25, '#fff', r * 0.2);
-            else { ctx.fillStyle = '#e5322d'; ctx.font = '900 ' + Math.round(r * 0.85) + 'px ' + UI_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('FAUX', 0, r * 0.04); }
+            else { ctx.fillStyle = '#e5322d'; fitFont(ctx, stickerUi('wrong'), '900', UI_FONT, r * 2.9, r * 0.85, 10); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(stickerUi('wrong'), 0, r * 0.04); }
             ctx.restore();
             if (text) {
-                const fs = Math.round(base * 0.055);
+                const fs = fitFont(ctx, text, '900', MARKER_FONT, b.maxW, base * 0.055, Math.round(base * 0.03));
                 writeMarker(ctx, text, cx, cy + r * (ok ? 1.55 : 1.1) + fs * 0.4, fs, (t - 0.3) / 0.4, ok ? '#15803d' : '#b91c1c');
             }
             if (ok) drawConfetti(ctx, W, H, t - 0.2, cx, cy);
@@ -171,20 +186,112 @@ function drawSticker(ctx, W, H, kind, text, t, left) {
     ctx.restore();
 }
 
+// Retour à la ligne qui sait aussi couper le japonais et le chinois (pas d'espaces) : une ligne d'un seul « mot »
+// trop long est coupée entre deux caractères au lieu de déborder
+function wrapText(ctx, text, maxW) {
+    return wrapLines(ctx, text, maxW).flatMap(l => {
+        if (ctx.measureText(l).width <= maxW) return [l];
+        const out = []; let cur = '';
+        for (const ch of l) { if (cur && ctx.measureText(cur + ch).width > maxW) { out.push(cur); cur = ch; } else cur += ch; }
+        return cur ? out.concat(cur) : out;
+    });
+}
+// Feutre lisible sur le tableau blanc : la couleur de la chaîne si elle est assez foncée, sinon le feutre bleu
+// (un feutre jaune ne se voit pas sur du blanc : la couleur par défaut #ffd23f n'y a qu'un contraste de 1,4:1)
+function boardInk(c) {
+    const n = /^#[0-9a-f]{6}$/i.test(c || '') ? parseInt(c.slice(1), 16) : -1;
+    return n < 0 || 0.299 * (n >> 16) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255) > 150 ? INK.blue : c;
+}
+// Tableau blanc : place de l'annotation. Elle s'écrit juste sous le dessin, DANS sa zone (sous la zone, il y a la tête
+// du personnage en vertical et les sous-titres en paysage) ; le dessin n'est réduit que s'il manque de la place.
+// Renvoie la note (lignes, taille, haut) et la case du dessin à utiliser au montage ; null si rien à écrire.
+// (kind « bubble » : la bulle de mots-clés, écrite au même endroit, sans décoration)
+function boardNoteLayout(ctx, area, kind, text, sketch = true) {
+    if (kind !== 'bubble' && (!STICKERS[kind] || kind === 'confetti')) return null;
+    text = String(text || '').trim().slice(0, 70);
+    const label = kind === 'bubble' ? text : kind === 'didyouknow' ? '💡 ' + (text || stickerUi('didyouknow')) : kind === 'badge' ? text.toUpperCase() : text || (kind === 'cross' ? stickerUi('wrong') : '');
+    if (!label) return null;
+    const maxW = area.w * ({ didyouknow: 0.9, underline: 0.9, cross: 0.85 }[kind] || 0.8), fs0 = Math.round(Math.max(14, Math.min(area.w * 0.07, area.h * 0.1)));
+    let fs = fs0, lines;
+    ctx.save();
+    for (;;) { ctx.font = '900 ' + fs + 'px ' + MARKER_FONT; lines = wrapText(ctx, label, maxW); if (lines.length <= 2 || fs <= Math.max(14, fs0 * 0.75)) break; fs--; }
+    ctx.restore();
+    const band = fs * (0.9 + lines.length * 1.15), gap = fs * 0.1;   // texte + place du trait (entouré, souligné, encadré)
+    // bas de l'encre d'un dessin (400 × 300, centré dans sa case de hauteur hb) : ses mots-clés finissent à 90 %
+    const inkBottom = hb => { const s = Math.min(area.w / DRAW_VB.w, hb / DRAW_VB.h); return area.y + (hb - DRAW_VB.h * s) / 2 + DRAW_VB.h * s * 0.9; };
+    let hb = area.h;
+    if (!sketch) hb = area.h - band - gap;
+    else if (inkBottom(hb) + gap + band > area.y + area.h) hb = (area.h - gap - band) / 0.9;
+    hb = Math.max(area.h * 0.45, hb);
+    return { label, lines, fs, maxW, top: (sketch ? inkBottom(hb) : area.y + hb) + gap, draw: { x: area.x, y: area.y, w: area.w, h: hb } };
+}
+// Tableau blanc : la bulle de mots-clés, écrite au feutre à la place réservée sous le dessin (p : progression de l'écriture)
+function drawBoardLabel(ctx, area, L, p) {
+    if (!L || p <= 0) return;
+    ctx.save(); ctx.font = '900 ' + L.fs + 'px ' + MARKER_FONT;
+    const cx = area.x + area.w / 2, top = L.top + L.fs * 0.4;
+    L.lines.forEach((l, i) => writeMarker(ctx, l, cx, top + L.fs * (0.55 + i * 1.15), L.fs, p * L.lines.length - i, '#1f1f1f'));
+    ctx.restore();
+}
+// Tableau blanc : l'autocollant devient une annotation au feutre SOUS le dessin (là où se met la bulle), jamais
+// par-dessus : texte écrit puis entouré, souligné, coché, barré (idée fausse), encadré (badge) ou fléché vers le dessin.
+function drawBoardSticker(ctx, area, kind, text, t, left, W, H, layout) {
+    if (!STICKERS[kind] || t < 0 || !(left > -1)) return;
+    if (kind === 'confetti') { drawConfetti(ctx, W, H, t, area.x + area.w / 2, area.y + area.h * 0.6); return; }
+    const hold = Math.min(STICKER_HOLD + 1, t + left);
+    if (t > hold + 0.25) return;
+    const L = layout || boardNoteLayout(ctx, area, kind, text);   // mise en page calculée une fois par scène au montage
+    if (!L) return;
+    const { lines, fs } = L, acc = boardInk(accentColor());
+    const color = { check: '#15803d', cross: '#b91c1c', circle: '#e5322d', badge: acc }[kind] || '#1f1f1f', mark = { cross: '#e5322d', check: '#15803d', circle: '#e5322d' }[kind] || acc;
+    ctx.save();
+    ctx.globalAlpha = t > hold ? 1 - clamp01((t - hold) / 0.25) : 1;
+    ctx.font = '900 ' + fs + 'px ' + MARKER_FONT;
+    const cx = area.x + area.w / 2 + (kind === 'check' ? fs * 0.6 : kind === 'arrow' ? -fs * 0.6 : 0), top = L.top + fs * 0.4;
+    const w = Math.max(...lines.map(l => ctx.measureText(l).width)), h = lines.length * fs * 1.15;
+    lines.forEach((l, i) => writeMarker(ctx, l, cx, top + fs * (0.55 + i * 1.15), fs, (t - i * 0.25) / 0.45, color));
+    const pm = (t - 0.4) / 0.35, lw = fs * 0.11;
+    if (kind === 'circle') {
+        const pts = []; for (let i = 0; i <= 40; i++) { const a = -2.6 + (i / 40) * Math.PI * 2.15; pts.push([cx + Math.cos(a) * (w / 2 + fs * 0.5 + wob(i, fs * 0.05)), top + h / 2 + Math.sin(a) * (h / 2 + fs * 0.35 + wob(i + 3, fs * 0.04))]); }
+        handStroke(ctx, pts, pm, mark, lw);
+    } else if (kind === 'underline') {
+        const pts = []; for (let i = 0; i <= 16; i++) pts.push([cx - w / 2 + w * i / 16, top + h + fs * 0.1 + Math.sin(i * 0.9) * fs * 0.07]);
+        handStroke(ctx, pts, pm, mark, lw * 1.2);
+    } else if (kind === 'cross') {   // l'idée fausse est barrée, ligne après ligne
+        lines.forEach((l, i) => { const hw = ctx.measureText(l).width / 2, ly = top + fs * (0.6 + i * 1.15); handStroke(ctx, [[cx - hw - fs * 0.2, ly + fs * 0.06], [cx + hw + fs * 0.2, ly - fs * 0.06]], pm * lines.length - i, mark, lw * 1.3); });
+    } else if (kind === 'check') {
+        const x0 = cx - w / 2 - fs * 1.1, y0 = top + fs * 0.55;
+        handStroke(ctx, [[x0, y0], [x0 + fs * 0.3, y0 + fs * 0.32], [x0 + fs * 0.85, y0 - fs * 0.4]], (t - 0.1) / 0.3, mark, lw * 1.4);
+    } else if (kind === 'badge') {
+        const pts = [], rx = w / 2 + fs * 0.45, ry = h / 2 + fs * 0.25, cy = top + h / 2;
+        [[-rx, -ry], [rx, -ry], [rx, ry], [-rx, ry], [-rx, -ry]].forEach(([dx, dy], i) => pts.push([cx + dx + wob(i, fs * 0.06), cy + dy + wob(i + 5, fs * 0.06)]));
+        handStroke(ctx, pts, pm, mark, lw);
+    } else if (kind === 'arrow') {   // petite flèche courbe qui remonte vers le dessin, au bout du texte
+        const x0 = cx + w / 2 + fs * 0.25, y0 = top + fs * 0.75, x1 = x0 + fs * 0.55, y1 = L.top - fs * 0.05, pts = [];
+        for (let i = 0; i <= 12; i++) { const k = i / 12; pts.push([x0 + (x1 - x0) * k + Math.sin(k * Math.PI) * fs * 0.35, y0 + (y1 - y0) * k]); }
+        handStroke(ctx, pts, pm, mark, lw * 1.2);
+        if (pm >= 1) { const [px, py] = pts[pts.length - 2], a = Math.atan2(y1 - py, x1 - px), hl = fs * 0.4; handStroke(ctx, [[x1 - Math.cos(a - 0.5) * hl, y1 - Math.sin(a - 0.5) * hl], [x1, y1], [x1 - Math.cos(a + 0.5) * hl, y1 - Math.sin(a + 0.5) * hl]], 1, mark, lw * 1.2); }
+    }
+    ctx.restore();
+}
+
 // ══════════════════════════════════════════════════════════════════
 // CARTE « SUIVRE » (fin des Shorts) — façon TikTok ou Instagram, le bouton se fait « appuyer »
 // ══════════════════════════════════════════════════════════════════
 const FOLLOW_SEC = 2.4;
-function followHandle() {
-    const n = (typeof getCharter === 'function' ? getCharter().name : '') || 'cartooninstructeur';
-    return '@' + n.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9._]+/g, '').slice(0, 24);
+// Le pseudo exact saisi dans Ma chaîne, sinon le nom de la chaîne tel quel, sinon rien : jamais un compte inventé
+function followIdentity() {
+    const c = typeof getCharter === 'function' ? getCharter() : {};
+    const h = String(c.handle || '').trim().replace(/^@+/, '').replace(/\s+/g, '');
+    return h ? '@' + h.slice(0, 30) : String(c.name || '').trim().slice(0, 30);
 }
 function drawFollowCard(ctx, W, H, t, avatar) {
     const style = state.followCard;
     if (style !== 'tiktok' && style !== 'instagram' || t < 0) return;
     const base = Math.min(W, H), insta = style === 'instagram';
-    const cw = Math.min(W * 0.78, base * 0.8), chh = base * 0.22, x = W / 2 - cw / 2;
-    const sz = typeof safeZone === 'function' ? safeZone(W, H) : null, y0 = H * (sz && sz.on ? 0.5 : 0.62);
+    // centrée dans la zone visible des Shorts : jamais sous la colonne de boutons de TikTok (à droite)
+    const sz = typeof safeZone === 'function' ? safeZone(W, H) : null, on = !!(sz && sz.on), y0 = H * (on ? 0.5 : 0.62);
+    const cw = Math.min(on ? sz.maxW : W * 0.78, base * 0.8), chh = base * 0.22, x = (on ? sz.cx : W / 2) - cw / 2;
     const enter = spring(t, SPRINGS.natural), y = y0 + (1 - enter) * H * 0.25;
     ctx.save(); ctx.globalAlpha = clamp01(t / 0.2);
     ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = base * 0.04; ctx.shadowOffsetY = base * 0.01;
@@ -195,22 +302,26 @@ function drawFollowCard(ctx, W, H, t, avatar) {
     if (insta) { const gr = ctx.createLinearGradient(ax - r, ay + r, ax + r, ay - r); gr.addColorStop(0, '#feda75'); gr.addColorStop(0.5, '#d62976'); gr.addColorStop(1, '#4f5bd5'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(ax, ay, r * 1.14, 0, Math.PI * 2); ctx.fill(); }
     ctx.save(); ctx.beginPath(); ctx.arc(ax, ay, r, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.clip();
     if (avatar && avatar.width) { const k = Math.max(2 * r / avatar.width, 2 * r / (avatar.height * 0.55)); ctx.drawImage(avatar, ax - avatar.width * k / 2, ay - r * 0.85, avatar.width * k, avatar.height * k); }
-    else { ctx.fillStyle = accentColor(); ctx.fillRect(ax - r, ay - r, 2 * r, 2 * r); ctx.fillStyle = '#fff'; ctx.font = '900 ' + Math.round(r) + 'px ' + UI_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(followHandle().charAt(1).toUpperCase(), ax, ay); }
+    else { const id = followIdentity().replace(/^@/, ''); ctx.fillStyle = accentColor(); ctx.fillRect(ax - r, ay - r, 2 * r, 2 * r); ctx.fillStyle = '#fff'; ctx.font = '900 ' + Math.round(r) + 'px ' + UI_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(id ? id.charAt(0).toUpperCase() : '+', ax, ay); }
     ctx.restore();
-    // nom + bouton
-    const tx = ax + r * 1.5, fs = Math.round(chh * 0.17);
+    // nom (ou, sans nom, l'appel à s'abonner en gros) + bouton
+    const tx = ax + r * 1.5, fs = Math.round(chh * 0.17), tw = cw - (tx - x) - chh * 0.2, who = followIdentity(), cta = stickerUi('cta') + (insta ? '' : ' 👀');
+    // bloc (nom) + appel + bouton centré verticalement dans la carte, avec ou sans nom
+    const dy = (chh - ((who ? 0.33 : 0.42) * chh - fs * 0.5) - 0.88 * chh) / 2;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = insta ? '#111' : '#fff'; ctx.font = '800 ' + fs + 'px ' + UI_FONT;
-    ctx.fillText(followHandle(), tx, y + chh * 0.33, cw - (tx - x) - chh * 0.2);
-    ctx.fillStyle = insta ? '#737373' : 'rgba(255,255,255,0.65)'; ctx.font = '500 ' + Math.round(fs * 0.8) + 'px ' + UI_FONT;
-    ctx.fillText(insta ? 'Abonne-toi pour la suite' : 'Abonne-toi pour la suite 👀', tx, y + chh * 0.53, cw - (tx - x) - chh * 0.2);
+    ctx.fillStyle = insta ? '#111' : '#fff';
+    if (who) {
+        fitFont(ctx, who, '800', UI_FONT, tw, fs, 10); ctx.fillText(who, tx, y + dy + chh * 0.33);
+        ctx.fillStyle = insta ? '#737373' : 'rgba(255,255,255,0.65)'; fitFont(ctx, cta, '500', UI_FONT, tw, fs * 0.8, 9); ctx.fillText(cta, tx, y + dy + chh * 0.53);
+    } else { fitFont(ctx, cta, '800', UI_FONT, tw, fs, 10); ctx.fillText(cta, tx, y + dy + chh * 0.42); }
     const tapAt = 1.2, tapped = t > tapAt, press = Math.abs(t - tapAt) < 0.12 ? 0.92 : 1;
-    const bw = cw - (tx - x) - chh * 0.25, bh = chh * 0.22, bx = tx, by = y + chh * 0.66;
+    const bw = cw - (tx - x) - chh * 0.25, bh = chh * 0.22, bx = tx, by = y + dy + chh * 0.66;
     ctx.save(); ctx.translate(bx + bw / 2, by + bh / 2); ctx.scale(press, press); ctx.translate(-(bx + bw / 2), -(by + bh / 2));
     ctx.fillStyle = tapped ? (insta ? '#efefef' : 'rgba(255,255,255,0.18)') : (insta ? '#0095f6' : '#fe2c55');
     roundRectPath(ctx, bx, by, bw, bh, insta ? bh * 0.25 : bh * 0.18); ctx.fill();
-    ctx.fillStyle = tapped && insta ? '#111' : '#fff'; ctx.font = '800 ' + Math.round(bh * 0.5) + 'px ' + UI_FONT; ctx.textAlign = 'center';
-    ctx.fillText(tapped ? (insta ? 'Abonné(e) ✓' : 'Abonné ✓') : (insta ? 'Suivre' : 'Suivre'), bx + bw / 2, by + bh / 2 + 1);
+    const btn = tapped ? stickerUi('following') : stickerUi('follow');
+    ctx.fillStyle = tapped && insta ? '#111' : '#fff'; fitFont(ctx, btn, '800', UI_FONT, bw * 0.9, bh * 0.5, 9); ctx.textAlign = 'center';
+    ctx.fillText(btn, bx + bw / 2, by + bh / 2 + 1);
     ctx.restore();
     // doigt qui appuie
     if (t > tapAt - 0.45 && t < tapAt + 0.5) {
@@ -225,18 +336,45 @@ function drawFollowCard(ctx, W, H, t, avatar) {
 // STYLES DE SOUS-TITRES SUPPLÉMENTAIRES (mot par mot, calés sur la voix)
 // ══════════════════════════════════════════════════════════════════
 const CAPTION_STYLES_X = ['caps2', 'pill', 'emoji', 'slam', 'neon', 'marker', 'gradient'];
+// Emoji qui illustre un mot : mots ENTIERS (et leurs formes courantes), jamais un simple début de mot
+// (« sont » n'est pas « son », « merci » n'est pas « mer », « a été » n'est pas l'été, « fourmi » n'est pas « fou »)
 const CAPTION_EMOJI = [
-    [/^(argent|euro|prix|cout|payer|riche|salaire|dollar)/, '💰'], [/^(temps|heure|minute|seconde|vite|rapide)/, '⏱️'], [/^(idee|astuce|conseil|solution)/, '💡'],
-    [/^(danger|attention|piege|risque|interdit)/, '⚠️'], [/^(feu|chaud|chaleur|brul)/, '🔥'], [/^(froid|glace|neige|hiver)/, '🥶'], [/^(eau|mer|ocean|pluie)/, '💧'],
-    [/^(terre|planete|monde|pays)/, '🌍'], [/^(soleil|ete|lumiere)/, '☀️'], [/^(lune|nuit|dormir|sommeil)/, '🌙'], [/^(etoile|espace|fusee|galaxie)/, '🚀'],
-    [/^(coeur|amour|aimer)/, '❤️'], [/^(cerveau|pense|memoire|intelligen)/, '🧠'], [/^(oui|vrai|exact|correct|bravo|gagn)/, '✅'], [/^(non|faux|erreur|jamais)/, '❌'],
-    [/^(question|pourquoi|comment)/, '🤔'], [/^(secret|cache|mystere)/, '🤫'], [/^(livre|lire|ecole|apprendre|cours)/, '📚'], [/^(science|chimie|experience|labo)/, '🧪'],
-    [/^(ordinateur|internet|ia|robot|tech|telephone)/, '🤖'], [/^(sport|courir|muscle|force)/, '💪'], [/^(manger|nourriture|repas|faim)/, '🍽️'], [/^(animal|chien|chat)/, '🐾'],
-    [/^(plante|arbre|foret|nature)/, '🌳'], [/^(record|premier|champion|meilleur|top)/, '🏆'], [/^(incroyable|fou|dingue|waouh|choc)/, '🤯'], [/^(rire|drole|blague)/, '😂'],
-    [/^(million|milliard|beaucoup|enorme|geant)/, '📈'], [/^(maison|ville|batiment)/, '🏠'], [/^(voiture|route|voyage|avion)/, '✈️'], [/^(musique|chanson|son)/, '🎵']
-];
+    ['💰', 'argent euro euros prix cout couts coute coutent payer paye salaire salaires dollar dollars riche riches richesse fortune'],
+    ['⏱️', 'temps heure heures minute minutes seconde secondes vite rapide rapides rapidement chrono'],
+    ['💡', 'idee idees astuce astuces conseil conseils solution solutions'],
+    ['⚠️', 'danger dangers dangereux dangereuse piege pieges risque risques interdit interdite'],
+    ['🔥', 'feu feux chaud chaude chauds chaleur bruler brule brulant brulante incendie'],
+    ['🥶', 'froid froide froids glace glaces neige hiver'],
+    ['💧', 'eau eaux mer mers ocean oceans pluie pluies riviere rivieres'],
+    ['🌍', 'terre planete planetes monde pays'],
+    ['☀️', 'soleil lumiere'],
+    ['🌙', 'lune nuit nuits dormir sommeil'],
+    ['🚀', 'etoile etoiles espace fusee fusees galaxie galaxies univers'],
+    ['❤️', 'coeur coeurs amour aimer aime adore'],
+    ['🧠', 'cerveau cerveaux penser pensee memoire intelligence intelligent intelligente'],
+    ['✅', 'oui vrai vraie exact exacte correct correcte bravo gagne gagner reussi'],
+    ['❌', 'non faux fausse erreur erreurs'],
+    ['🤔', 'question questions pourquoi comment'],
+    ['🤫', 'secret secrets mystere mysteres'],
+    ['📚', 'livre livres lire ecole apprendre lecon lecons'],
+    ['🧪', 'science sciences chimie experience experiences laboratoire'],
+    ['🤖', 'ordinateur ordinateurs internet ia robot robots technologie telephone'],
+    ['💪', 'sport sports courir muscle muscles force forces'],
+    ['🍽️', 'manger nourriture repas faim'],
+    ['🐾', 'animal animaux chien chiens chat chats'],
+    ['🌳', 'plante plantes arbre arbres foret forets nature'],
+    ['🏆', 'record records champion champions meilleur meilleure victoire'],
+    ['🤯', 'incroyable incroyables fou folle dingue waouh choc choquant'],
+    ['😂', 'rire rigoler drole droles blague blagues'],
+    ['📈', 'million millions milliard milliards enorme enormes geant geante'],
+    ['🏠', 'maison maisons ville villes batiment batiments'],
+    ['✈️', 'voiture voitures route routes voyage voyages avion avions'],
+    ['🎵', 'musique musiques chanson chansons']
+].map(([e, w]) => [e, new Set(w.split(' '))]);
+// mot comparable : sans élision (l', d', j'…), sans accents, œ → oe
+const emojiNorm = w => String(w).toLowerCase().replace(/^(qu|[ldjnsctm])['’]/, '').replace(/œ/g, 'oe').replace(/æ/g, 'ae').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 function captionEmojiFor(words) {
-    for (const w of words) { const n = normWord(w.text); if (n.length < 2) continue; const hit = CAPTION_EMOJI.find(([re]) => re.test(n)); if (hit) return hit[1]; }
+    for (const w of words) { const n = emojiNorm(w.text); if (n.length < 2) continue; const hit = CAPTION_EMOJI.find(([, set]) => set.has(n)); if (hit) return hit[0]; }
     return '';
 }
 // Groupes de mots selon le style (2 mots en MAJUSCULES, 1 mot pour « slam »)

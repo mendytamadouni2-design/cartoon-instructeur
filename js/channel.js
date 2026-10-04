@@ -10,7 +10,7 @@ const CHARTER_PRESETS = {
     enfant: { label: '🧸 Enfants', brandColor: '#ffb800', captionFont: 'marker', energy: 'normal', voice: 'bienveillant, émerveillé, mots simples, comparaisons avec la vie de tous les jours', avoid: 'mots techniques non expliqués, chiffres trop précis, sujets qui font peur' },
     corporate: { label: '💼 Pro / entreprise', brandColor: '#1f3a5f', captionFont: 'rounded', energy: 'calm', voice: 'professionnel, concret, orienté résultats, vouvoiement', avoid: 'argot, familiarité, exagérations' }
 };
-const CHARTER_FIELDS = ['name', 'promise', 'audience', 'voice', 'avoid', 'signature'];
+const CHARTER_FIELDS = ['name', 'handle', 'promise', 'audience', 'voice', 'avoid', 'signature'];
 function getCharter() { return getJSON(STORAGE.CHARTER) || {}; }
 function saveCharter(c) { setJSON(STORAGE.CHARTER, c); renderCharterRef(); }
 // Rythme de l'animation choisi par la charte : calme, normal ou percutant

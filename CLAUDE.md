@@ -36,7 +36,9 @@
    `APP_FILES` dans `sw.js`.
 6. Commentaires YouTube montrés dans une vidéo : **uniquement de vrais commentaires**, jamais inventés.
 7. Ne jamais désactiver, sauter ou affaiblir un test pour obtenir du vert. Un test rouge a une cause : on la trouve.
-8. Textes de l'interface en français, tutoiement, ton simple et chaleureux.
+8. Textes de l'interface en français, tutoiement, ton simple et chaleureux. Textes dessinés **dans la vidéo**
+   dans la langue de la vidéo (`state.language`) ; tout nouveau champ texte du plan de Claude est aussi ajouté à la
+   version traduite (`buildLanguageVersion`, `js/studio.js`) et borné côté appli (le plan peut venir du serveur).
 
 ## Architecture
 
@@ -94,8 +96,12 @@ node tests/unit-motion.js                                                     # 
 
 ## Contrôles avant envoi
 
+Avant d'ajouter une fonction ou une constante globale, chercher si le nom existe déjà (`git grep -n "nom"`) et
+réutiliser l'existant (`fitFont` dans `graphics.js`, `loadScriptOnce` dans `render.js`…).
+
 ```bash
 for f in js/*.js sw.js; do node --check "$f" || echo "SYNTAXE $f"; done
+cat js/*.js > /tmp/tout.js && node --check /tmp/tout.js     # échoue si un const/let/class existe en double
 node --input-type=module --check < relais/cloudflare-worker.js
 git grep -nIE 'sk-ant-[A-Za-z0-9_-]{20,}|sk_[a-f0-9]{32,}|sk-[A-Za-z0-9]{32,}|AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|xox[abp]-[A-Za-z0-9-]{10,}' -- . ':!tests/node_modules'
 ```

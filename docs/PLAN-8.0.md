@@ -151,3 +151,16 @@ estimation du temps + notification, puis la liste « Après la 8.0 ».
 | Fin de Short | `js/stickers.js` | carte « Suivre » TikTok ou Instagram (avatar du personnage stable, nom de la charte, bouton appuyé) |
 | Sous-titres | `js/stickers.js` | 2 mots MAJUSCULES, pastille, emoji, un mot qui claque, néon, surligneur, dégradé |
 | Idées video-use | `js/stickers.js`, `js/montage.js`, `js/quality.js` | rythme serré (silences internes ramenés à 0,14 s, fondus de 15 ms), contrôle de chaque coupe (image noire / vide) |
+
+## 8.5 (05/10) : première mission de l'équipe
+
+Le relecteur a relu la 8.4 publiée : 2 défauts importants (carte « Suivre » absente quand le Short finit sur un plan
+illustré ; textes fixes en français dans les vidéos d'une autre langue) et 7 mineurs (storyboard « raccord simple »
+trompeur, perte de contexte WebGL, autocollants sur le dessin au tableau blanc, emojis sur des débuts de mots, pseudo
+inventé, libellé du rythme serré, ancien doublon `loadScript`), plus 4 points à vérifier (précision `mediump` sur
+iPhone, image du contrôle IA prise pendant la transition, plan du serveur non borné, coût par image). Tout est corrigé
+et verrouillé par des tests ; le contrôle des doublons du testeur a aussi arrêté une erreur du chef (`scriptLoads`).
+Le contrôleur visuel a ensuite rendu et regardé les correctifs : l'annotation du tableau blanc tombait sur la tête du
+personnage (9:16) et sur les sous-titres (16:9), coupait les longues phrases, le feutre jaune était illisible, le
+japonais débordait, la carte « Suivre » passait sous les boutons TikTok. Son correctif (prouvé par des planches
+avant / après) a été relu puis appliqué par le chef, et étendu à la bulle de mots-clés qui avait le même défaut depuis la 8.0.

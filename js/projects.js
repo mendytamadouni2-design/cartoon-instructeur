@@ -549,9 +549,6 @@ document.addEventListener('click', async e => {
 // ══════════════════════════════════════════════════════════════════
 // FICHE PÉDAGOGIQUE PDF (résumé, vocabulaire, quiz, corrigé)
 // ══════════════════════════════════════════════════════════════════
-function loadScript(src) {
-    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('bibliothèque PDF injoignable')); document.head.appendChild(s); });
-}
 const pdfText = s => String(s || '').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, '...').replace(/[–—]/g, '-').replace(/[^\x00-\xFFŒœ€]/g, '').trim();
 async function buildPedagoSheet() {
     if (!getClaudeKey()) throw new Error('la fiche demande la clé Claude');

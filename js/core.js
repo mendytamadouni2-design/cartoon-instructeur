@@ -19,6 +19,7 @@ const MAX_POLL_ATTEMPTS = 100;
 // Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
 // Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
 const APP_VERSIONS = [
+    { num: '8.5', date: '2026-10-04', note: 'Corrections après la relecture de l\'équipe : carte « Suivre » aussi quand la vidéo finit sur un plan illustré, textes des autocollants dans la langue de la vidéo, pseudo jamais inventé (nouveau champ « pseudo » dans Ma chaîne), emojis justes, au tableau blanc autocollants et bulles écrits sous le dessin sans cacher le personnage, carte « Suivre » hors des boutons TikTok, transitions plus fiables sur iPhone' },
     { num: '8.4', date: '2026-10-04', note: '30 transitions choisies par Claude à chaque raccord (flash, filé, iris, glitch, morphing…), autocollants animés (flèche, mot entouré, « Le savais-tu ? », validé, faux, badge, confettis), carte « Suivre » TikTok / Instagram, 7 styles de sous-titres en plus, rythme serré (silences coupés) et contrôle de chaque coupe' },
     { num: '8.3', date: '2026-10-01', note: 'Demandes à Agnes réécrites selon le guide LTX : un seul paragraphe chronologique (action, parole, apparence, décor, caméra, son), interdits dans la consigne « à éviter »' },
     { num: '8.2', date: '2026-09-30', note: 'Casting et image de référence en quelques secondes avec Agnes Image, consigne « à éviter » (doigts, couleurs, texte), format vertical 9:16 natif, enchaînement parfait entre scènes (option)' },

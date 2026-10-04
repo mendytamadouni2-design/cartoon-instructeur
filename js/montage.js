@@ -762,6 +762,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     const { w: W, h: H } = computeOutputSize(pending || { videoWidth: 720, videoHeight: 1280 }, format);
     // personnage stable : les poses validées remplacent le personnage des scènes Agnes
     const puppet = typeof stableActive === 'function' && stableActive() ? await loadPuppetSprites() : draft && typeof draftSprites === 'function' ? await draftSprites() : null;
+    if (state.transition === 'smart' && typeof warmTransitions === 'function') { try { warmTransitions(items.map(it => scenePlanFor(it.sceneIndex))); } catch (e) {} }
     let prevPose = null, puppetMouth = 'closed', prevTx = null;
     // transitions à effet : copie de l'image du nouveau plan (B) avant de la mélanger avec le plan précédent (A)
     const txFrame = document.createElement('canvas'); txFrame.width = W; txFrame.height = H;
@@ -792,13 +793,18 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     if (rec) rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
     const stopped = rec ? new Promise(res => { rec.onstop = res; }) : Promise.resolve();
     const sceneTotal = items.length;
-    const qa = !preview && label === 'Montage' && state.qaOn && typeof createQa === 'function' ? createQa(segs.length) : null;
+    // contrôle des coupes : toujours (gratuit) ; images envoyées à Claude seulement si le contrôle par l'IA (payant) est coché
+    const qa = !preview && label === 'Montage' && typeof createQa === 'function' ? createQa(segs.length, { frames: !!state.qaOn }) : null;
     const timeline = [];
     let T = 0, hasPrev = false, prevSketch = null, prevWasScene = false, prevWasBoard = false, prevWasCard = false, musicSrc = null;
     if (rec) { rec.start(1000); montagePause.rec = rec; }
     if (musicBuf) { musicSrc = actx.createBufferSource(); musicSrc.buffer = musicBuf; musicSrc.loop = true; musicSrc.connect(musicGain); musicSrc.start(offline ? 0 : undefined); duckTo(musicHigh); }
 
     // Joue un segment : en temps réel (runFrames) ou image par image (chaque image encodée, horloge exacte)
+    // dernier segment joué : les plans illustrés sans voix sont sautés ; carte « Suivre » sur la fin du Short
+    const isFinalSeg = (si, dur) => segs.slice(si + 1).every(s => s.type === 'board' && !s.item.narrBuffer) || T + dur >= maxDuration - 0.1;
+    const followStart = (si, dur) => isFinalSeg(si, dur) && shortsMode() && H > W * 1.1 && typeof drawFollowCard === 'function' && (state.followCard === 'tiktok' || state.followCard === 'instagram') ? Math.max(dur * 0.35, dur - FOLLOW_SEC) : null;
+    const followAvatar = () => puppet ? puppetSprite(puppet, 'main')?.closed : logoImg;
     let frameCount = 0;
     const playSegment = async (dur, render, shouldEnd, before) => {
         if (!offline) return runFrames(dur, render, shouldEnd);
@@ -852,6 +858,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                 // jamais de plan vide : sans dessin ni graphique, les mots-clés s'affichent en liste animée
                 let boardGraphic = normalizeGraphic(plan.graphic);
                 if (boardGraphic.type === 'none' && !drawing && plan.keywords?.length) boardGraphic = normalizeGraphic({ type: 'list', title: '', unit: '', items: plan.keywords.map(k => ({ label: k, value: 0 })) });
+                const followAt = followStart(si, dur);
                 const played = await playSegment(dur, t => {
                     const active = drawBoardShot(g, W, H, t, dur, { backdrop, drawing, sched, title: plan.bubble || '', presenter, graphic: boardGraphic, words, keywords: plan.keywords });
                     sfx.scribble(active);
@@ -861,6 +868,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                         g.save(); g.globalAlpha = 1 - e; g.translate(W / 2, H / 2); g.scale(zz, zz); g.translate(-W / 2, -H / 2); g.drawImage(prevCanvas, 0, 0); g.restore();
                     }
                     drawNarrationCaptions(g, W, H, words, groups, t);
+                    if (followAt !== null && t >= followAt) drawFollowCard(g, W, H, t - followAt, followAvatar());
                     if (logoImg) drawLogo(g, W, H, logoImg);
                     if (qa) qa.tick(canvas, T + t, t, dur, info);
                 });
@@ -957,18 +965,23 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             const fadeSec = transition === 'join' ? JOIN_SEC : prevWasBoard ? 0.3 : FADE_SEC;
             if ((transition === 'fade' || txName) && prevWasScene) sfx.whoosh();
             if (hasPrev) prevTx = txName;
-            const qaInfo = { name: 'scène ' + (item.sceneIndex + 1) };
-            // autocollant de la réplique (pas sur l'accroche du Short) ; il remplace la bulle
-            const stickerKind = state.stickersOn !== false && typeof STICKERS !== 'undefined' && STICKERS[plan.sticker] && !hookText ? plan.sticker : null;
+            const qaInfo = { name: 'scène ' + (item.sceneIndex + 1), settle: txDur };   // image « début » prise après la transition
+            // autocollant de la réplique (jamais sur la 1re, ni sur l'accroche du Short) ; il remplace la bulle.
+            // Tableau blanc avec un dessin : il devient une annotation au feutre sous le dessin.
+            const stickerKind = state.stickersOn !== false && typeof STICKERS !== 'undefined' && STICKERS[plan.sticker] && item.sceneIndex > 0 && !hookText ? plan.sticker : null;
+            const stickerOnBoard = !!(stickerKind && wb && area && (drawing || plan.keywords?.length));
+            // la note s'écrit sous le dessin, dans sa zone : le dessin prend la case réduite qu'elle lui laisse
+            // (la bulle de mots-clés aussi : sous la zone, il y a la tête du personnage en vertical et les sous-titres en paysage)
+            const bubbleOnBoard = !!(wb && area && !stickerKind && state.pedagoFx.includes('bubbles') && plan.bubble);
+            const boardNote = stickerOnBoard ? boardNoteLayout(g, area, stickerKind, plan.stickerText, !!drawing) : bubbleOnBoard ? boardNoteLayout(g, area, 'bubble', plan.bubble, !!drawing) : null;
+            const sketchArea = boardNote ? boardNote.draw : area;
             let stickerAt = 0, stickerPopped = false;
             if (stickerKind) {
                 const sw = normWord(String(plan.stickerText || '').split(/\s+/)[0] || '');
                 const hit = sw.length > 1 ? words.find(w => normWord(w.text).startsWith(sw)) : null;
                 stickerAt = Math.max(overlayDelay + 0.1, Math.min(dur * 0.6, hit ? hit.start - 0.1 : dur * 0.25));
             }
-            // carte « Suivre » sur la toute fin du Short
-            const lastSeg = si === segs.length - 1 || T + dur >= maxDuration - 0.1;
-            const followAt = lastSeg && shortsMode() && H > W * 1.1 && typeof drawFollowCard === 'function' && (state.followCard === 'tiktok' || state.followCard === 'instagram') ? Math.max(dur * 0.35, dur - FOLLOW_SEC) : null;
+            const followAt = followStart(si, dur);
             const layerOpts = { proc, grade: item.grade, keyed: !!item.keyed, align: item.align, framing: framingFor(seg, item.look, wb, !!drawing) };
 
             if (v) await seekTo(v, cut.tin);
@@ -1035,13 +1048,13 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                 let drawingActive = false;
                 if (wb && area) {
                     if (prevSketch && t < FADE_SEC && transition === 'cut') drawSketch(g, prevSketch.area, prevSketch.drawing, 1, 1 - t / FADE_SEC);
-                    drawingActive = drawSketchTimed(g, area, drawing, sched, t, Math.min(1, t / 0.15));
-                    if (!drawing && plan.keywords?.length) drawGraphic(g, area, { type: 'list', title: '', unit: '', items: plan.keywords.map(k => ({ label: k, value: 0 })) }, t, dur);
+                    drawingActive = drawSketchTimed(g, sketchArea, drawing, sched, t, Math.min(1, t / 0.15));
+                    if (!drawing && plan.keywords?.length) drawGraphic(g, sketchArea, { type: 'list', title: '', unit: '', items: plan.keywords.map(k => ({ label: k, value: 0 })) }, t, dur);
                     if (state.pedagoFx.includes('bubbles') && plan.bubble && !stickerKind) {
                         const showAt = sched ? sched[Math.floor(sched.length / 2)].end : dur * 0.45;
                         const a = clamp01((t - showAt) / 0.25);
                         if (a > 0 && !labelShown) { labelShown = true; sfx.pop(); }
-                        drawSketchLabel(g, area, plan.bubble, a);
+                        if (boardNote) drawBoardLabel(g, area, boardNote, a); else drawSketchLabel(g, area, plan.bubble, a);
                     }
                 } else if (state.pedagoFx.includes('bubbles') && plan.bubble && !stickerKind) {
                     if (!bubblePopped && t >= overlayDelay) { bubblePopped = true; sfx.pop(); }
@@ -1056,7 +1069,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                 if (fadeIn && t < fadeSec) { g.save(); g.globalAlpha = 1 - t / fadeSec; g.drawImage(prevCanvas, 0, 0); g.restore(); }
                 if (txName && t < txDur) {
                     txg.clearRect(0, 0, W, H); txg.drawImage(canvas, 0, 0, W, H);
-                    renderTransition(txName, g, prevCanvas, txFrame, t / txDur, W, H);
+                    renderTransition(txName, g, prevCanvas, txFrame, t / txDur, W, H, 'tx' + si);
                 }
                 if (wipeIn && t < 0.45) {   // le titre remonte et découvre la scène
                     const e = easeOut(t / 0.45);
@@ -1064,10 +1077,11 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                 }
                 if (stickerKind && t >= stickerAt) {
                     if (!stickerPopped) { stickerPopped = true; sfx.pop(); }
-                    drawSticker(g, W, H, stickerKind, plan.stickerText, t - stickerAt, (followAt ?? dur) - t);
+                    if (stickerOnBoard) drawBoardSticker(g, area, stickerKind, plan.stickerText, t - stickerAt, (followAt ?? dur) - t, W, H, boardNote);
+                    else drawSticker(g, W, H, stickerKind, plan.stickerText, t - stickerAt, (followAt ?? dur) - t);
                 }
                 drawCaptions(g, W, H, sc, t);
-                if (followAt !== null && t >= followAt) drawFollowCard(g, W, H, t - followAt, puppet ? puppetSprite(puppet, 'main')?.closed : logoImg);
+                if (followAt !== null && t >= followAt) drawFollowCard(g, W, H, t - followAt, followAvatar());
                 if (userImg) drawUserImage(g, W, H, userImg, t - Math.max(overlayDelay + 0.25, dur * 0.2), dur - Math.max(overlayDelay + 0.25, dur * 0.2));
                 if (hookText) drawHookTitle(g, W, H, hookText, t);
                 if (logoImg) drawLogo(g, W, H, logoImg);
@@ -1077,14 +1091,14 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             if (src) { try { src.stop(actx.currentTime); } catch (e) {} }
             srcs.forEach(x => { try { x.stop(actx.currentTime); } catch (e) {} });
             timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played, tightened: !!rm });
-            prevSketch = drawing && area ? { drawing, area } : null;
+            prevSketch = drawing && area ? { drawing, area: sketchArea } : null;
             if (pz) { drawStage(pg, played); presenter = pz.sprite.closed; prevPose = poseId; }
             else {
                 drawSceneLayer(pg, sv, W, H, layerOpts);
                 if (item.keyed && proc) presenter = presenterFrom(proc.process(sv, { grade: item.grade, key: true }), item.look);
             }
             if (fsrc) fsrc.close();
-            if (prevSketch) drawSketch(pg, area, drawing, 1, 1);
+            if (prevSketch) drawSketch(pg, sketchArea, drawing, 1, 1);
             hasPrev = true; prevWasScene = true; prevWasBoard = false; prevWasCard = false;
             disposeStageVideo(v);
             T += played;

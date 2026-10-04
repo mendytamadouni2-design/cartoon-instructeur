@@ -919,11 +919,18 @@ async function testCompositor(browser) {
             state.trimMode = 'tight'; state.subtitlesStyle = 'pill'; state.qaOn = true;
             state.scenes = ['Bonjour, voici le soleil.', 'Il brûle, vraiment.', 'Abonne-toi.']; state.scenePlan = fallbackScenePlan(state.scenes);
             Object.assign(state.scenePlan.scenes[1], { transition: 'whip-pan', sticker: 'check', stickerText: 'Vrai' });
-            Object.assign(state.scenePlan.scenes[2], { transition: 'push-left', sticker: 'didyouknow', stickerText: 'Le soleil a 4,6 milliards d\'années' });
+            Object.assign(state.scenePlan.scenes[2], { transition: 'push-left', sticker: 'didyouknow', stickerText: 'Le soleil a 4,6 milliards d\'années', narration: 'Merci de ton attention !' });
             state.queue = state.scenes.map((t, i) => ({ sceneIndex: i, sceneText: t, status: 'done', puppet: true, videoUrl: 'puppet:' + i }));
             const res = await assembleVideo({ label: 'Montage' });
             r.mVideo = res.blob.size > 1000; r.mTight = res.timeline.filter(x => x.tightened).length; r.mDur = res.timeline.reduce((a, x) => a + x.duration, 0);
             r.cuts = state.cutReport ? state.cutReport.checked + '/' + state.cutReport.issues.length : 'aucun';
+            r.mEndsBoard = !!res.timeline[res.timeline.length - 1]?.narration; r.mFollowBoard = used.follow;
+            // même Short sans voix off finale : la carte arrive sur la dernière scène ; contrôle des coupes même sans contrôle par l'IA
+            used.follow = 0; state.scenePlan.scenes[2].narration = ''; state.qaOn = false;
+            state.queue = state.scenes.map((t, i) => ({ sceneIndex: i, sceneText: t, status: 'done', puppet: true, videoUrl: 'puppet:' + i }));
+            const res2 = await assembleVideo({ label: 'Montage' });
+            r.mFollowScene = used.follow; r.mEndsScene = !res2.timeline[res2.timeline.length - 1]?.narration;
+            r.cutsNoQa = state.cutReport ? state.cutReport.checked : 0; r.framesNoQa = (state.qaFrames || []).length;
         } catch (e) { r.mErr = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 4).join(' ').replace(/https:\/\/app.test\//g, ''); }
         finally {
             window.fetch = realFetch; window.renderTransition = rt; window.drawSticker = ds; window.drawFollowCard = df;
@@ -939,7 +946,97 @@ async function testCompositor(browser) {
     check(hab.tight > 0.55 && hab.tight < 0.75 && /\/0\.9$/.test(hab.map), 'rythme serré : le silence au milieu de la phrase est raccourci (' + hab.tight + ' s au lieu de 1 s, ' + hab.map + ')');
     check(hab.schema && hab.prompt && hab.norm === 'none,glitch,none,none' && hab.auto === 'push-left,,,true', 'Claude choisit la transition et l\'autocollant de chaque réplique (' + hab.norm + ' · ' + hab.auto + ')');
     check(!hab.mErr && hab.mVideo && hab.mTx === 'whip-pan,push-left' && /check/.test(hab.mSt) && /didyouknow/.test(hab.mSt) && hab.mFollow > 0, 'montage : transitions choisies, autocollants et carte « Suivre » à la fin (' + (hab.mErr || hab.mTx + ' · ' + hab.mSt + ' · ' + hab.mFollow) + ')');
+    check(hab.mEndsBoard && hab.mFollowBoard > 0 && hab.mEndsScene && hab.mFollowScene > 0, 'carte « Suivre » aussi quand le Short finit sur un plan illustré (' + hab.mFollowBoard + ' / ' + hab.mFollowScene + ' images)');
+    check(hab.cutsNoQa >= 4 && hab.framesNoQa === 0, 'contrôle des coupes toujours fait (gratuit), aucune image envoyée à Claude sans le contrôle par l\'IA (' + hab.cutsNoQa + ' contrôles)');
     check(hab.mTight >= 1 && /^\d+\/0$/.test(hab.cuts) && +hab.cuts.split('/')[0] >= 4, 'montage : silences coupés au milieu des phrases (' + hab.mTight + ' scènes, ' + (hab.mDur || 0).toFixed(1) + ' s), chaque coupe vérifiée (' + hab.cuts + ')');
+    // 8.5 : correctifs trouvés par le relecteur
+    const fix = await page.evaluate(async () => {
+        const r = {}, W = 540, H = 960, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+        // textes fixes dans la langue de la vidéo (pas en français dans une vidéo anglaise)
+        const drawn = [], ft = g.fillText.bind(g); g.fillText = (t, ...a) => { drawn.push(String(t)); return ft(t, ...a); };
+        const keepLang = state.language; state.language = 'en-US';
+        localStorage.removeItem(STORAGE.CHARTER);
+        drawSticker(g, W, H, 'didyouknow', 'Ants never really sleep', 1.2, 3); drawSticker(g, W, H, 'cross', 'Myth', 1.2, 3);
+        state.followCard = 'tiktok'; drawFollowCard(g, W, H, 0.5, null); drawFollowCard(g, W, H, 1.6, null);
+        state.language = keepLang;
+        const all = drawn.join(' | ');
+        r.lang = /Did you know\?/.test(all) && /FALSE/.test(all) && /Follow for more/.test(all) && /Following ✓/.test(all) && !/savais|FAUX|Suivre|Abonn/.test(all);
+        // jamais de pseudo inventé ; le pseudo exact de Ma chaîne quand il est saisi
+        r.noFakeHandle = !/@cartooninstructeur/.test(all) && !/@/.test(all);
+        drawn.length = 0; setJSON(STORAGE.CHARTER, { name: 'Prof Patate', handle: '@prof.patate' });
+        drawFollowCard(g, W, H, 0.5, null); r.handle = drawn.includes('@prof.patate');
+        localStorage.removeItem(STORAGE.CHARTER); g.fillText = ft;
+        // emojis : mots entiers seulement
+        const em = w => captionEmojiFor([{ text: w }]);
+        r.emojiBad = ['sont', 'Merci', 'été', 'château', 'forcément', 'fourmi', 'chocolat', 'heureux', 'feuille', 'son', 'terrible', 'lunettes'].filter(w => em(w));
+        r.emojiGood = [em("l'eau"), em('soleil'), em('cœur'), em('chats'), em('Feu !')].join('');
+        // storyboard : « Choix automatique » quand le plan n'impose pas de transition
+        const keep = { scenes: state.scenes, plan: state.scenePlan, tr: state.transition };
+        state.transition = 'smart'; state.scenes = ['Un.', 'Deux.', 'Trois.']; state.scenePlan = fallbackScenePlan(state.scenes);
+        renderStoryboard();
+        const sel = document.querySelector('[data-sb-field="transition"][data-i="1"]');
+        r.sbAuto = !!sel && sel.value === '' && /automatique/.test(sel.options[sel.selectedIndex].textContent);
+        document.getElementById('storyboard')?.classList.add('hidden');
+        Object.assign(state, { scenes: keep.scenes, scenePlan: keep.plan, transition: keep.tr });
+        // WebGL : après une perte de contexte, les effets reviennent (au lieu de coupes sèches)
+        const mk = col => { const k = document.createElement('canvas'); k.width = W; k.height = H; const kg = k.getContext('2d'); kg.fillStyle = col; kg.fillRect(0, 0, W, H); return k; };
+        const A = mk('#ff0000'), B = mk('#0000ff'), px = () => Array.from(g.getImageData(W / 2, H / 2, 1, 1).data.slice(0, 3)).join(',');
+        renderTransition('flash-through-white', g, A, B, 0.5, W, H); r.before = px();
+        txGl.gl.getExtension('WEBGL_lose_context')?.loseContext();
+        renderTransition('flash-through-white', g, A, B, 0.5, W, H); r.after = px();
+        r.highp = TX_H.includes('GL_FRAGMENT_PRECISION_HIGH');
+        // tableau blanc : la note (autocollant ou bulle) s'écrit sous le dessin DANS sa zone (dessous : tête du personnage,
+        // sous-titres), sur la place laissée par le dessin réduit ; jamais sur l'encre, jamais coupée
+        const keepStyle = state.selectedStyle; state.selectedStyle = 'whiteboard'; await loadIcons();
+        const dr = compileDrawing(layoutDrawing({ link: 'arrow', elements: [{ label: 'Fourmi', word: '', icon: 'bug', paths: [] }, { label: 'Sieste', word: '', icon: 'moon', paths: [] }] }));
+        const area = { x: 60, y: 120, w: 420, h: 300 }, bad = [];
+        STICKER_NAMES.filter(k => k !== 'confetti').concat(['bubble']).forEach(k => {
+            const txt = k === 'didyouknow' ? 'Une fourmi fait deux cent cinquante siestes par jour' : k === 'bubble' ? 'siestes très courtes' : 'Vrai';
+            const note = boardNoteLayout(g, area, k, txt, true);
+            const ink = document.createElement('canvas'); ink.width = W; ink.height = H; drawSketch(ink.getContext('2d'), note ? note.draw : area, dr, 1, 1);
+            const st = document.createElement('canvas'); st.width = W; st.height = H; const sg = st.getContext('2d'), said = [];
+            const sft = sg.fillText.bind(sg); sg.fillText = (x, ...a) => { said.push(String(x)); return sft(x, ...a); };
+            if (k === 'bubble') drawBoardLabel(sg, area, note, 1); else drawBoardSticker(sg, area, k, txt, 1.5, 3, W, H, note);
+            const A = ink.getContext('2d').getImageData(0, 0, W, H).data, B = sg.getImageData(0, 0, W, H).data; let on = 0, out = 0;
+            for (let i = 3; i < A.length; i += 4) if (B[i] > 60) { const q = (i - 3) / 4, x = q % W, y = (q / W) | 0; if (A[i] > 60) on++; if (y >= area.y + area.h || x < area.x || x >= area.x + area.w) out++; }
+            const whole = k !== 'didyouknow' || /jour/.test(said.join(' '));
+            if (!note || on || out || !whole) bad.push(k + (note ? '' : ' sansNote') + (on ? ' surDessin=' + on : '') + (out ? ' horsZone=' + out : '') + (whole ? '' : ' texteCoupé'));
+        });
+        state.selectedStyle = keepStyle;
+        r.board = bad.join(' | ') || 'OK';
+        r.ink = boardInk('#ffd23f') === INK.blue && boardInk('#1f3a5f') === '#1f3a5f';
+        // japonais / chinois (sans espaces) : coupés entre deux caractères au lieu de déborder
+        g.font = '600 30px ' + UI_FONT;
+        const jl = wrapText(g, 'アリは一日に二百五十回も短い昼寝をすることが知られています', 200);
+        r.cjk = jl.length >= 2 && jl.every(l => g.measureText(l).width <= 200);
+        // carte « Suivre » en 9:16 : jamais sous la colonne de boutons de TikTok (x > 83 %)
+        const fc = document.createElement('canvas'); fc.width = 1080; fc.height = 1920; const fg = fc.getContext('2d');
+        state.followCard = 'tiktok'; drawFollowCard(fg, 1080, 1920, 0.6, null);
+        const fd = fg.getImageData(0, 0, 1080, 1920).data; let maxX = 0;
+        for (let i = 3; i < fd.length; i += 4) if (fd[i] > 200) maxX = Math.max(maxX, ((i - 3) / 4) % 1080);
+        r.followRight = maxX;
+        // contrôle par l'IA : image « début » prise après la transition ; sans contrôle, aucune image gardée
+        const q1 = createQa(3, { frames: true }), info = { name: 'scène 2', settle: 0.6 };
+        q1.tick(c, 1.25, 0.25, 3, info); const early = q1.frames.some(f => /début/.test(f.label));
+        q1.tick(c, 1.7, 0.7, 3, info); r.qaSettle = !early && q1.frames.some(f => /début/.test(f.label));
+        const q2 = createQa(3, { frames: false }), info2 = { name: 'scène 1' };
+        q2.tick(c, 0.1, 0.1, 3, info2); q2.tick(c, 1.0, 1.0, 3, info2); q2.tick(c, 2.95, 2.95, 3, info2);
+        r.qaNoFrames = q2.frames.length === 0 && q2.cuts.checked === 2;
+        // une seule fonction loadScript (plus de message « bibliothèque PDF » pour le ZIP ou Firebase) ; traduction complète
+        r.loadScript = /loadScriptOnce/.test(loadScript.toString()) && !/PDF/.test(loadScript.toString());
+        r.translate = /stickerText/.test(buildLanguageVersion.toString()) && /hook/.test(buildLanguageVersion.toString());
+        r.charterField = CHARTER_FIELDS.includes('handle') && !!document.getElementById('charter-handle');
+        return r;
+    });
+    check(fix.lang, 'textes des autocollants et de la carte « Suivre » dans la langue de la vidéo (anglais ici)');
+    check(fix.noFakeHandle && fix.handle && fix.charterField, 'carte « Suivre » : jamais de pseudo inventé, le pseudo exact de Ma chaîne quand il est saisi');
+    check(fix.emojiBad.length === 0 && fix.emojiGood === '💧☀️❤️🐾🔥', 'emojis des sous-titres : mots entiers seulement (« sont », « merci », « a été »… sans emoji)' + (fix.emojiBad.length ? ' : ' + fix.emojiBad.join(', ') : ' · ' + fix.emojiGood));
+    check(fix.sbAuto, 'storyboard : « Choix automatique » affiché quand l\'appli choisit la transition');
+    check(fix.before === '255,255,255' && fix.after === '255,255,255' && fix.highp, 'transitions WebGL : reviennent après une perte de contexte, haute précision sur iPhone (' + fix.before + ' → ' + fix.after + ')');
+    check(fix.board === 'OK' && fix.ink, 'tableau blanc : autocollants et bulle écrits sous le dessin, dans sa zone (jamais sur la tête du personnage ni les sous-titres), feutre lisible (' + fix.board + ')');
+    check(fix.cjk && fix.followRight > 0 && fix.followRight <= 1080 * 0.83, 'japonais coupé proprement ; carte « Suivre » hors de la colonne de boutons TikTok (bord droit ' + fix.followRight + ' px)');
+    check(fix.qaSettle && fix.qaNoFrames, 'contrôle par l\'IA : image de début prise après la transition ; contrôle des coupes sans envoyer d\'images');
+    check(fix.loadScript && fix.translate, 'une seule fonction loadScript ; la version traduite traduit aussi l\'accroche et les autocollants');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();

@@ -160,11 +160,9 @@ async function buildZip() {
     const blob = await zip.generateAsync({ type: 'blob' });
     return { blob, name: 'cartoon-instructeur-' + Date.now() + '.zip' };
 }
+// Bibliothèque externe (ZIP, PDF, Firebase) : chargement mémorisé de render.js (une seule fois, réessayé après un échec)
 function loadScript(src) {
-    return new Promise((res, rej) => {
-        if (document.querySelector('script[src="' + src + '"]')) { res(); return; }
-        const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('chargement ' + src)); document.head.appendChild(s);
-    });
+    return loadScriptOnce(src).catch(() => { throw new Error('bibliothèque injoignable (' + new URL(src).hostname + ') : vérifie ta connexion'); });
 }
 
 // ══════════════════════════════════════════════════════════════════

@@ -312,7 +312,7 @@ async function verifyDrawings() {
 // ══════════════════════════════════════════════════════════════════
 // CONTRÔLE PAR L'IA : ~50 images du montage analysées (personnage, raccords, illustrations)
 // ══════════════════════════════════════════════════════════════════
-function createQa(segCount) {
+function createQa(segCount, { frames: keepFrames = true } = {}) {
     const small = document.createElement('canvas');
     const frames = [];
     // contrôle de chaque coupe (idée video-use) : image noire, vide ou cassée juste avant / juste après un raccord
@@ -336,7 +336,7 @@ function createQa(segCount) {
             if (problem && cuts.issues.length < 12 && !cuts.issues.some(x => Math.abs(x.t - time) < 0.5)) cuts.issues.push({ t: time, label, problem });
         },
         grab(canvas, time, label) {
-            if (frames.length >= 70) return;
+            if (!keepFrames || frames.length >= 70) return;
             small.width = 384; small.height = Math.round(384 * canvas.height / canvas.width);
             small.getContext('2d').drawImage(canvas, 0, 0, small.width, small.height);
             frames.push({ t: time, label, image: small.toDataURL('image/jpeg', 0.6) });
@@ -344,7 +344,7 @@ function createQa(segCount) {
         tick(canvas, time, local, dur, info) {
             if (!info.cutIn && local >= 0.05) { info.cutIn = true; this.checkCut(canvas, time, info.name + ' (juste après la coupe)'); }
             if (!info.cutOut && local > dur - 0.08) { info.cutOut = true; this.checkCut(canvas, time, info.name + ' (juste avant la coupe)'); }
-            if (!info.first && local > 0.2) { info.first = true; this.grab(canvas, time, info.name + ' (début)'); return; }
+            if (!info.first && local > Math.max(0.2, (info.settle || 0) + 0.05)) { info.first = true; this.grab(canvas, time, info.name + ' (début)'); return; }
             if (!info.last && local > dur - 0.25) { info.last = true; this.grab(canvas, time, info.name + ' (fin)'); return; }
             if (time >= next) { next = time + every; this.grab(canvas, time, info.name); }
         }
@@ -392,7 +392,7 @@ function renderCutReport() {
     el.className = 'hmuted';
     el.innerHTML = c.issues.length
         ? '✂️ <b>Coupes à vérifier</b> : ' + c.issues.map(x => esc(x.label) + ' à ' + x.t.toFixed(1) + ' s (' + esc(x.problem) + ')').join(' · ')
-        : '✂️ ' + Math.round(c.checked / 2) + ' raccords vérifiés : aucune image noire ni vide.';
+        : '✂️ Début et fin de ' + Math.round(c.checked / 2) + ' plans vérifiés à chaque coupe : aucune image noire ni vide.';
 }
 const QA_KIND = { personnage: '🧑 Personnage', raccord: '🔗 Raccord', illustration: '🖊️ Illustration', texte: '🔤 Texte', autre: '• Autre' };
 function renderQaReport() {
