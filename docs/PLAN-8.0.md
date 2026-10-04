@@ -141,3 +141,13 @@ un test de comparaison à 5 $ reste possible si l'utilisateur le demande.
 
 Reste pour 8.x : option B (personnage vectoriel), réutilisation des décors Agnes entre scènes,
 estimation du temps + notification, puis la liste « Après la 8.0 ».
+
+## 8.4 (04/10) : habillage façon TikTok
+
+| Partie | Fichiers | Fait |
+|---|---|---|
+| Transitions | `js/transitions.js` | 30 effets (14 shaders WebGL HyperFrames, Apache 2.0 + 16 en 2D) ; Claude choisit le champ `transition` de chaque réplique, choix auto une fois sur deux sinon ; modifiable au storyboard |
+| Autocollants | `js/stickers.js` | flèche, mot entouré, souligné, « Le savais-tu ? », validé + confettis, FAUX, confettis, badge (champs `sticker` / `stickerText`), remplacent la bulle |
+| Fin de Short | `js/stickers.js` | carte « Suivre » TikTok ou Instagram (avatar du personnage stable, nom de la charte, bouton appuyé) |
+| Sous-titres | `js/stickers.js` | 2 mots MAJUSCULES, pastille, emoji, un mot qui claque, néon, surligneur, dégradé |
+| Idées video-use | `js/stickers.js`, `js/montage.js`, `js/quality.js` | rythme serré (silences internes ramenés à 0,14 s, fondus de 15 ms), contrôle de chaque coupe (image noire / vide) |

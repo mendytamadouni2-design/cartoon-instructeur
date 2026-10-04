@@ -105,6 +105,8 @@ function showCloudConfigRow(provider) {
     document.getElementById('chain-select')?.addEventListener('change', e => state.chainScenes = e.target.value === 'on');
     document.getElementById('camera-select')?.addEventListener('change', e => state.camera = e.target.value);
     document.getElementById('transition-select')?.addEventListener('change', e => state.transition = e.target.value);
+    document.getElementById('stickers-select')?.addEventListener('change', e => state.stickersOn = e.target.value === 'on');
+    document.getElementById('follow-select')?.addEventListener('change', e => state.followCard = e.target.value);
     document.getElementById('trim-select')?.addEventListener('change', e => state.trimMode = e.target.value);
     document.getElementById('zoom-select')?.addEventListener('change', e => state.zoomOn = e.target.value === 'on');
     document.getElementById('intro-select')?.addEventListener('change', e => state.introOn = e.target.value === 'on');

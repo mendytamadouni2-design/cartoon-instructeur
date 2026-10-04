@@ -853,6 +853,93 @@ async function testCompositor(browser) {
     check(dir.animatic, 'brouillon animé : toute la vidéo jouée sans rien demander à Agnes');
     check(dir.retouch, 'retouches en discutant : phrase réécrite, scène enlevée, accroche, rythme et musique, puis remontage');
     check(dir.series && dir.thumbs, 'un sujet → série de Shorts écrite ; 3 miniatures verticales au choix');
+    // 8.4 : 30 transitions, autocollants, carte « Suivre », 7 styles de sous-titres, rythme serré, contrôle des coupes
+    const hab = await page.evaluate(async () => {
+        const r = { badTx: [], badSt: [], badCap: [] };
+        const W = 270, H = 480, mk = col => { const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.fillStyle = col; g.fillRect(0, 0, W, H); g.fillStyle = '#fff'; g.fillRect(90, 140, 90, 200); return c; };
+        const A = mk('#d22'), B = mk('#22d'), out = document.createElement('canvas'); out.width = W; out.height = H; const og = out.getContext('2d');
+        const avg = () => { const d = og.getImageData(0, 0, W, H).data; let rr = 0, bb = 0; for (let i = 0; i < d.length; i += 16) { rr += d[i]; bb += d[i + 2]; } return { rr, bb }; };
+        r.count = TRANSITION_NAMES.length; r.gl = TRANSITION_NAMES.filter(n => TRANSITIONS[n].gl).length;
+        const sheet = document.createElement('canvas'); sheet.width = 6 * 90; sheet.height = Math.ceil(r.count / 6) * 160; const sg = sheet.getContext('2d');
+        TRANSITION_NAMES.forEach((n, k) => {
+            try {
+                og.clearRect(0, 0, W, H); renderTransition(n, og, A, B, 0.02, W, H); const a0 = avg();
+                og.clearRect(0, 0, W, H); renderTransition(n, og, A, B, 0.98, W, H); const a1 = avg();
+                og.clearRect(0, 0, W, H); renderTransition(n, og, A, B, 0.5, W, H);
+                sg.drawImage(out, (k % 6) * 90, Math.floor(k / 6) * 160, 90, 160);
+                if (!(a0.rr > a0.bb && a1.bb > a1.rr)) r.badTx.push(n);
+            } catch (e) { r.badTx.push(n + ' : ' + e.message); }
+        });
+        r.sheet = sheet.toDataURL('image/png');
+        // sens de l'image (WebGL) : le haut du plan reste en haut
+        const T2 = document.createElement('canvas'); T2.width = W; T2.height = H; const t2 = T2.getContext('2d'); t2.fillStyle = '#e00'; t2.fillRect(0, 0, W, H / 2); t2.fillStyle = '#0c0'; t2.fillRect(0, H / 2, W, H / 2);
+        r.flipped = TRANSITION_NAMES.filter(n => TRANSITIONS[n].gl).filter(n => { og.clearRect(0, 0, W, H); renderTransition(n, og, T2, T2, 0.001, W, H); const top = og.getImageData(W / 2, 30, 1, 1).data; return !(top[0] > 150 && top[1] < 100); });
+        r.glOk = !!transitionGl() && !!transitionProgram('ridged-burn');
+        // autocollants + carte « Suivre »
+        const blank = () => { og.fillStyle = '#888'; og.fillRect(0, 0, W, H); return og.getImageData(0, 0, W, H).data.slice(); };
+        const changed = before => { const d = og.getImageData(0, 0, W, H).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - before[i]) > 30) n++; return n; };
+        STICKER_NAMES.forEach(k => { const b0 = blank(); try { drawSticker(og, W, H, k, k === 'didyouknow' ? 'Une fourmi ne dort jamais vraiment' : '70 %', 1.2, 3); if (changed(b0) < 50) r.badSt.push(k + ' invisible'); } catch (e) { r.badSt.push(k + ' : ' + e.message); } });
+        state.followCard = 'instagram'; let b0 = blank(); drawFollowCard(og, W, H, 1.5, A); r.follow = changed(b0) > 500;
+        state.followCard = 'tiktok';
+        // styles de sous-titres
+        const words = [{ text: 'Le', start: 0, end: 0.3 }, { text: 'soleil', start: 0.3, end: 0.7 }, { text: 'brûle', start: 0.7, end: 1 }, { text: 'tout', start: 1, end: 1.3 }];
+        CAPTION_STYLES_X.forEach(st => { const b1 = blank(); try { drawStyledCaptions(og, W, H, { words }, 0.5, st); if (changed(b1) < 30) r.badCap.push(st + ' invisible'); } catch (e) { r.badCap.push(st + ' : ' + e.message); } });
+        r.caps2 = styledGroups({ words }, 'caps2').map(g => g.words.length).join(',');
+        r.emoji = captionEmojiFor([{ text: 'soleil' }]);
+        // rythme serré : 0,5 s de silence au milieu de la phrase → ramené à 0,14 s
+        const ac = new OfflineAudioContext(1, 48000, 48000), bf = ac.createBuffer(1, 48000, 48000), ch = bf.getChannelData(0);
+        for (let i = 0; i < 48000; i++) { const t = i / 48000; ch[i] = (t > 0.05 && t < 0.35) || (t > 0.85 && t < 0.98) ? 0.4 * Math.sin(i / 7) : 0; }
+        const rg = silenceKeepRanges(bf, 0, 1), mp = rg && rangeMapper(rg);
+        r.tight = mp ? +mp.total.toFixed(2) : 0; r.map = mp ? +mp.out(0.9).toFixed(2) + '/' + +mp.src(mp.out(0.9)).toFixed(2) : '';
+        // Claude : champs « transition » et « sticker » dans la mise en scène
+        state.transition = 'smart'; state.stickersOn = true;
+        const sch = planSchema().properties.scenes.items, req = planRequestFor(['Un.', 'Deux.']);
+        r.schema = sch.properties.transition.enum.length === 31 && sch.properties.sticker.enum.includes('didyouknow') && sch.required.includes('stickerText');
+        r.prompt = /"transition"/.test(req.prompt) && /ridged-burn/.test(req.prompt) && /"sticker"/.test(req.prompt);
+        const realCall = window.callClaude;
+        window.callClaude = async () => ({ setting: '', scenes: [{ spoken: 'Un.', transition: 'glitch', sticker: 'badge', stickerText: 'TOP' }, { spoken: 'Deux.', transition: 'glitch', sticker: 'nope', stickerText: 'x' }] });
+        try { const pl = await planScenesWithClaude(['Un.', 'Deux.']); r.norm = pl.scenes[0].transition + ',' + pl.scenes[1].transition + ',' + pl.scenes[0].sticker + ',' + pl.scenes[1].sticker; } finally { window.callClaude = realCall; }
+        r.auto = [sceneTransitionFor({}, 1, null), sceneTransitionFor({}, 2, null), sceneTransitionFor({ transition: 'none' }, 1, null), sceneTransitionFor({ transition: 'glitch' }, 3, 'glitch') !== 'glitch'].join(',');
+        // montage complet (personnage stable + voix simulée avec un silence au milieu) : transitions, autocollants, fin « Suivre »
+        const mkp = () => { const c = document.createElement('canvas'); c.width = 360; c.height = 640; const g = c.getContext('2d'); g.fillStyle = '#00B140'; g.fillRect(0, 0, 360, 640); g.fillStyle = '#ff7a00'; g.fillRect(130, 160, 100, 380); return c.toDataURL('image/jpeg', 0.95); };
+        const pose = mkp();
+        state.cast = { sig: castSig(), poses: [{ id: 'main', closed: pose, open: pose, mid: null, approved: true, date: 1 }, { id: 'salue', closed: pose, open: null, mid: null, approved: true, date: 2 }] };
+        const wav = (() => { const n = 36000, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf); const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+            w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 24000, true); v.setUint32(28, 48000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+            for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, ((i > 2000 && i < 12000) || (i > 24000 && i < 34000) ? Math.sin(i / 8) * 12000 : 0), true); return buf; })();
+        const realFetch = window.fetch, used = { tx: new Set(), st: new Set(), follow: 0 };
+        const rt = window.renderTransition, ds = window.drawSticker, df = window.drawFollowCard;
+        window.renderTransition = (n, ...a) => { used.tx.add(n); return rt(n, ...a); };
+        window.drawSticker = (ctx, w, h, k, ...a) => { used.st.add(k); return ds(ctx, w, h, k, ...a); };
+        window.drawFollowCard = (...a) => { used.follow++; return df(...a); };
+        window.fetch = async (u, o) => { u = String(u); if (u.includes('/text-to-speech/')) return new Response(new Blob([wav], { type: 'audio/wav' })); return realFetch(u, o); };
+        const keep = { scenes: state.scenes, plan: state.scenePlan, queue: state.queue, trim: state.trimMode, sub: state.subtitlesStyle, qa: state.qaOn };
+        try {
+            localStorage.setItem('elevenlabs_api_key', 'sk_test'); elevenlabsSelectedVoiceId = 'v1'; localStorage.removeItem(STORAGE.ELEVEN_EXHAUSTED); elevenQuota = null; puppetCache = { key: '', sprites: null };
+            state.trimMode = 'tight'; state.subtitlesStyle = 'pill'; state.qaOn = true;
+            state.scenes = ['Bonjour, voici le soleil.', 'Il brûle, vraiment.', 'Abonne-toi.']; state.scenePlan = fallbackScenePlan(state.scenes);
+            Object.assign(state.scenePlan.scenes[1], { transition: 'whip-pan', sticker: 'check', stickerText: 'Vrai' });
+            Object.assign(state.scenePlan.scenes[2], { transition: 'push-left', sticker: 'didyouknow', stickerText: 'Le soleil a 4,6 milliards d\'années' });
+            state.queue = state.scenes.map((t, i) => ({ sceneIndex: i, sceneText: t, status: 'done', puppet: true, videoUrl: 'puppet:' + i }));
+            const res = await assembleVideo({ label: 'Montage' });
+            r.mVideo = res.blob.size > 1000; r.mTight = res.timeline.filter(x => x.tightened).length; r.mDur = res.timeline.reduce((a, x) => a + x.duration, 0);
+            r.cuts = state.cutReport ? state.cutReport.checked + '/' + state.cutReport.issues.length : 'aucun';
+        } catch (e) { r.mErr = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 4).join(' ').replace(/https:\/\/app.test\//g, ''); }
+        finally {
+            window.fetch = realFetch; window.renderTransition = rt; window.drawSticker = ds; window.drawFollowCard = df;
+            Object.assign(state, { scenes: keep.scenes, scenePlan: keep.plan, queue: keep.queue, trimMode: keep.trim, subtitlesStyle: keep.sub, qaOn: keep.qa }); state.cast = null; puppetCache = { key: '', sprites: null };
+        }
+        r.mTx = [...used.tx].join(','); r.mSt = [...used.st].join(','); r.mFollow = used.follow;
+        return r;
+    });
+    try { fs.writeFileSync(path.join(os.tmpdir(), 'transitions-sheet.png'), Buffer.from(hab.sheet.split(',')[1], 'base64')); } catch (e) {}
+    check(hab.count === 30 && hab.gl === 14 && hab.glOk && hab.badTx.length === 0 && hab.flipped.length === 0, '30 transitions (14 WebGL HyperFrames + 16 dessinées), partent du plan A et arrivent au plan B' + (hab.badTx.length || hab.flipped.length ? ' : ' + hab.badTx.concat(hab.flipped.map(n => n + ' à l\'envers')).join(' | ') : ''));
+    check(hab.badSt.length === 0 && hab.follow, 'autocollants animés (8) et carte « Suivre » visibles' + (hab.badSt.length ? ' : ' + hab.badSt.join(' | ') : ''));
+    check(hab.badCap.length === 0 && hab.caps2 === '2,2' && hab.emoji === '☀️', '7 nouveaux styles de sous-titres (dont 2 mots en MAJUSCULES et emoji)' + (hab.badCap.length ? ' : ' + hab.badCap.join(' | ') : ''));
+    check(hab.tight > 0.55 && hab.tight < 0.75 && /\/0\.9$/.test(hab.map), 'rythme serré : le silence au milieu de la phrase est raccourci (' + hab.tight + ' s au lieu de 1 s, ' + hab.map + ')');
+    check(hab.schema && hab.prompt && hab.norm === 'none,glitch,none,none' && hab.auto === 'push-left,,,true', 'Claude choisit la transition et l\'autocollant de chaque réplique (' + hab.norm + ' · ' + hab.auto + ')');
+    check(!hab.mErr && hab.mVideo && hab.mTx === 'whip-pan,push-left' && /check/.test(hab.mSt) && /didyouknow/.test(hab.mSt) && hab.mFollow > 0, 'montage : transitions choisies, autocollants et carte « Suivre » à la fin (' + (hab.mErr || hab.mTx + ' · ' + hab.mSt + ' · ' + hab.mFollow) + ')');
+    check(hab.mTight >= 1 && /^\d+\/0$/.test(hab.cuts) && +hab.cuts.split('/')[0] >= 4, 'montage : silences coupés au milieu des phrases (' + hab.mTight + ' scènes, ' + (hab.mDur || 0).toFixed(1) + ' s), chaque coupe vérifiée (' + hab.cuts + ')');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();

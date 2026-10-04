@@ -128,13 +128,13 @@ function applyTrims(item, cut, vDur) {
 function sceneCut(item, vDur, index) { return applyTrims(item, sceneCutAuto(item, vDur, index), vDur); }
 function sceneCutAuto(item, vDur, index) {
     if (state.trimMode === 'none') return { tin: 0, tout: vDur };
-    const a = item.speech, sw = item.sttWords;
+    const a = item.speech, sw = item.sttWords, autoTrim = state.trimMode === 'auto' || state.trimMode === 'tight';
     // mots transcrits : on coupe juste avant le premier et juste après le dernier
-    if (state.trimMode === 'auto' && Array.isArray(sw) && sw.length) {
+    if (autoTrim && Array.isArray(sw) && sw.length) {
         const tin = Math.max(0, sw[0].start - 0.12), tout = Math.min(vDur, sw[sw.length - 1].end + 0.3);
         if (tout - tin >= 1) return { tin, tout };
     }
-    if (state.trimMode === 'auto' && a && !a.silent && a.coverage < 0.97) {
+    if (autoTrim && a && !a.silent && a.coverage < 0.97) {
         let tin = Math.max(0, a.start - 0.15), tout = Math.min(vDur, a.end + 0.35);
         if (tout - tin >= 1.2) return { tin, tout };
     }
@@ -276,6 +276,7 @@ function drawSubtitle(ctx, cw, ch, text, litRatio) {
 function drawCaptions(ctx, cw, ch, sc, t) {
     if (state.subtitlesStyle === 'off') return;
     if (state.subtitlesStyle === 'words') { drawWordCaptions(ctx, cw, ch, sc.groups, t); return; }
+    if (typeof CAPTION_STYLES_X !== 'undefined' && CAPTION_STYLES_X.includes(state.subtitlesStyle)) { drawStyledCaptions(ctx, cw, ch, sc, t, state.subtitlesStyle); return; }
     const st = subtitleTextAt(sc.item.sceneIndex, sc.dur > 0 ? t / sc.dur : 0);
     const segWords = st.text.split(/\s+/).filter(Boolean).length || 1;
     const spokenSoFar = sc.words.filter(w => w.start <= t).length;
@@ -761,7 +762,10 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     const { w: W, h: H } = computeOutputSize(pending || { videoWidth: 720, videoHeight: 1280 }, format);
     // personnage stable : les poses validées remplacent le personnage des scènes Agnes
     const puppet = typeof stableActive === 'function' && stableActive() ? await loadPuppetSprites() : draft && typeof draftSprites === 'function' ? await draftSprites() : null;
-    let prevPose = null, puppetMouth = 'closed';
+    let prevPose = null, puppetMouth = 'closed', prevTx = null;
+    // transitions à effet : copie de l'image du nouveau plan (B) avant de la mélanger avec le plan précédent (A)
+    const txFrame = document.createElement('canvas'); txFrame.width = W; txFrame.height = H;
+    const txg = txFrame.getContext('2d');
     const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
     const g = canvas.getContext('2d');
     const prevCanvas = document.createElement('canvas'); prevCanvas.width = W; prevCanvas.height = H;
@@ -902,10 +906,21 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             let dur = cut.tout - cut.tin;
             // voix premium : la scène dure le temps de la phrase (+ un souffle), pas les 6 s du clip → plus de blanc entre les scènes
             if (usingTts) { const sp = item.ttsSpeech, end = sp && !sp.silent ? sp.end : item.ttsBuffer.duration; dur = Math.max(1.2, Math.min(item.ttsBuffer.duration, end + 0.35)); }
+            // rythme serré : les silences au milieu des phrases sont raccourcis (voix premium, ou son d'Agnes en image par image)
+            let rm = null;
+            if (typeof tightActive === 'function' && tightActive() && !usingFit && (usingTts || (offline && item.audioBuffer))) {
+                const b0 = usingTts ? item.ttsBuffer : item.audioBuffer, from = usingTts ? 0 : cut.tin;
+                const ranges = silenceKeepRanges(b0, from, Math.min(b0.duration, from + dur));
+                if (ranges) rm = rangeMapper(ranges.map(r => [r[0] - from, r[1] - from]));
+            }
+            const srcDur = dur;
+            if (rm) dur = rm.total;
             dur = Math.min(dur, maxDuration - T);
+            const srcT = t => rm ? rm.src(t) : t;
             const words = usingTts
-                ? computeWordTimes({ ...item, sttWords: null, speech: item.ttsSpeech }, { tin: 0, tout: dur }, dur)
-                : computeWordTimes(item, cut, dur);
+                ? computeWordTimes({ ...item, sttWords: null, speech: item.ttsSpeech }, { tin: 0, tout: srcDur }, srcDur)
+                : computeWordTimes(item, cut, srcDur);
+            if (rm) words.forEach(w => { w.start = rm.out(w.start); w.end = Math.max(w.start + 0.05, rm.out(w.end)); });
             const sc = { item, dur, words, groups: captionGroups(words) };
             const plan = scenePlanFor(item.sceneIndex);
             const richScene = !!(plan.narration && item.narrBuffer);
@@ -932,13 +947,28 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                 zoomAt = hit ? hit.start : dur * 0.35;
             }
             // après un titre : le titre remonte et découvre la scène (pas de fondu qui mélange texte, bulle et personnage)
-            const transition = state.transition === 'cut' ? 'cut' : prevWasCard && hasPrev ? 'wipe' : state.transition === 'fade' ? 'fade' : (prevWasScene && !seg.newSection ? 'join' : 'fade');
+            // transition à effet (choisie par Claude pour ce raccord) : remplace le fondu / raccord habituel
+            const txName = state.transition === 'smart' && hasPrev && !prevWasCard && typeof sceneTransitionFor === 'function' ? sceneTransitionFor(plan, seg.index, prevTx) : null;
+            const txDur = txName ? TRANSITIONS[txName].dur : 0;
+            const transition = txName ? 'fx' : state.transition === 'cut' ? 'cut' : prevWasCard && hasPrev ? 'wipe' : state.transition === 'fade' ? 'fade' : (prevWasScene && !seg.newSection ? 'join' : 'fade');
             const fadeIn = hasPrev && (transition === 'fade' || transition === 'join');
             const wipeIn = hasPrev && transition === 'wipe';
-            const overlayDelay = wipeIn ? 0.55 : hasPrev && transition === 'fade' ? 0.35 : 0;   // bulles et mises en valeur après la transition
+            const overlayDelay = txName ? txDur * 0.8 : wipeIn ? 0.55 : hasPrev && transition === 'fade' ? 0.35 : 0;   // bulles et mises en valeur après la transition
             const fadeSec = transition === 'join' ? JOIN_SEC : prevWasBoard ? 0.3 : FADE_SEC;
-            if (transition === 'fade' && prevWasScene) sfx.whoosh();
+            if ((transition === 'fade' || txName) && prevWasScene) sfx.whoosh();
+            if (hasPrev) prevTx = txName;
             const qaInfo = { name: 'scène ' + (item.sceneIndex + 1) };
+            // autocollant de la réplique (pas sur l'accroche du Short) ; il remplace la bulle
+            const stickerKind = state.stickersOn !== false && typeof STICKERS !== 'undefined' && STICKERS[plan.sticker] && !hookText ? plan.sticker : null;
+            let stickerAt = 0, stickerPopped = false;
+            if (stickerKind) {
+                const sw = normWord(String(plan.stickerText || '').split(/\s+/)[0] || '');
+                const hit = sw.length > 1 ? words.find(w => normWord(w.text).startsWith(sw)) : null;
+                stickerAt = Math.max(overlayDelay + 0.1, Math.min(dur * 0.6, hit ? hit.start - 0.1 : dur * 0.25));
+            }
+            // carte « Suivre » sur la toute fin du Short
+            const lastSeg = si === segs.length - 1 || T + dur >= maxDuration - 0.1;
+            const followAt = lastSeg && shortsMode() && H > W * 1.1 && typeof drawFollowCard === 'function' && (state.followCard === 'tiktok' || state.followCard === 'instagram') ? Math.max(dur * 0.35, dur - FOLLOW_SEC) : null;
             const layerOpts = { proc, grade: item.grade, keyed: !!item.keyed, align: item.align, framing: framingFor(seg, item.look, wb, !!drawing) };
 
             if (v) await seekTo(v, cut.tin);
@@ -947,7 +977,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             const fitDelay = usingFit ? Math.max(0, (item.speech && !item.speech.silent ? item.speech.start : 0) - cut.tin) - (item.fitSpeech && !item.fitSpeech.silent ? item.fitSpeech.start : 0) : 0;
             // personnage stable : pose de la scène, bouche calée sur la voix réellement jouée
             const poseId = plan.pose && plan.pose !== 'main' && puppet?.[plan.pose] ? plan.pose : 'main';
-            const pz = puppet ? { sprite: puppetSprite(puppet, poseId), env: voiceEnvelope(buf), bt: t => usingTts ? t : usingFit ? t - fitDelay : t + cut.tin, first: prevPose === null, changed: prevPose !== null && prevPose !== poseId } : null;
+            const pz = puppet ? { sprite: puppetSprite(puppet, poseId), env: voiceEnvelope(buf), bt: t => usingTts ? srcT(t) : usingFit ? t - fitDelay : srcT(t) + cut.tin, first: prevPose === null, changed: prevPose !== null && prevPose !== poseId } : null;
             const drawStage = (ctx, t) => {
                 if (wb && !state.greenScreen) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); } else drawDecor(ctx, W, H);
                 return drawPuppet(ctx, W, H, { sprite: pz.sprite, t, env: pz.env, bufTime: pz.bt(t), first: pz.first, poseChanged: pz.changed, wb, mouth: puppetMouth });
@@ -965,9 +995,25 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             // image par image : la scène est décodée/positionnée à l'instant exact de chaque image
             const fsrc = offline && v ? await openFrameSource(item, v) : null, sv = fsrc ? fsrc.canvas : v;
             if (fsrc) await fsrc.at(cut.tin); else if (v) { try { await v.play(); } catch (e) {} }
+            const srcs = [];
             if (src) {
                 try {
                     if (usingFit) src.start(actx.currentTime + Math.max(0, fitDelay), Math.max(0, -fitDelay), Math.max(0.1, dur - Math.max(0, fitDelay)));
+                    else if (rm) {
+                        // un morceau de son par plage gardée, fondus de 15 ms à chaque coupe (jamais de « clic »)
+                        src.disconnect();
+                        const S = usingTts ? 0 : cut.tin, now0 = actx.currentTime;
+                        rm.ranges.forEach((r, k) => {
+                            const o = rm.outStart[k], len = Math.min(r[1] - r[0], dur - o);
+                            if (len <= 0.03) return;
+                            const s2 = actx.createBufferSource(), fg = actx.createGain(); s2.buffer = buf;
+                            fg.gain.setValueAtTime(0.0001, now0 + o); fg.gain.linearRampToValueAtTime(1, now0 + o + 0.015);
+                            fg.gain.setValueAtTime(1, now0 + o + len - 0.015); fg.gain.linearRampToValueAtTime(0.0001, now0 + o + len);
+                            s2.connect(fg).connect(vg);
+                            s2.start(now0 + o, Math.max(0, Math.min(S + r[0], buf.duration - 0.03)), len + 0.01);
+                            srcs.push(s2);
+                        });
+                    }
                     else src.start(actx.currentTime, usingTts ? 0 : Math.min(cut.tin, buf.duration - 0.05), dur + 0.05);
                 } catch (e) {}
             }
@@ -991,13 +1037,13 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                     if (prevSketch && t < FADE_SEC && transition === 'cut') drawSketch(g, prevSketch.area, prevSketch.drawing, 1, 1 - t / FADE_SEC);
                     drawingActive = drawSketchTimed(g, area, drawing, sched, t, Math.min(1, t / 0.15));
                     if (!drawing && plan.keywords?.length) drawGraphic(g, area, { type: 'list', title: '', unit: '', items: plan.keywords.map(k => ({ label: k, value: 0 })) }, t, dur);
-                    if (state.pedagoFx.includes('bubbles') && plan.bubble) {
+                    if (state.pedagoFx.includes('bubbles') && plan.bubble && !stickerKind) {
                         const showAt = sched ? sched[Math.floor(sched.length / 2)].end : dur * 0.45;
                         const a = clamp01((t - showAt) / 0.25);
                         if (a > 0 && !labelShown) { labelShown = true; sfx.pop(); }
                         drawSketchLabel(g, area, plan.bubble, a);
                     }
-                } else if (state.pedagoFx.includes('bubbles') && plan.bubble) {
+                } else if (state.pedagoFx.includes('bubbles') && plan.bubble && !stickerKind) {
                     if (!bubblePopped && t >= overlayDelay) { bubblePopped = true; sfx.pop(); }
                     if (t >= overlayDelay) drawBubble(g, W, H, plan.bubble, t - overlayDelay);
                 }
@@ -1008,19 +1054,29 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                     drawHighlight(g, W, H, plan.highlight, t - highlightAt, dur - t);
                 }
                 if (fadeIn && t < fadeSec) { g.save(); g.globalAlpha = 1 - t / fadeSec; g.drawImage(prevCanvas, 0, 0); g.restore(); }
+                if (txName && t < txDur) {
+                    txg.clearRect(0, 0, W, H); txg.drawImage(canvas, 0, 0, W, H);
+                    renderTransition(txName, g, prevCanvas, txFrame, t / txDur, W, H);
+                }
                 if (wipeIn && t < 0.45) {   // le titre remonte et découvre la scène
                     const e = easeOut(t / 0.45);
                     g.drawImage(prevCanvas, 0, -H * e);
                 }
+                if (stickerKind && t >= stickerAt) {
+                    if (!stickerPopped) { stickerPopped = true; sfx.pop(); }
+                    drawSticker(g, W, H, stickerKind, plan.stickerText, t - stickerAt, (followAt ?? dur) - t);
+                }
                 drawCaptions(g, W, H, sc, t);
+                if (followAt !== null && t >= followAt) drawFollowCard(g, W, H, t - followAt, puppet ? puppetSprite(puppet, 'main')?.closed : logoImg);
                 if (userImg) drawUserImage(g, W, H, userImg, t - Math.max(overlayDelay + 0.25, dur * 0.2), dur - Math.max(overlayDelay + 0.25, dur * 0.2));
                 if (hookText) drawHookTitle(g, W, H, hookText, t);
                 if (logoImg) drawLogo(g, W, H, logoImg);
                 if (qa) qa.tick(canvas, T + t, t, dur, qaInfo);
-            }, fsrc ? (t => !usingTts && cut.tin + t >= vDur - 0.02) : (t => !usingTts && v.ended && t > 0.3), fsrc ? (t => fsrc.at(cut.tin + t)) : null);
+            }, fsrc ? (t => !usingTts && cut.tin + srcT(t) >= vDur - 0.02) : (t => !usingTts && v.ended && t > 0.3), fsrc ? (t => fsrc.at(cut.tin + (usingTts ? t : srcT(t)))) : null);
             sfx.scribble(false);
             if (src) { try { src.stop(actx.currentTime); } catch (e) {} }
-            timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played });
+            srcs.forEach(x => { try { x.stop(actx.currentTime); } catch (e) {} });
+            timeline.push({ sceneIndex: item.sceneIndex, start: T, duration: played, tightened: !!rm });
             prevSketch = drawing && area ? { drawing, area } : null;
             if (pz) { drawStage(pg, played); presenter = pz.sprite.closed; prevPose = poseId; }
             else {
@@ -1059,7 +1115,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
         const mixed = trimAudio(await actx.startRendering(), T);
         setStatus(label + ' : finalisation du fichier…');
         const blob = await session.finish(mixed);
-        if (qa) state.qaFrames = qa.frames;
+        if (qa) { state.qaFrames = qa.frames; state.cutReport = qa.cuts; }
         log('Montage image par image : ' + frameCount + ' images, ' + T.toFixed(1) + ' s, ' + session.codec + ' + ' + session.audioCodec);
         return { blob, url: URL.createObjectURL(blob), timeline, ext: 'mp4', offline: true };
     }
@@ -1067,7 +1123,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     const blob = new Blob(chunks, { type });
     if (!blob.size) throw new Error('la vidéo enregistrée est vide');
     if (items.every(i => !i.audioBuffer) && !premium) showToast('Le son des scènes n\'a pas pu être récupéré : vidéo sans son', 'warn', 6000);
-    if (qa) state.qaFrames = qa.frames;
+    if (qa) { state.qaFrames = qa.frames; state.cutReport = qa.cuts; }
     return { blob, url: URL.createObjectURL(blob), timeline, ext: type.includes('mp4') ? 'mp4' : 'webm' };
 }
 
@@ -1117,7 +1173,7 @@ async function runAssembly() {
     try {
         // Nouvelles prises faites en arrière-plan : on les récupère d'abord
         if (typeof applyPendingRedo === 'function' && !(await applyPendingRedo())) return false;
-        state.qaReport = null; document.getElementById('qa-report')?.classList.add('hidden');
+        state.qaReport = null; document.getElementById('qa-report')?.classList.add('hidden'); state.cutReport = null; document.getElementById('cut-report')?.remove();
         // Contrôle qualité : son (voix coupée, personnage muet) + image (personnage différent de la référence)
         let items = montageItems().filter(q => q.sceneIndex >= 0);
         await prepareAssets(items, 'Vérification');
@@ -1156,6 +1212,7 @@ async function runAssembly() {
         const bfb = document.getElementById('backup-final-btn');
         if (bfb) { bfb.textContent = '☁️ Sauvegarder la vidéo sur mon Cloudflare'; bfb.classList.toggle('hidden', !mediaAvailable()); }
         // contrôle par l'IA des images du montage (en tâche de fond : la vidéo est déjà prête)
+        if (typeof renderCutReport === 'function') renderCutReport();
         if (state.qaOn && getClaudeKey() && !state.autoRun && state.qaFrames?.length && typeof analyzeMontage === 'function') analyzeMontage();
         backupScenes().catch(e => log('Sauvegarde : ' + e.message));
         addToHistory({ date: Date.now(), theme: state.theme || document.getElementById('theme-input').value || 'Sans titre', script: state.script, scenes: state.queue.length, duration: formatEta(result.timeline.reduce((a, t) => a + t.duration, 0)) });

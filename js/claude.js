@@ -169,6 +169,15 @@ function planSchema() {
         sc.properties.scenes.items.properties.image = { type: 'string', enum: ['none'].concat(imgs.map(x => x.id)) };
         sc.properties.scenes.items.required.push('image');
     }
+    if (state.stickersOn !== false && typeof STICKER_NAMES !== 'undefined') {
+        sc.properties.scenes.items.properties.sticker = { type: 'string', enum: ['none'].concat(STICKER_NAMES) };
+        sc.properties.scenes.items.properties.stickerText = { type: 'string' };
+        sc.properties.scenes.items.required.push('sticker', 'stickerText');
+    }
+    if (state.transition === 'smart' && typeof TRANSITION_NAMES !== 'undefined') {
+        sc.properties.scenes.items.properties.transition = { type: 'string', enum: ['none'].concat(TRANSITION_NAMES) };
+        sc.properties.scenes.items.required.push('transition');
+    }
     if (typeof stableActive === 'function' && stableActive()) {
         sc.properties.scenes.items.properties.pose = { type: 'string', enum: castPoses().map(p => p.id) };
         sc.properties.scenes.items.required.push('pose');
@@ -206,6 +215,8 @@ function planRequestFor(scenes) {
                 : '- "narration" : toujours ""\n') +
             '- "graphic" : ' + (richActive() ? 'pour les scènes qui ont une narration, un graphique animé (motion design) affiché sur le plan illustré QUAND il explique mieux qu\'un dessin : "counter" (un chiffre clé : 1 élément), "bars" (2 à 5 valeurs comparables), "list" (2 à 4 étapes ou idées courtes, "value" = 0), "compare" (2 éléments face à face), "timeline" (frise : 2 à 6 dates dans l\'ordre, "value" = l\'année, ex. 1789, "label" = l\'événement), "chain" (2 à 4 étapes de cause à conséquence, "value" = 0), "beforeafter" (exactement 2 éléments : la situation avant puis après, "value" = 0) ; "title" très court, "unit" (ex. "%", "km", "°C" ou ""), labels de 1 à 4 mots ; "icon" de chaque élément = 1 à 3 mots-clés ANGLAIS d\'un pictogramme simple (ex. "crown", "scale, justice", "factory") ou "". Varie les types d\'une scène à l\'autre. Les chiffres et les dates doivent être EXACTS (ne rien inventer). Au plus une scène sur trois ; sinon type "none" avec des champs vides' : 'toujours type "none", title "", unit "", items []') + '\n' +
             (typeof userImagesPlanLine === 'function' ? userImagesPlanLine() : '') +
+            (state.transition === 'smart' && typeof transitionPlanLine === 'function' ? transitionPlanLine() : '') +
+            (state.stickersOn !== false && typeof stickerPlanLine === 'function' ? stickerPlanLine() : '') +
             (typeof stableActive === 'function' && stableActive() ? '- "pose" : la pose du personnage pendant la réplique, parmi : ' + castPoses().map(p => '"' + p.id + '" (' + (CAST_POSES.find(c => c.id === p.id)?.label || p.id) + ')').join(', ') + '. Choisis celle qui colle au sens (salue au début, montre pour un exemple, réfléchit pour une question, surpris pour un chiffre étonnant, content pour la conclusion) ; varie, mais garde « main » pour environ une réplique sur trois.\n' : '') +
             (!(typeof stableActive === 'function' && stableActive()) && state.poses.length && !referenceImage() ? '- "pose" : la pose de départ du personnage la plus adaptée, parmi : "main" (pose normale), ' + state.poses.map(p => '"' + p.id + '" (' + (POSE_TYPES.find(t => t.id === p.id)?.label || p.id) + ')').join(', ') + '. Varie les poses.\n' : '') +
             wbRules + '\n\nRépliques :\n' + scenes.map((l, i) => (i + 1) + '. ' + l).join('\n'),
@@ -225,7 +236,9 @@ async function planScenesWithClaude(scenes) {
                 shot: isWhiteboard() && p.shot === 'board' && i > 0 && i < scenes.length - 1 ? 'board' : 'character', highlight: String(p.highlight || '').slice(0, 40),
                 narration: richActive() && i > 0 && i < scenes.length - 1 ? String(p.narration || '').trim() : (richActive() && splitSentences(text).length > 1 ? splitSentences(text).slice(1).join(' ') : ''), visual: String(p.visual || '').slice(0, 300), graphic: normalizeGraphic(p.graphic), keywords: normKeywords(p.keywords),
                 pose: (typeof stableActive === 'function' && stableActive() ? castPoses() : state.poses).some(x => x.id === p.pose) ? p.pose : 'main',
-                image: i > 0 && typeof userImages === 'function' && userImages().some(x => x.id === p.image) ? p.image : 'none' };
+                image: i > 0 && typeof userImages === 'function' && userImages().some(x => x.id === p.image) ? p.image : 'none',
+                transition: i > 0 && typeof TRANSITIONS !== 'undefined' && TRANSITIONS[p.transition] ? p.transition : 'none',
+                sticker: i > 0 && typeof STICKERS !== 'undefined' && STICKERS[p.sticker] ? p.sticker : 'none', stickerText: String(p.stickerText || '').trim().slice(0, 70) };
         })
     };
 }
@@ -310,8 +323,11 @@ function renderStoryboard() {
                 (isWhiteboard() ? '<select data-sb-field="shot" data-i="' + i + '">' + opt([['character', '🧑 Personnage'], ['board', '🖊️ Tableau seul']], p.shot || 'character') + '</select>' : '') +
                 '<select data-sb-field="zoom" data-i="' + i + '">' + opt([['none', 'Pas de zoom'], ['in', '🔍 Zoom' + (p.emphasis ? ' sur « ' + p.emphasis + ' »' : '')]], p.zoom || 'none') + '</select>' +
                 (stablePoses ? '<select data-sb-field="pose" data-i="' + i + '">' + opt(stablePoses, p.pose || 'main') + '</select>' : state.poses.length ? '<select data-sb-field="pose" data-i="' + i + '">' + opt(poseOpts, p.pose || 'main') + '</select>' : '') +
+                (i > 0 && state.transition === 'smart' && typeof TRANSITIONS !== 'undefined' ? '<select data-sb-field="transition" data-i="' + i + '">' + opt([['none', '✂️ Raccord simple']].concat(TRANSITION_NAMES.map(n => [n, '✨ ' + TRANSITIONS[n].label])), p.transition || 'none') + '</select>' : '') +
+                (typeof STICKERS !== 'undefined' && state.stickersOn !== false ? '<select data-sb-field="sticker" data-i="' + i + '">' + opt([['none', 'Pas d\'autocollant']].concat(Object.keys(STICKERS).map(n => [n, STICKERS[n].label])), p.sticker || 'none') + '</select>' : '') +
                 '</div>' +
                 (i === 0 && shortsMode() ? '<input class="text-input" data-sb-field="hook" data-i="0" placeholder="Accroche écrite en gros (2 premières secondes)" value="' + esc(p.hook || '') + '">' : '') +
+                (p.sticker && p.sticker !== 'none' && state.stickersOn !== false ? '<input class="text-input" data-sb-field="stickerText" data-i="' + i + '" placeholder="Texte de l\'autocollant" value="' + esc(p.stickerText || '') + '">' : '') +
                 '<input class="text-input" data-sb-field="bubble" data-i="' + i + '" placeholder="Mot-clé écrit (optionnel)" value="' + esc(p.bubble || '') + '">' +
                 '<input class="text-input" data-sb-field="highlight" data-i="' + i + '" placeholder="Chiffre ou définition en grand (optionnel)" value="' + esc(p.highlight || '') + '">' +
                 (i > 0 && !shortsMode() ? '<input class="text-input" data-sb-field="section" data-i="' + i + '" placeholder="Titre de nouvelle partie (optionnel)" value="' + esc(p.section || '') + '">' : '') +
@@ -341,7 +357,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
     const f = e.target.dataset?.sbField; if (!f) return;
     ensurePlanScene(parseInt(e.target.dataset.i, 10))[f] = e.target.value;
-    if (f === 'section') renderStoryboard();
+    if (f === 'section' || f === 'sticker') renderStoryboard();
 });
 document.addEventListener('click', async e => {
     const t = e.target.closest ? e.target : null; if (!t) return;

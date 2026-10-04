@@ -258,6 +258,7 @@ function normalizeGraphic(g) {
 function drawNarrationCaptions(ctx, W, H, words, groups, t) {
     if (state.subtitlesStyle === 'off' || !words.length) return;
     if (state.subtitlesStyle === 'words') { drawWordCaptions(ctx, W, H, groups, t); return; }
+    if (typeof CAPTION_STYLES_X !== 'undefined' && CAPTION_STYLES_X.includes(state.subtitlesStyle)) { if (!words._sc) words._sc = { words }; drawStyledCaptions(ctx, W, H, words._sc, t, state.subtitlesStyle); return; }
     const spoken = words.filter(w => w.start <= t).length;
     const sentences = splitSentences(words.map(w => w.text).join(' '));
     let acc = 0;
@@ -314,10 +315,26 @@ async function verifyDrawings() {
 function createQa(segCount) {
     const small = document.createElement('canvas');
     const frames = [];
+    // contrôle de chaque coupe (idée video-use) : image noire, vide ou cassée juste avant / juste après un raccord
+    const probe = document.createElement('canvas'); probe.width = 18; probe.height = 32;
+    const pctx = probe.getContext('2d', { willReadFrequently: true });
+    const cuts = { checked: 0, issues: [] };
+    const frameStats = canvas => {
+        pctx.drawImage(canvas, 0, 0, 18, 32);
+        const d = pctx.getImageData(0, 0, 18, 32).data; let sum = 0, sq = 0; const n = d.length / 4;
+        for (let i = 0; i < d.length; i += 4) { const l = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255; sum += l; sq += l * l; }
+        const mean = sum / n; return { mean, std: Math.sqrt(Math.max(0, sq / n - mean * mean)) };
+    };
     const every = Math.max(1.2, (segCount * 6) / 40);
     let next = 0.8;
     return {
-        frames,
+        frames, cuts,
+        checkCut(canvas, time, label) {
+            cuts.checked++;
+            let st; try { st = frameStats(canvas); } catch (e) { return; }
+            const problem = st.mean < 0.03 ? 'image noire' : st.std < 0.012 && st.mean < 0.9 ? 'image vide (unie)' : null;
+            if (problem && cuts.issues.length < 12 && !cuts.issues.some(x => Math.abs(x.t - time) < 0.5)) cuts.issues.push({ t: time, label, problem });
+        },
         grab(canvas, time, label) {
             if (frames.length >= 70) return;
             small.width = 384; small.height = Math.round(384 * canvas.height / canvas.width);
@@ -325,6 +342,8 @@ function createQa(segCount) {
             frames.push({ t: time, label, image: small.toDataURL('image/jpeg', 0.6) });
         },
         tick(canvas, time, local, dur, info) {
+            if (!info.cutIn && local >= 0.05) { info.cutIn = true; this.checkCut(canvas, time, info.name + ' (juste après la coupe)'); }
+            if (!info.cutOut && local > dur - 0.08) { info.cutOut = true; this.checkCut(canvas, time, info.name + ' (juste avant la coupe)'); }
             if (!info.first && local > 0.2) { info.first = true; this.grab(canvas, time, info.name + ' (début)'); return; }
             if (!info.last && local > dur - 0.25) { info.last = true; this.grab(canvas, time, info.name + ' (fin)'); return; }
             if (time >= next) { next = time + every; this.grab(canvas, time, info.name); }
@@ -363,6 +382,17 @@ async function analyzeMontage() {
         renderQaReport();
         if (state.projectId) updateProject(state.projectId, { qaScore: out.score });
     } catch (e) { if (box) box.innerHTML = '<div class="hmuted">Contrôle impossible : ' + esc(e.message) + '</div>'; }
+}
+// Résultat du contrôle des coupes (gratuit, fait pendant le montage)
+function renderCutReport() {
+    const c = state.cutReport, box = document.getElementById('qa-report');
+    if (!c || !box || !c.checked) return;
+    let el = document.getElementById('cut-report');
+    if (!el) { el = document.createElement('div'); el.id = 'cut-report'; box.after(el); }
+    el.className = 'hmuted';
+    el.innerHTML = c.issues.length
+        ? '✂️ <b>Coupes à vérifier</b> : ' + c.issues.map(x => esc(x.label) + ' à ' + x.t.toFixed(1) + ' s (' + esc(x.problem) + ')').join(' · ')
+        : '✂️ ' + Math.round(c.checked / 2) + ' raccords vérifiés : aucune image noire ni vide.';
 }
 const QA_KIND = { personnage: '🧑 Personnage', raccord: '🔗 Raccord', illustration: '🖊️ Illustration', texte: '🔤 Texte', autre: '• Autre' };
 function renderQaReport() {
