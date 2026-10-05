@@ -120,6 +120,24 @@ Le chef (la session principale de Claude) dirige quatre sous-agents définis dan
 | `relecteur` | avant chaque « mets à jour », et sur toute modification délicate | défauts vérifiés et classés (bugs, sécurité, règles du projet) |
 | `chercheur` | dès qu'une question porte sur un outil, une API, un prix, un projet externe | dossier sourcé : utile ou pas, licence, coût, effort, recommandation |
 
+### Compétences (skills, `.claude/skills/`)
+
+| Skill | Donnée à | Contenu |
+|---|---|---|
+| `verif-livraison` | testeur, relecteur, chef | `scripts/verif.sh [--livraison]` : syntaxe, doublons globaux, clés, `?v=` / `APP_FILES` / version / cache, moteur |
+| `atelier-rendu` | contrôleur visuel | harnais avant / après, personnage simulé, mesures au pixel, planches |
+| `regles-shorts` | contrôleur visuel, chef | zones TikTok, tailles, durées, composition, typographie |
+| `pieges-iphone` | relecteur | Safari iOS : précision WebGL, mémoire, son, arrière-plan, WebCodecs, stockage |
+| `api-agnes-elevenlabs` | relecteur, chercheur | Agnes (vidéo, image, guide LTX) et ElevenLabs (voix, quota gratuit, cache) |
+| `budget-et-couts` | relecteur, chercheur | coût de chaque service, où il est compté, règle « rien de payant » |
+| `ecrire-un-test` | testeur | écrire un test dans `tests/run-e2e.js` |
+| `prompts-de-l-appli` | relecteur, chef | consignes Claude (schémas, normalisation, traduction) et Agnes |
+| `montage-et-temps` | testeur, relecteur | moteur de montage, deux modes, invariants de temps |
+| `serveur-cloudflare` | relecteur | serveur, limites, sécurité des clés, déploiement |
+
+Chaque agent reçoit ses skills dès son démarrage (champ `skills:`). Une skill se corrige comme du code : un fait faux
+dans une skill est une erreur pour toute l'équipe ; les copier à l'identique dans le dépôt ECC.
+
 ### Règles du chef (impitoyable)
 
 1. **Une seule main sur le code** : seul le chef modifie l'appli. Les agents analysent, mesurent, prouvent et
