@@ -120,6 +120,22 @@ Le chef (la session principale de Claude) dirige quatre sous-agents définis dan
 | `relecteur` | avant chaque « mets à jour », et sur toute modification délicate | défauts vérifiés et classés (bugs, sécurité, règles du projet) |
 | `chercheur` | dès qu'une question porte sur un outil, une API, un prix, un projet externe | dossier sourcé : utile ou pas, licence, coût, effort, recommandation |
 
+### Mini-agents (`.claude/agents/`, préfixés par le nom de leur chef)
+
+Chaque agent dirige sa propre petite équipe, sur des modèles plus légers (moins chers, plus rapides) pour le travail
+simple ; les chefs d'équipe gardent le jugement et revérifient tout ce que leurs mini-agents rapportent.
+
+| Chef d'équipe | Mini-agents |
+|---|---|
+| testeur | `testeur-lanceur` (Haiku : lance et attend les tests), `testeur-enqueteur` (Sonnet : un échec jusqu'à sa cause) |
+| controleur-visuel | `visuel-rendeur` (Sonnet : planches), `visuel-mesureur` (Haiku : mesures au pixel) |
+| relecteur | `relecteur-montage-iphone`, `relecteur-securite-couts`, `relecteur-consignes-serveur` (Sonnet : un angle chacun) |
+| chercheur | `chercheur-sources` (Haiku : faits cités et datés), `chercheur-code` (Sonnet : inventaire d'un dépôt) |
+
+Un agent ne peut appeler ses mini-agents que si le chef le lance **au premier plan** (un agent en arrière-plan n'a pas
+l'outil Agent). Les équipes servent aux grosses missions (relecture avant « mets à jour », contrôle visuel d'une grosse
+nouveauté, enquête) ; au plus 3 mini-agents par mission.
+
 ### Compétences (skills, `.claude/skills/`)
 
 | Skill | Donnée à | Contenu |
