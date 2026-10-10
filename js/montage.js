@@ -143,6 +143,8 @@ function sceneCutAuto(item, vDur, index) {
 // Gain de la voix : mesuré selon la norme (même niveau pour chaque voix, ElevenLabs, Agnes ou voix off) ;
 // à défaut, l'ancien calcul sur le volume moyen de la parole.
 function voiceGainFor(item, speech, buf) {
+    const sp0 = speech || item.speech;
+    if (sp0 && sp0.silent) return 1;   // pas de parole : ne jamais amplifier le souffle ou le bruit de fond
     if (buf && typeof measureLoudness === 'function') {
         const l = measureLoudness(buf).lufs;
         if (isFinite(l)) return Math.max(0.3, Math.min(4, Math.pow(10, (VOICE_LOUDNESS - l) / 20)));

@@ -12,3 +12,7 @@
 ## Recettes de diagnostic
 - Erreur dans un `page.evaluate` : renvoyer `e.message + e.stack` (en retirant `https://app.test/`) pour avoir fichier:ligne.
 - `agnesImage` ne doit pas passer par les nouvelles tentatives longues d'`apiFetch` (dépassement du délai du test `phone` en 8.2).
+
+## Leçons 8.6
+- Groupe `background` lancé seul : échouait car `mockStats.refChecks` (scène 2 jugée ratée au 1er appel) était consommé par `phone` en exécution complète → corrigé (`mockStats.flagScene2 = false`). Toujours valider un groupe seul ET la suite complète.
+- Durées mesurées (oct. 2026) : styles 15 s, compositor 45 s, phone ≈ 7 min, background ≈ 6 min.

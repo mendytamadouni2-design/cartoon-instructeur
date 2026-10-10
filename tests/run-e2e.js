@@ -91,7 +91,7 @@ function claudeMock(route) {
     let out;
     if (props.score) { mockStats.qa++; out = { score: 7.5, summary: 'Personnage régulier, un dessin peu lisible.', issues: [{ scene: 2, kind: 'illustration', problem: 'le dessin ne montre pas la vapeur', action: 'redessiner' }] }; }
     else if (props.results) { mockStats.drawChecks++; out = { results: mockStats.drawChecks === 1 ? [{ k: 1, ok: false, why: 'trop vague' }] : [{ k: 1, ok: true, why: '' }] }; }
-    else if (props.scenes && !props.setting) { mockStats.refChecks++; mockStats.refPrompt = Array.isArray(body.messages[0].content) ? (body.messages[0].content.find(c => c.type === 'text')?.text || '') : String(body.messages[0].content); out = { scenes: [1, 2, 3].map(n => ({ scene: n, same: !(n === 2 && mockStats.refChecks === 1), problem: n === 2 ? 'lunettes perdues' : '' })) }; }
+    else if (props.scenes && !props.setting) { mockStats.refChecks++; mockStats.refPrompt = Array.isArray(body.messages[0].content) ? (body.messages[0].content.find(c => c.type === 'text')?.text || '') : String(body.messages[0].content); out = { scenes: [1, 2, 3].map(n => ({ scene: n, same: !(n === 2 && mockStats.refChecks === 1 && mockStats.flagScene2 !== false), problem: n === 2 ? 'lunettes perdues' : '' })) }; }
     else if (props.traits) { mockStats.identity = (mockStats.identity || 0) + 1; out = { traits: 'orange bean-shaped body; round purple glasses; black round eyes; green bow tie; no clothing' }; }
     else if (props.videos?.items?.properties?.lines) out = { videos: [{ title: 'Les volcans', why: 'Spectaculaire', lines: ['Le soleil chauffe l\'eau.', 'Le soleil chauffe l\'eau.'] }, { title: 'La lune', why: 'Mystérieux', lines: ['Le soleil chauffe l\'eau.'] }] };
     else if (props.replies) out = { replies: [{ i: 0, reply: 'Merci beaucoup ! 😄' }] };
@@ -1049,15 +1049,18 @@ async function testCompositor(browser) {
         const q = tone(0.02, 2), n1 = normalizeLoudness(q), m1 = measureLoudness(q);
         r.norm = [+n1.after.toFixed(2), +m1.lufs.toFixed(2), +m1.peak.toFixed(2)].join(' / ');
         const sp = tone(0.02, 2, 3, 997, 0.9), n2 = normalizeLoudness(sp), m2 = measureLoudness(sp);   // crêtes isolées : le gain s'arrête à -1 dBFS
-        r.peakCap = m2.peak <= -0.99 && m2.lufs < -14.5;
+        r.peakCap = m2.peak <= -1.49 && m2.lufs < -14.5;
         const v1 = tone(0.05), v2 = tone(0.3), g1 = voiceGainFor({}, null, v1), g2 = voiceGainFor({}, null, v2);
         r.voices = [measureLoudness(v1).lufs + 20 * Math.log10(g1), measureLoudness(v2).lufs + 20 * Math.log10(g2)].map(x => +x.toFixed(1)).join(' / ');
+        const hiss = tone(0.003); r.silentGain = voiceGainFor({ speech: { silent: true } }, null, hiss);   // pas de parole : gain 1
+        const tail = tone(0.05, 1, 1.05); tail.getChannelData(0).fill(0.99, tail.length - 960); r.tailPeak = +measureLoudness(tail).peak.toFixed(2);
         r.montage = state.lastLoudness ? [state.lastLoudness.before, state.lastLoudness.after, state.lastLoudness.peak].map(x => +(+x).toFixed(1)).join(' → ') : 'aucun';
-        r.montageOk = !!state.lastLoudness && (Math.abs(state.lastLoudness.after + 14) < 0.2 || Math.abs(state.lastLoudness.peak + 1) < 0.1) && state.lastLoudness.peak <= -0.99;
+        r.montageOk = !!state.lastLoudness && (Math.abs(state.lastLoudness.after + 14) < 0.2 || Math.abs(state.lastLoudness.peak + 1.5) < 0.1) && state.lastLoudness.peak <= -1.49;
         return r;
     });
     check(Math.abs(loud.mono + 23.01) < 0.15 && Math.abs(loud.stereo + 20) < 0.15 && loud.silence, 'mesure du volume conforme à la norme EBU R128 (1 kHz à -20 dBFS : ' + loud.mono + ' LUFS, stéréo ' + loud.stereo + ')');
-    check(/^-14 \/ -14 \/ /.test(loud.norm) && +loud.norm.split(' / ')[2] <= -1 && loud.peakCap, 'vidéo mise à -14 LUFS (niveau YouTube / TikTok) sans jamais dépasser -1 dBFS (' + loud.norm + ')');
+    check(loud.silentGain === 1 && loud.tailPeak > -0.1, 'scène sans parole jamais amplifiée ; crête mesurée jusqu\'à la dernière milliseconde (' + loud.silentGain + ', ' + loud.tailPeak + ' dBFS)');
+    check(/^-14 \/ -14 \/ /.test(loud.norm) && +loud.norm.split(' / ')[2] <= -1.5 && loud.peakCap, 'vidéo mise à -14 LUFS (niveau YouTube / TikTok) sans jamais dépasser -1,5 dBFS (' + loud.norm + ')');
     check(loud.voices === '-19 / -19', 'chaque voix au même niveau, quelle que soit sa source (' + loud.voices + ' LUFS)');
     check(loud.montageOk, 'montage complet : volume final réglé automatiquement (' + loud.montage + ')');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
@@ -1067,6 +1070,7 @@ async function testCompositor(browser) {
 
 async function testBackground(browser) {
     console.log('\n▶ Génération en arrière-plan');
+    mockStats.flagScene2 = false;   // la scène ratée simulée appartient au groupe « téléphone » : ce groupe ne dépend pas de l'ordre
     const W = await loadWorker(true);
     const { env, objects } = fakeDurableObjects(W);
     const ctx = await browser.newContext({ serviceWorkers: 'block', ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });

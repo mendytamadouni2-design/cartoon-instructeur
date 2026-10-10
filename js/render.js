@@ -184,7 +184,8 @@ function createOfflineAudio(seconds, clock, sampleRate = 48000) {
 // ─────────────── Volume aux normes (ITU-R BS.1770-4 / EBU R128) ───────────────
 // Méthode reprise de FilmCraft (crates/audio-dsp/src/loudness.rs, ArtCraft, MIT OU Apache 2.0) : filtre « K »
 // (étagère aiguë + passe-haut), blocs de 400 ms tous les 100 ms, porte absolue -70 LUFS puis porte relative -10 LU.
-const LOUDNESS_TARGET = -14, LOUDNESS_PEAK = -1, VOICE_LOUDNESS = -19;
+// crête d'échantillon limitée à -1,5 dBFS : marge pour la vraie crête après l'encodage AAC (plateformes : -1 dBTP)
+const LOUDNESS_TARGET = -14, LOUDNESS_PEAK = -1.5, VOICE_LOUDNESS = -19;
 function kWeightCoefs(fs) {
     const shelf = (() => { const G = 3.999843853973347, f0 = 1681.974450955533, Q = 0.7071752369554196, K = Math.tan(Math.PI * f0 / fs), Vh = Math.pow(10, G / 20), Vb = Math.pow(Vh, 0.4996667741545416), a0 = 1 + K / Q + K * K;
         return { b: [(Vh + Vb * K / Q + K * K) / a0, 2 * (K * K - Vh) / a0, (Vh - Vb * K / Q + K * K) / a0], a: [2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0] }; })();
@@ -204,6 +205,7 @@ function measureLoudness(buffer) {
         const d = buffer.getChannelData(c);
         let x1 = 0, x2 = 0, y1 = 0, y2 = 0, z1 = 0, z2 = 0;
         const [s1, s2] = stages;
+        for (let i = nSteps * step; i < n; i++) { const ax = Math.abs(d[i]); if (ax > peak) peak = ax; }   // fin du son (< 100 ms)
         for (let i = 0; i < nSteps * step; i++) {
             const x = d[i], ax = x < 0 ? -x : x; if (ax > peak) peak = ax;
             const y = s1.b[0] * x + s1.b[1] * x1 + s1.b[2] * x2 - s1.a[0] * y1 - s1.a[1] * y2; x2 = x1; x1 = x;
@@ -224,7 +226,7 @@ function measureLoudness(buffer) {
     loudnessCache.set(buffer, r);
     return r;
 }
-// Met la vidéo finale au niveau des plateformes (-14 LUFS) sans dépasser -1 dBFS de crête. Modifie le buffer.
+// Met la vidéo finale au niveau des plateformes (-14 LUFS) sans dépasser -1,5 dBFS de crête. Modifie le buffer.
 function normalizeLoudness(buffer, target = LOUDNESS_TARGET, peakMax = LOUDNESS_PEAK) {
     const m = measureLoudness(buffer);
     if (!isFinite(m.lufs) || !isFinite(m.peak)) return { before: m.lufs, gain: 0, after: m.lufs };

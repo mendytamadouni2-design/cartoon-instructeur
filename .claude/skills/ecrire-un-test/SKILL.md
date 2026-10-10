@@ -44,6 +44,9 @@ check(!res.err && res.valeur === attendu, 'ce que l\'utilisateur y gagne, en fra
 
 - Tout ce qui n'est pas simulé part sur internet et échoue (réseau du conteneur filtré).
 - Un état non restauré fausse les tests suivants du même groupe.
+- **Chaque groupe doit passer seul** (`ONLY=…`) : un compteur partagé des faux services (`mockStats`) ne doit jamais
+  décider d'un comportement attendu par un autre groupe (8.6 : la scène ratée simulée du groupe `phone` tombait sur
+  le groupe `background` lancé seul).
 - Les tests mesurant le temps réel (pause du montage) deviennent faux si le processeur est saturé : pas de groupes en parallèle.
 - Chromium de test : WebGL en 32 bits (logiciel), WebCodecs présent → le montage temps réel est peu couvert ; le dire.
 - **Jamais** affaiblir un test pour le faire passer : corriger l'appli, ou prouver que le test est devenu faux après un
