@@ -30,6 +30,8 @@ APRES=/tmp/apres-x node ${CLAUDE_SKILL_DIR}/scripts/exemple-planche.js  # avant 
   TikTok (`onTikTok`), écarts en px, tailles de police réellement dessinées (`fonts`).
 - `CK.overlay(canvas, zone)` : copie avec zones TikTok en rouge, zone sûre de l'appli en vert, zone donnée en bleu.
 - `CK.cell(canvas, recadrage, largeur)` → PNG réduit ; `CK.compose(titre, sections)` → planche étiquetée (cases en rouge si `bad`).
+- `await CK.time(fn, { warm: 3, n: 10 })` → `{ median, min, max }` en ms : **seule façon admise de mesurer un temps**
+  (chauffe, médiane ; ne mettre dans `fn` que l'appel mesuré, jamais `getImageData` ni écriture de fichier).
 - `CK.mk(W, H)` : canvas vide. `CK.puppet(g, W, H, sprite)` : personnage posé par le vrai `drawPuppet`.
 
 ## Méthode de mesure (la seule qui vaut preuve)

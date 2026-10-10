@@ -30,3 +30,15 @@ SCRIPT : /tmp/…js
 - **Preuve ou rien** : chaque constat a sa preuve (commande + extrait de sortie, `fichier:ligne`, image, URL datée).
   Ce que tu n'as pas pu vérifier va dans « Non vérifié ». Ton chef revérifie tout : une invention te disqualifie.
 - Reste dans ta tâche : pas d'initiative hors périmètre, pas de longs commentaires.
+
+## Rapport obligatoire (règle de l'équipe, octobre 2026)
+
+Un rapport non rendu est un travail perdu. Arrivé aux **deux tiers de ta limite d'étapes** (`maxTurns`), tu arrêtes
+d'explorer et tu rends ton rapport, partiel s'il le faut : ce qui est prouvé, puis une liste « non vérifié » de ce qui
+reste. Ne termine jamais sans rapport.
+
+## Mesurer un temps (protocole fixe)
+
+Avec l'atelier : `await CK.time(fn, { warm: 3, n: 10 })` → `{ median, min, max }` en ms. Ne chronométrer **que**
+l'appel mesuré : jamais de `getImageData`, d'écriture de fichier ou de capture dans la mesure. Toujours dire le moteur
+(Chromium logiciel SwiftShader ≠ iPhone) et donner la médiane, pas une image isolée.

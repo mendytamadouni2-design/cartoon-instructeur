@@ -2,6 +2,15 @@
 window.CK = (() => {
     const CK = {};
     CK.mk = (W, H) => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+    // Mesure d'un temps (protocole de l'équipe) : chauffe, puis médiane de n appels ; seul l'appel mesuré est chronométré
+    CK.time = async (fn, { warm = 3, n = 10 } = {}) => {
+        for (let k = 0; k < warm; k++) await fn(k);
+        const v = [];
+        for (let k = 0; k < n; k++) { const t0 = performance.now(); await fn(k); v.push(performance.now() - t0); }
+        v.sort((a, b) => a - b);
+        const r = x => Math.round(x * 100) / 100;
+        return { median: r(v[Math.floor(n / 2)]), min: r(v[0]), max: r(v[n - 1]), n, moteur: 'Chromium logiciel (SwiftShader) : ne vaut pas un iPhone' };
+    };
     // Personnage simulé : silhouette recadrée comme loadPuppetSprites (2 % de marge en haut), tête bien visible
     CK.sprite = (headOnly) => {
         const c = CK.mk(360, 1000), g = c.getContext('2d');

@@ -62,6 +62,7 @@ function showCloudConfigRow(provider) {
     document.getElementById('push-btn')?.addEventListener('click', enablePush);
     document.getElementById('journal-copy-btn')?.addEventListener('click', copyJournal);
     document.getElementById('journal-share-btn')?.addEventListener('click', exportJournal);
+    if (typeof testlogResume === 'function') testlogResume().catch(e => log('Enregistreur de test : ' + e.message));   // 9.1 : un test en cours reprend
     document.getElementById('download-youtube-fmt-btn')?.addEventListener('click', () => downloadVariant('download-youtube-fmt-btn', 'fmt-youtube', { label: 'Version YouTube', format: 'landscape' }, 'youtube'));
     document.getElementById('download-vertical-btn')?.addEventListener('click', () => downloadVariant('download-vertical-btn', 'fmt-vertical', { label: 'Version 9:16', format: 'portrait' }, 'vertical'));
     document.getElementById('download-square-btn')?.addEventListener('click', () => downloadVariant('download-square-btn', 'fmt-square', { label: 'Version carrée', format: 'square' }, 'carre'));
@@ -308,7 +309,7 @@ function showCloudConfigRow(provider) {
     bindToggle('altframing-toggle', 'ALT_FRAMING', 'altFraming', true, () => { state.exportCache = {}; });
     const isel = document.getElementById('iconstyle-select');
     if (isel) { state.iconStyle = getLS(STORAGE.ICON_STYLE) || 'auto'; isel.value = state.iconStyle; isel.addEventListener('change', () => { state.iconStyle = isel.value; setLS(STORAGE.ICON_STYLE, isel.value); state.exportCache = {}; }); }
-    bindToggle('trace-toggle', 'TRACE', 'traceDrawings', true);
+    bindToggle('trace-toggle', 'TRACE', 'traceDrawings', false);   // Agnes Image peut-être payante : coupé tant que le prix n'est pas vérifié
     bindToggle('fastexport-toggle', 'FAST_EXPORT', 'fastExport', true, () => { state.exportCache = {}; });
     const fx = document.getElementById('fastexport-hint'); if (fx) fx.textContent = webcodecsAvailable() ? '✅ Disponible sur cet appareil' : 'Pas disponible sur cet appareil (iOS 26 ou plus récent requis) : montage classique';
     loadDecorImage();

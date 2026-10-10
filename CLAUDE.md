@@ -75,6 +75,7 @@ Ordre de chargement et rôle :
 | `channel.js` | charte de la chaîne, mode objectif, images de l'utilisateur |
 | `puppet.js` | personnage stable : casting de poses, marionnette animée, bouche calée sur la voix |
 | `deform.js` | personnage vivant (9.0) : maillage ARAP porté d'EffectCraft (Cholesky une fois par pose), rendu WebGL, repli rigide |
+| `testlog.js` | enregistreur de test (9.1) : appareil, actions, journal, erreurs, services, montages, fiche du test, rapport à envoyer |
 | `director.js` | brouillon animé, retouches en discutant, séries, miniatures |
 | `init.js` | démarrage et branchement des boutons |
 
@@ -113,32 +114,38 @@ doivent jamais être écrits dans le dépôt.
 
 ## L'équipe
 
-Le chef (la session principale de Claude) dirige quatre sous-agents définis dans `.claude/agents/` :
+Organisation revue en octobre 2026 : **le chef (la session principale) envoie directement les mini-agents** pour le
+travail courant ; les quatre chefs d'équipe ne servent plus qu'aux gros audits lancés au premier plan.
 
-| Agent | Quand | Ce qu'il rend |
+### Fonctionnement courant (chaque version)
+
+| Étape | Qui | Comment |
 |---|---|---|
-| `testeur` | après chaque modification de code, avant tout envoi | verdict des tests, cause racine de chaque échec, correctif proposé |
-| `controleur-visuel` | dès qu'un rendu, un texte ou un écran change | planches d'images regardées, défauts visibles classés, correctifs |
-| `relecteur` | avant chaque « mets à jour », et sur toute modification délicate | défauts vérifiés et classés (bugs, sécurité, règles du projet) |
-| `chercheur` | dès qu'une question porte sur un outil, une API, un prix, un projet externe | dossier sourcé : utile ou pas, licence, coût, effort, recommandation |
+| Code, tests, vérifications | le chef | `verif.sh`, groupe de tests concerné, puis suite complète en arrière-plan (jamais deux groupes en même temps) |
+| Relecture | 2 à 3 mini-agents relecteurs **en parallèle** | `relecteur-montage-iphone`, `relecteur-securite-couts`, `relecteur-consignes-serveur` : un angle chacun, sur un commit précis |
+| Contrôle visuel | `visuel-rendeur` (+ `visuel-mesureur` pour les chiffres) | planches ; **le chef les regarde lui-même** avant de juger |
+| Recherche, prix | `chercheur-sources`, `chercheur-code` | faits cités et datés ; inventaire d'un dépôt |
+| Échec de test incompris | `testeur-enqueteur` | rejoue l'échec seul, trouve la ligne en cause |
+| Vrai iPhone | l'utilisateur | **enregistreur de test** de l'appli (Réglages → Aide et journal), rapport envoyé dans la conversation |
 
-### Mini-agents (`.claude/agents/`, préfixés par le nom de leur chef)
+### Chefs d'équipe (gros audits seulement, lancés au premier plan)
 
-Chaque agent dirige sa propre petite équipe, sur des modèles plus légers (moins chers, plus rapides) pour le travail
-simple ; les chefs d'équipe gardent le jugement et revérifient tout ce que leurs mini-agents rapportent.
-
-| Chef d'équipe | Mini-agents |
+| Agent | Pour |
 |---|---|
-| testeur | `testeur-lanceur` (Haiku : lance et attend les tests), `testeur-enqueteur` (Sonnet : un échec jusqu'à sa cause) |
-| controleur-visuel | `visuel-rendeur` (Sonnet : planches), `visuel-mesureur` (Haiku : mesures au pixel) |
-| relecteur | `relecteur-montage-iphone`, `relecteur-securite-couts`, `relecteur-consignes-serveur` (Sonnet : un angle chacun) |
-| chercheur | `chercheur-sources` (Haiku : faits cités et datés), `chercheur-code` (Sonnet : inventaire d'un dépôt) |
+| `testeur` | audit complet des tests et de leur couverture |
+| `controleur-visuel` | revue visuelle complète de l'appli (tous styles, formats, écrans) |
+| `relecteur` | audit de sécurité ou de code complet avant une grosse version |
+| `chercheur` | dossier de recherche (outil, API, projet externe) avec recommandation |
 
-Un agent ne peut appeler ses mini-agents que si le chef le lance **au premier plan** (un agent en arrière-plan n'a pas
-l'outil Agent). Constaté en octobre 2026 : l'environnement lance parfois l'agent en arrière-plan même quand le chef demande le
-premier plan ; il fait alors tout seul. Pour une mission qui doit être répartie, **le chef envoie lui-même les
-mini-agents en parallèle** et confie la synthèse au chef d'équipe (ou la fait). Les équipes servent aux grosses missions (relecture avant « mets à jour », contrôle visuel d'une grosse
-nouveauté, enquête) ; au plus 3 mini-agents par mission.
+Un agent lancé en arrière-plan n'a pas l'outil Agent : il ne peut pas appeler de mini-agent. Les mini-agents sont tous
+dans `.claude/agents/`, préfixés par le nom de leur famille.
+
+### Analyser un rapport de test iPhone (version 9.1 et suivantes)
+
+L'utilisateur envoie `rapport-test-AAAA-MM-JJ.txt`. Lire dans l'ordre : **Fiche du test** (❌ et remarques), **Résumé
+automatique** (erreurs, réouvertures = plantages de Safari, montages : mode, images lentes > 50 ms), **Appareil**
+(WebGL, précision haute, H.264/AAC, police feutre, cache), puis la **chronologie** autour de chaque ❌. Chaque problème
+devient un constat prouvé (ligne du rapport) avant toute correction ; les prix relevés vont au registre des prix.
 
 ### Compétences (skills, `.claude/skills/`)
 
@@ -173,7 +180,15 @@ dans une skill est une erreur pour toute l'équipe ; les copier à l'identique d
    critique. Au deuxième échec, le chef fait le travail lui-même.
 5. **Après chaque mission** : `git status` pour vérifier qu'aucun agent n'a touché au code ; toute modification
    non autorisée est annulée et signalée.
-6. **Parallélisme** : le chercheur et le relecteur travaillent pendant que le chef code ; le testeur et le
-   contrôleur visuel passent quand le code est fini ; le relecteur passe toujours avant « mets à jour ».
+6. **Parallélisme** : les mini-agents relecteurs et chercheurs travaillent pendant que le chef code ; le rendeur passe
+   quand le code est fini ; les relecteurs passent toujours avant « mets à jour ».
 7. **Mémoire d'équipe** : les leçons utiles (pièges, durées, verdicts sur des outils) vont dans
    `.claude/agent-memory/<nom>/MEMORY.md`, courtes et à jour ; le chef les relit et les envoie avec le code.
+8. **Rapport obligatoire** : tout agent rend son rapport avant sa limite d'étapes (aux deux tiers, il arrête d'explorer
+   et rend un rapport partiel avec la liste « non vérifié ») ; un agent arrêté sans rapport est relancé pour le rendre.
+9. **Mesures de temps** : uniquement avec `CK.time` (atelier-rendu : chauffe, médiane, seul l'appel mesuré) et toujours
+   avec le moteur (Chromium logiciel ≠ iPhone). Une image isolée n'est pas une mesure.
+10. **Copies dans ECC** : `.claude/agents` et `.claude/skills` sont recopiés à l'identique dans le dépôt ECC ;
+   `verif.sh` échoue tant que ce n'est pas fait.
+11. **Prix sourcés** : un prix sans source datée (registre des prix, compétence `budget-et-couts`) est non vérifié ; on
+   ne dit pas « gratuit » à l'utilisateur sans source.

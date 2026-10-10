@@ -25,4 +25,7 @@ Code de sortie 0 = vert, 1 = au moins un ÉCHEC. Chaque ligne commence par `OK`,
 | `--livraison` : CACHE, APP_VERSIONS, ?v= | sans eux, l'utilisateur ne reçoit pas la mise à jour | `CACHE` +1 dans `sw.js`, nouvelle entrée **en tête** d'`APP_VERSIONS`, nouveau `?v=` |
 | moteur d'animation | courbes et ressorts faux = toutes les animations faussées | `node tests/unit-motion.js` |
 
+Il vérifie aussi que les copies de l'équipe dans le dépôt ECC (`/home/user/ECC/.claude/agents` et `skills`, ou
+`ECC_DIR`) sont identiques : échec tant qu'elles ne sont pas recopiées.
+
 Ce script ne remplace pas les tests de bout en bout (`tests/run-e2e.js`, ≈ 15 min) : il passe avant eux.

@@ -317,6 +317,7 @@ async function agnesImage(prompt, images, size = '720x1280') {
     if (res.status === 404 || res.status === 403) agnesImageUnsupported = true;
     if (!res.ok) { const err = await res.text().catch(() => ''); throw new Error('Agnes Image HTTP ' + res.status + ' ' + err.slice(0, 120)); }
     const d = await res.json();
+    if (typeof trackCost === 'function') trackCost('agnes', AGNES_IMAGE_PRICE);   // compté par prudence (prix non vérifié)
     const it = (d.data && d.data[0]) || d;
     const b64 = it.b64_json || it.base64 || it.image_base64;
     if (b64) return /^data:/.test(b64) ? b64 : 'data:image/png;base64,' + b64;

@@ -38,6 +38,12 @@ miss=""; for s in $(grep -o 'src="js/[^"?]*' index.html | sed 's/src="//'); do g
 # chaque fichier mis en cache à l'installation doit aussi être relu par le fetch du service worker (8.7 : la police .ttf ne l'était pas)
 unserved=$(node -e "const s=require('fs').readFileSync('sw.js','utf8');const re=new RegExp(s.match(/own && !\/(.+?)\/\.test\(url\.pathname\)/)[1]);const f=JSON.parse(s.match(/APP_FILES = (\[[^\]]*\])/)[1].replace(/'/g,'\"'));console.log(f.filter(x=>!re.test(x.replace(/^\./,''))).join(' '))" 2>&1)
 [ -z "$unserved" ] && ok "chaque fichier d'APP_FILES est relu hors ligne par le service worker" || ko "mis en cache mais jamais relu hors ligne (filtre du fetch de sw.js) : $unserved"
+# copies de l'équipe dans le dépôt ECC (agents et compétences) : identiques à celles-ci, qui font foi
+ECC=${ECC_DIR:-/home/user/ECC}
+if [ -d "$ECC/.claude/agents" ] && [ "$(cd "$ECC" && pwd)" != "$(pwd)" ]; then
+  cdiff=$(diff -rq .claude/agents "$ECC/.claude/agents" 2>&1; diff -rq .claude/skills "$ECC/.claude/skills" 2>&1)
+  [ -z "$cdiff" ] && ok "copies de l'équipe dans ECC identiques" || ko "copies de l'équipe dans ECC différentes (recopier .claude/agents et .claude/skills) : $(echo "$cdiff" | head -3 | tr '\n' ' ')"
+fi
 orph=""; for f in js/*.js; do grep -q "src=\"$f" index.html || orph="$orph $f"; done
 [ -z "$orph" ] || wa "fichiers jamais chargés par index.html :$orph"
 if [ $LIV = 1 ]; then

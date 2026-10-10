@@ -1318,6 +1318,49 @@ async function testCompositor(browser) {
     check(!v90.err && v90.identity < 1e-6 && v90.rotation < 1e-3 && v90.flipped === 0, 'personnage déformable : calcul juste (repos exact, rotation d\'un bloc, corps plié sans triangle retourné) (' + (v90.err || v90.identity.toExponential(1) + ' / ' + v90.rotation.toExponential(1) + ' / ' + v90.flipped) + ')');
     check(!v90.err && v90.inside && v90.thin > 150 && v90.lost && v90.tAbs && v90.prewarm && v90.draftRigid && v90.guard, 'personnage vivant : maillage dans l\'image, trait fin détaché gardé, contexte perdu repris, mouvement continu entre scènes, poses préparées, brouillon rigide, garde-fou de vitesse (' + (v90.err || JSON.stringify({ inside: v90.inside, thin: v90.thin, lost: v90.lost, tAbs: v90.tAbs, prewarm: v90.prewarm, draft: v90.draftRigid, guard: v90.guard })) + ')');
     check(!v90.err && v90.feetMoved === 0 && v90.headMoved > 200 && v90.ms < 20 && v90.drawn > 10000 && v90.rigid, 'personnage vivant : pieds immobiles, tête qui bouge, ' + v90.ms + ' ms par image, dessiné par drawPuppet, réglage « rigide » respecté (' + (v90.err || v90.mesh + ', tête ' + v90.headMoved + ' px changés') + ')');
+    // 9.1 : enregistreur de test — tout est noté, rien de secret ne sort, il survit à un rechargement
+    const v91 = await page.evaluate(async () => {
+        const r = {}, realSave = window.saveBlob;
+        try {
+            localStorage.removeItem(TESTLOG_KEY); testRec = null;
+            await testlogStart();
+            r.hooked = !!window.fetch.isTestlog;
+            // un appui, un réglage, un texte contenant une clé, un message de journal avec une clé, une erreur
+            const sel = document.getElementById('deform-select'); sel.value = 'off'; sel.dispatchEvent(new Event('change', { bubbles: true })); sel.value = 'on'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+            const ta = document.createElement('textarea'); ta.id = 'tl-champ-essai'; document.body.appendChild(ta);   // champ de texte (celui du script peut être désactivé par les tests précédents)
+            ta.value = 'ma clé ' + ['sk', 'ant', 'api03', 'abcdefghijklmnopqrstuv'].join('-');   // fausse clé construite par morceaux (contrôle des clés du dépôt)
+            ta.dispatchEvent(new Event('change', { bubbles: true })); ta.remove();
+            document.getElementById('journal-copy-btn').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            log('essai clé ' + ['sk', 'ant', 'api03', 'zyxwvutsrqponmlkjihgf'].join('-'));
+            window.dispatchEvent(new ErrorEvent('error', { message: 'Erreur simulée du test', filename: 'https://app.test/js/montage.js', lineno: 42 }));
+            try { await fetch('https://api.elevenlabs.io/v1/user/subscription?xi-api-key=' + ['sk', '0123456789abcdef0123'].join('_')); } catch (e) {}
+            // un montage : mode, vitesse, résultat
+            const m = testlogMontageStart({ label: 'Montage essai' }); testlogMontageInfo('image par image (WebCodecs), 1080×1920');
+            [12, 18, 70, 15].forEach(testlogFrame); testlogMontageEnd(m, { offline: true, blob: new Blob([new Uint8Array(2e6)]), ext: 'mp4' });
+            // la fiche
+            testlogStep('version', 'ok'); testlogStep('vivant', 'ko'); testlogStepNote('vivant', 'saccade au début, clé ' + ['sk', 'ant', 'api03', 'notedanslaremarque123'].join('-'));
+            // rechargement de l'appli (plantage de Safari) : l'enregistrement reprend
+            testlogSave(true); testlogUnhook(); testRec = null;
+            await testlogResume();
+            r.resumed = !!testRec?.active && testRec.events.some(e => e[1] === 'réouverture') && testRec.steps.version?.res === 'ok';
+            // le rapport, téléchargé (feuille de partage sur iPhone)
+            let saved = null; window.saveBlob = async (blob, name) => { saved = { name, text: await blob.text() }; return true; };
+            await testlogDownload();
+            const t = saved?.text || '';
+            r.name = saved?.name || '';
+            r.sections = ['## Fiche du test', '## Résumé automatique', '## Appareil', '## Chronologie complète', '## Journal de l\'appli'].every(h => t.includes(h));
+            r.content = t.includes('deform-select = off') && t.includes('tl-champ-essai texte modifié (') && t.includes('#journal-copy-btn') && t.includes('Erreur simulée du test') && /api\.elevenlabs\.io\/v1\/user\/subscription → ÉCHEC/.test(t)
+                && t.includes('Montage essai') && t.includes('1 lentes') && t.includes('❌ **Personnage vivant**') && t.includes('saccade au début') && t.includes('webgl') && t.includes('réouverture');
+            r.missing = ['deform-select = off', 'tl-champ-essai texte modifié (', '#journal-copy-btn', 'Erreur simulée du test', 'Montage essai', '1 lentes', '❌ **Personnage vivant**', 'saccade au début', 'webgl', 'réouverture'].filter(x => !t.includes(x)).concat(/api\.elevenlabs\.io\/v1\/user\/subscription → ÉCHEC/.test(t) ? [] : ['service ÉCHEC']);
+            r.secret = /sk-ant-api03|sk_0123456789|xi-api-key/.test(t);
+            r.unhooked = !window.fetch.isTestlog && testRec.active === false;
+            testlogClear(); r.cleared = localStorage.getItem(TESTLOG_KEY) === null && testRec === null;
+        } catch (e) { r.err = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' '); }
+        finally { window.saveBlob = realSave; if (testRec) { testlogUnhook(); testRec = null; localStorage.removeItem(TESTLOG_KEY); } }
+        return r;
+    });
+    check(!v91.err && v91.hooked && v91.resumed && v91.sections && v91.content && /^rapport-test-\d{4}-\d\d-\d\d\.txt$/.test(v91.name), 'enregistreur de test : appuis, réglages, erreurs, services, montages et fiche notés ; reprend après un rechargement ; rapport téléchargé (' + (v91.err || JSON.stringify(v91)) + ')');
+    check(!v91.err && v91.secret === false && v91.unhooked && v91.cleared, 'enregistreur de test : aucune clé ni texte saisi dans le rapport, appels réseau rendus à la normale à la fin, effaçable');
     // règle 8 : la version dans une autre langue traduit aussi les mots-clés des dessins (« VS » gardé), puis tout est remis
     const tr8 = await page.evaluate(async () => {
         const r = {}, keep = { drawings: state.drawings, queue: state.queue, scenes: state.scenes, plan: state.scenePlan, lang: state.language, voice: elevenlabsSelectedVoiceId, eleven: localStorage.getItem('elevenlabs_api_key'), claude: localStorage.getItem(STORAGE.CLAUDE_KEY) };

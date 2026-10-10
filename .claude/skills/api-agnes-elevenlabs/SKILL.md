@@ -12,7 +12,7 @@ description: Cartoon Instructeur uniquement. Référence des services externes d
 | Vidéo | `POST https://apihub.agnes-ai.com/v1/videos` | `model: 'agnes-video-v2.0'`, `prompt`, `image` (data URI, image de départ), `num_frames` = 8n+1 ≤ 441 (défaut 153 ≈ 6 s), `frame_rate: 24`, `negative_prompt`, `width`/`height` |
 | Suivi | `GET https://apihub.agnes-ai.com/agnesapi?video_id=…&model_name=agnes-video-v2.0` | réponse avec l'id (`video_id`, `id` ou `task_id`) puis l'adresse de la vidéo |
 | Enchaînement parfait | même `POST`, sans `image`, avec `extra_body: { image: [début, fin], mode: 'keyframes' }` | option « keyframes » ; refusé (400) → `keyframesUnsupported`, on renvoie la demande simple |
-| Image | `POST https://apihub.agnes-ai.com/v1/images/generations` | `model: 'agnes-image-2.1-flash'`, `size: '720x1280'`, `extra_body: { image: [dataURI], response_format: 'b64_json' }` ; 404/403 → `agnesImageUnsupported` ; **gratuit** à la date de la 8.2 |
+| Image | `POST https://apihub.agnes-ai.com/v1/images/generations` | `model: 'agnes-image-2.1-flash'`, `size: '720x1280'`, `extra_body: { image: [dataURI], response_format: 'b64_json' }` ; 404/403 → `agnesImageUnsupported` ; prix **non vérifié** (≈ 0,003 $ / image selon un guide tiers, gratuit pendant une promotion) : chaque image réussie est comptée `AGNES_IMAGE_PRICE` (9.1) |
 
 - Image pour les illustrations (8.8, `traceDrawingElements`) : texte seul (jamais éprouvé avec la vraie API avant le
   24/10/2026), `size: '960x960'` puis taille par défaut si 400/422 (retenu pour la session) ; une à la fois, 3 objets

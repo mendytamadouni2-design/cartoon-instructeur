@@ -19,6 +19,7 @@ const MAX_POLL_ATTEMPTS = 100;
 // Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
 // Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
 const APP_VERSIONS = [
+    { num: '9.1', date: '2026-10-10', note: 'Enregistreur de test : Réglages → Aide et journal → « Démarrer l\'enregistrement du test ». L\'appli note ce que tu fais, les erreurs, la vitesse des montages et les appels aux services (jamais tes clés ni tes textes), avec une fiche à cocher ; à la fin, un rapport à télécharger et à envoyer dans la conversation. « Vraies illustrations » coupé par défaut : Agnes Image pourrait coûter ≈ 0,003 $ par image (prix à vérifier), et chaque image est maintenant comptée dans les dépenses' },
     { num: '9.0', date: '2026-10-10', note: 'Personnage vivant : le personnage stable n\'est plus une image rigide — un maillage déformable « aussi rigide que possible » (repris d\'EffectCraft) fait pencher et hocher la tête quand il parle et plier doucement le corps au-dessus des pieds, sans aucun appel payant ; réglage « Personnage rigide » pour revenir à avant' },
     { num: '8.9', date: '2026-10-10', note: 'Fond vert plus propre : le vert mélangé au bord du personnage est retiré pixel par pixel au lieu de rogner le contour (méthode « Color to Alpha » reprise de PhotoCraft) — mèches de cheveux gardées avec leur vraie couleur, plus de liseré vert, aussi pour le personnage stable et sans WebGL' },
     { num: '8.8', date: '2026-10-10', note: 'Vraies illustrations au tableau : un objet sans icône toute faite (guillotine, personnage historique…) est dessiné par Agnes Image (gratuit) puis retracé trait par trait au feutre ; bouton « Depuis une image » dans le storyboard pour transformer ta photo ou ton dessin en illustration (traceur repris de VectorCraft)' },
@@ -164,7 +165,7 @@ const state = {
     cloudProvider: 'local',
     isLoadingImages: false, creationAttemptsSinceLastError: 0,
     scenePlan: null, timeline: null, drawings: [], drawingsPromise: null,
-    genMode: 'background', proxyJobs: false, proxyMedia: false, proxyTikTok: false, proxyInstagram: false, safeZones: true, testMode: false, testIdx: null, reference: null, richMode: true, qaOn: true, qaFrames: null, qaReport: null, oneShot: false, greenScreen: false, colorMatch: true, altFraming: true, fastExport: true, iconStyle: 'auto', traceDrawings: true, decorImage: null, decorImg: null, apPlan: null, comments: null, autoRun: false, finalFresh: false,
+    genMode: 'background', proxyJobs: false, proxyMedia: false, proxyTikTok: false, proxyInstagram: false, safeZones: true, testMode: false, testIdx: null, reference: null, richMode: true, qaOn: true, qaFrames: null, qaReport: null, oneShot: false, greenScreen: false, colorMatch: true, altFraming: true, fastExport: true, iconStyle: 'auto', traceDrawings: false, decorImage: null, decorImg: null, apPlan: null, comments: null, autoRun: false, finalFresh: false,
     ttStats: null, hooks: null, parts: null, langSrt: {}, lastYouTubeId: null,
     bankItems: [], bankUse: true, backupOn: true, projectId: null, factIssues: null, ytStats: null,
     finalVideoUrl: null, finalBlob: null, finalExt: 'mp4',
@@ -217,6 +218,7 @@ function journal(level, msg) {
     b.push(new Date().toISOString().slice(5, 19).replace('T', ' ') + ' ' + level + ' ' + sanitizeForJournal(msg).slice(0, 500));
     if (b.length > 300) b.splice(0, b.length - 300);
     try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(b.slice(-200))); } catch (e) {}
+    if (typeof testlogNote === 'function') testlogNote(level === 'ERREUR' ? 'ERREUR' : 'journal', msg);   // 9.1 : enregistreur de test
 }
 // Erreurs : une même erreur répétée n'est notée qu'une fois toutes les 30 s, et les « Script error. »
 // sans fichier (venues d'en dehors de l'appli : feuille de partage iOS, extensions…) une seule fois.

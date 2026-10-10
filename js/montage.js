@@ -719,7 +719,9 @@ function runFrames(dur, render, shouldEnd) {
             if (montagePause.on) { requestAnimationFrame(tick); return; }
             const t = (montageNow() - t0) / 1000;
             if (state.stopRequested || t >= dur || (shouldEnd && shouldEnd(t))) { finish(); return; }
+            const r0 = performance.now();
             render(t);
+            if (typeof testlogFrame === 'function') testlogFrame(performance.now() - r0);
             requestAnimationFrame(tick);
         };
         // filet de sécurité si l'affichage se bloque (hors pause)
@@ -730,6 +732,12 @@ function runFrames(dur, render, shouldEnd) {
 
 // Montage : image par image (WebCodecs) quand l'appareil le permet, sinon enregistrement en temps réel
 async function assembleVideo(opts = {}) {
+    // 9.1 : enregistreur de test — mode, vitesse image par image, résultat
+    const tl = typeof testlogMontageStart === 'function' ? testlogMontageStart(opts) : null;
+    try { const r = await assembleVideoRun(opts); if (tl) testlogMontageEnd(tl, r); return r; }
+    catch (e) { if (tl) testlogMontageEnd(tl, null, e); throw e; }
+}
+async function assembleVideoRun(opts) {
     if (!opts.preview && state.fastExport !== false && webcodecsAvailable()) {
         try { return await assembleVideoCore({ ...opts, offline: true }); }
         catch (e) {
@@ -782,6 +790,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     await ensureMarkerFont();
     const puppet = typeof stableActive === 'function' && stableActive() ? await loadPuppetSprites() : draft && typeof draftSprites === 'function' ? await draftSprites() : null;
     if (puppet && typeof prewarmPuppet === 'function') await prewarmPuppet(puppet);   // personnage vivant prêt avant la 1re image
+    if (typeof testlogMontageInfo === 'function') testlogMontageInfo((offline ? 'image par image (WebCodecs)' : preview ? 'aperçu' : 'temps réel') + ', ' + W + '×' + H + ', ' + segs.length + ' segments, style ' + state.selectedStyle + ', personnage ' + (puppet ? (draft ? 'brouillon' : state.puppetDeform === false ? 'stable rigide' : 'stable vivant') : 'Agnes') + (state.greenScreen ? ', fond vert' : '') + ', voix ' + state.voiceSource);
     if (state.transition === 'smart' && typeof warmTransitions === 'function') { try { warmTransitions(items.map(it => scenePlanFor(it.sceneIndex))); } catch (e) {} }
     let prevPose = null, puppetMouth = 'closed', prevTx = null;
     // transitions à effet : copie de l'image du nouveau plan (B) avant de la mélanger avec le plan précédent (A)
@@ -837,8 +846,10 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             if (t >= dur - 1e-6 || state.stopRequested || (shouldEnd && shouldEnd(t))) break;
             clock.t = T + t;
             if (before) await before(t);
+            const r0 = performance.now();
             render(t);
             await session.frame(canvas, T + t);
+            if (typeof testlogFrame === 'function') testlogFrame(performance.now() - r0);
             f++; frameCount++;
             if (frameCount % 20 === 0) { setStatus(label + ' : image ' + frameCount + ' (' + Math.round(T + t) + ' s calculées)'); await new Promise(r => setTimeout(r, 0)); }
         }

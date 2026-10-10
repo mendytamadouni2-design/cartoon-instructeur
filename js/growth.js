@@ -77,6 +77,8 @@ document.addEventListener('click', e => { if (e.target.id === 'yt-advice-btn') p
 // DÉPENSES (estimation : Agnes par scène, Claude selon les jetons, ElevenLabs selon les caractères)
 // ══════════════════════════════════════════════════════════════════
 const AGNES_SCENE_PRICE = 0.02, ELEVENLABS_PRICE_1K = 0.2;
+// Agnes Image : ≈ 0,003 $ par image d'après un guide extérieur (oct. 2026, non vérifié ; gratuit pendant une promotion) — compté par prudence
+const AGNES_IMAGE_PRICE = 0.003;
 const COST_LABELS = { agnes: 'Agnes', claude: 'Claude', elevenlabs: 'ElevenLabs' };
 function trackCost(service, eur) {
     if (!(eur > 0)) return;
@@ -109,7 +111,7 @@ function renderCosts() {
         (c.projects.length ? '<table class="yt-table" style="margin-top:0.4rem;"><tr><th>Vidéo</th><th>Agnes</th><th>Claude</th><th>Voix</th><th>Total</th></tr>' +
             c.projects.slice(0, 15).map(p => '<tr><td>' + esc(p.name) + '</td><td>' + eur(p.agnes) + '</td><td>' + eur(p.claude) + '</td><td>' + eur(p.elevenlabs) + '</td><td><b>' + eur(sum(p)) + '</b></td></tr>').join('') + '</table>'
             : '<div class="prompt-main-hint">Aucune dépense enregistrée pour l\'instant.</div>') +
-        '<div class="prompt-main-hint" style="margin-top:0.4rem;">Estimations : Agnes ≈ ' + eur(AGNES_SCENE_PRICE) + ' par scène, ElevenLabs ≈ ' + eur(ELEVENLABS_PRICE_1K) + ' pour 1000 caractères, Claude selon le nombre de mots échangés. Les montants exacts sont sur chaque site.</div>';
+        '<div class="prompt-main-hint" style="margin-top:0.4rem;">Estimations : Agnes ≈ ' + eur(AGNES_SCENE_PRICE) + ' par scène, Agnes Image ≈ ' + eur(AGNES_IMAGE_PRICE) + ' par image (à vérifier), ElevenLabs ≈ ' + eur(ELEVENLABS_PRICE_1K) + ' pour 1000 caractères, Claude selon le nombre de mots échangés. Les montants exacts sont sur chaque site.</div>';
 }
 
 // ══════════════════════════════════════════════════════════════════
