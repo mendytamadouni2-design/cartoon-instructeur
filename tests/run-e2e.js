@@ -1320,8 +1320,10 @@ async function testCompositor(browser) {
     check(!v90.err && v90.feetMoved === 0 && v90.headMoved > 200 && v90.ms < 20 && v90.drawn > 10000 && v90.rigid, 'personnage vivant : pieds immobiles, tête qui bouge, ' + v90.ms + ' ms par image, dessiné par drawPuppet, réglage « rigide » respecté (' + (v90.err || v90.mesh + ', tête ' + v90.headMoved + ' px changés') + ')');
     // 9.1 : enregistreur de test — tout est noté, rien de secret ne sort, il survit à un rechargement
     const v91 = await page.evaluate(async () => {
-        const r = {}, realSave = window.saveBlob;
+        const r = {}, realSave = window.saveBlob, realFetch = window.fetch;
         try {
+            // services sans réseau : l'échec doit être le même partout (sans internet ici, avec internet sur GitHub)
+            window.fetch = function (input) { const u = String(input && input.url ? input.url : input); return /api\.elevenlabs\.io|relais\.test/.test(u) ? Promise.reject(new TypeError('Load failed')) : realFetch.apply(this, arguments); };
             localStorage.removeItem(TESTLOG_KEY); testRec = null;
             await testlogStart();
             r.hooked = !!window.fetch.isTestlog;
@@ -1363,7 +1365,7 @@ async function testCompositor(browser) {
             r.unhooked = !window.fetch.isTestlog && testRec.active === false;
             testlogClear(); r.cleared = localStorage.getItem(TESTLOG_KEY) === null && testRec === null;
         } catch (e) { r.err = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' '); }
-        finally { window.saveBlob = realSave; if (r.keepAgnes === null) localStorage.removeItem('agnes_api_key'); else if (r.keepAgnes !== undefined) localStorage.setItem('agnes_api_key', r.keepAgnes); if (testRec) { testlogUnhook(); testRec = null; localStorage.removeItem(TESTLOG_KEY); } }
+        finally { window.saveBlob = realSave; if (r.keepAgnes === null) localStorage.removeItem('agnes_api_key'); else if (r.keepAgnes !== undefined) localStorage.setItem('agnes_api_key', r.keepAgnes); if (testRec) { testlogUnhook(); testRec = null; localStorage.removeItem(TESTLOG_KEY); } window.fetch = realFetch; }
         return r;
     });
     check(!v91.err && v91.hooked && v91.resumed && v91.sections && v91.content && /^rapport-test-\d{4}-\d\d-\d\d\.txt$/.test(v91.name), 'enregistreur de test : appuis, réglages, erreurs, services, montages et fiche notés ; reprend après un rechargement ; rapport téléchargé (' + (v91.err || JSON.stringify(v91)) + ')');
@@ -1392,7 +1394,7 @@ async function testCompositor(browser) {
     });
     check(!tr8.err && tr8.asked && /^King\|VS\|The common people en-US$|^King\|The common people\|VS en-US$/.test(tr8.during || '') && tr8.smaller && /Roi/.test(tr8.after || '') && /Peuple/.test(tr8.after || ''), 'version dans une autre langue : mots-clés des dessins traduits (plus petits si plus longs), « VS » gardé, puis tout remis (' + (tr8.err || tr8.during + ' → ' + tr8.after) + ')');
     check(!v88.err && v88.shapesOk, 'image → traits de feutre : formes retrouvées, zones pleines par leur bord, poussières ignorées (' + (v88.err || v88.shapes) + ')');
-    check(!v88.err && v88.illusOk && v88.reload && v88.max3 === 3, 'objet sans icône dessiné par Agnes Image (gratuit) puis retracé au feutre, icône gardée, rien de redemandé (projet rouvert ou même objet), 3 objets au plus (' + (v88.err || v88.illus + ', ' + v88.max3 + ' appels pour 5 objets') + ')');
+    check(!v88.err && v88.illusOk && v88.reload && v88.max3 === 3, 'objet sans icône dessiné par Agnes Image puis retracé au feutre, icône gardée, rien de redemandé (projet rouvert ou même objet), 3 objets au plus (' + (v88.err || v88.illus + ', ' + v88.max3 + ' appels pour 5 objets') + ')');
     check(!v88.err && v88.bg && v88.srv, 'génération en arrière-plan : dessins du serveur retracés par le téléphone pendant le travail, repris du cache au retour, plus aucun appel après le délai ; traits non renvoyés au serveur (sauf image de l\'utilisateur)');
     check(!v88.err && v88.fallback, 'illustrations retracées : réglage coupé → aucun appel ; Agnes Image refusée → dessin de Claude gardé, casting de poses pas coupé');
     check(!v88.err && v88.photoOk, 'image de l\'utilisateur transformée en illustration de la scène, sans aucun appel (' + (v88.err || v88.photo) + ')');
