@@ -1130,6 +1130,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
         if (montagePause.on) { try { await actx.resume(); } catch (e) {} }
         Object.assign(montagePause, { on: false, rec: null, actx: null, resuming: null });
         if (proc) proc.dispose();
+        if (typeof disposePuppetRenderer === 'function') disposePuppetRenderer();   // iPhone : contexte WebGL rendu
         if (pending) disposeStageVideo(pending);
         sfx.stop();
         if (musicSrc) { try { musicSrc.stop(actx.currentTime); } catch (e) {} }

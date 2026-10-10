@@ -74,6 +74,7 @@ Ordre de chargement et rôle :
 | `stickers.js` | autocollants, carte « Suivre », styles de sous-titres, rythme serré (silences coupés) |
 | `channel.js` | charte de la chaîne, mode objectif, images de l'utilisateur |
 | `puppet.js` | personnage stable : casting de poses, marionnette animée, bouche calée sur la voix |
+| `deform.js` | personnage vivant (9.0) : maillage ARAP porté d'EffectCraft (Cholesky une fois par pose), rendu WebGL, repli rigide |
 | `director.js` | brouillon animé, retouches en discutant, séries, miniatures |
 | `init.js` | démarrage et branchement des boutons |
 

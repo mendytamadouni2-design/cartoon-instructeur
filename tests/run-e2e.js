@@ -1234,6 +1234,51 @@ async function testCompositor(browser) {
     });
     check(!v89.err && v89.webgl.webgl && v89.webgl.fringe < 1500 && v89.webgl.strands >= 0.7 && v89.webgl.holes === 0, 'fond vert (WebGL) : mèches de cheveux gardées, liseré vert presque nul, aucun trou (' + (v89.err || JSON.stringify(v89.webgl)) + ' ; avant 8.9 : liseré 4100, mèches 0,58)');
     check(!v89.err && !v89['2d'].webgl && v89['2d'].fringe < 1500 && v89['2d'].strands >= 0.65 && v89['2d'].holes === 0, 'fond vert (repli sans WebGL) : liseré vert presque nul, mèches gardées, aucun trou (' + (v89.err || JSON.stringify(v89['2d'])) + ' ; avant 8.9 : liseré 7774)');
+    // 9.0 : personnage vivant — maillage « aussi rigide que possible » (porté d'EffectCraft), pieds tenus, tête qui bouge
+    const v90 = await page.evaluate(async () => {
+        const r = {}, keepDeform = state.puppetDeform;
+        try {
+            const rect = (W, H, nx, ny) => { const v = [], t = []; for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) v.push([W * i / nx, H * j / ny]); const id = (i, j) => j * (nx + 1) + i; for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { t.push([id(i, j), id(i + 1, j + 1), id(i + 1, j)]); t.push([id(i, j), id(i, j + 1), id(i + 1, j + 1)]); } return { v, t }; };
+            const near = (v, q) => v.reduce((b, p, k) => Math.hypot(p[0] - q[0], p[1] - q[1]) < Math.hypot(v[b][0] - q[0], v[b][1] - q[1]) ? k : b, 0);
+            const pts = o => Array.from(o.x, (x, i) => [x, o.y[i]]);
+            // justesse (mêmes cas que les tests d'EffectCraft)
+            let m = rect(100, 60, 10, 6), pins = [near(m.v, [0, 0]), near(m.v, [100, 60])];
+            let d = pts(arapDeform(arapPrepare(m.v, m.t, pins), pins.map(i => m.v[i]), 2));
+            r.identity = Math.max(...d.map((p, k) => Math.hypot(p[0] - m.v[k][0], p[1] - m.v[k][1])));
+            m = rect(100, 40, 10, 4);
+            const a = near(m.v, [0, 20]), b = near(m.v, [100, 20]), c = [(m.v[a][0] + m.v[b][0]) / 2, (m.v[a][1] + m.v[b][1]) / 2], ang = Math.PI / 6;
+            const rot = p => [c[0] + (p[0] - c[0]) * Math.cos(ang) - (p[1] - c[1]) * Math.sin(ang), c[1] + (p[0] - c[0]) * Math.sin(ang) + (p[1] - c[1]) * Math.cos(ang)];
+            d = pts(arapDeform(arapPrepare(m.v, m.t, [a, b]), [rot(m.v[a]), rot(m.v[b])], 0));
+            r.rotation = Math.max(...d.map((p, k) => { const q = rot(m.v[k]); return Math.hypot(p[0] - q[0], p[1] - q[1]); }));
+            m = rect(120, 360, 8, 24);
+            const feet = m.v.map((p, k) => p[1] >= 359 ? k : -1).filter(k => k >= 0), head = m.v.map((p, k) => p[1] <= 1 ? k : -1).filter(k => k >= 0);
+            d = pts(arapDeform(arapPrepare(m.v, m.t, feet.concat(head)), feet.concat(head).map(i => head.includes(i) ? [m.v[i][0] + 70, m.v[i][1] + 10] : m.v[i]), 1));
+            const cross = (p, q, s) => (q[0] - p[0]) * (s[1] - p[1]) - (q[1] - p[1]) * (s[0] - p[0]);
+            r.flipped = m.t.filter(t => Math.sign(cross(d[t[0]], d[t[1]], d[t[2]])) !== Math.sign(cross(m.v[t[0]], m.v[t[1]], m.v[t[2]]))).length;
+            // une pose : personnage simulé (tête ronde, corps, pieds) sur fond transparent
+            const sp = document.createElement('canvas'); sp.width = 300; sp.height = 700; const g = sp.getContext('2d');
+            g.fillStyle = '#e9b48f'; g.beginPath(); g.arc(150, 110, 90, 0, Math.PI * 2); g.fill();
+            g.fillStyle = '#2b6cd4'; g.fillRect(80, 200, 140, 330); g.fillStyle = '#333'; g.fillRect(90, 530, 45, 150); g.fillRect(165, 530, 45, 150);
+            state.puppetDeform = true;
+            const M = puppetMeshFor(sp);
+            r.mesh = M ? M.rest.length + ' points, ' + M.tris.length + ' triangles' : 'aucun';
+            const frame = t => { const o = deformedPuppet(sp, sp, t, 0.6); const c2 = document.createElement('canvas'); c2.width = o.canvas.width; c2.height = o.canvas.height; c2.getContext('2d').drawImage(o.canvas, 0, 0); return { d: c2.getContext('2d').getImageData(0, 0, c2.width, c2.height).data, w: c2.width, h: c2.height, pad: o.pad }; };
+            const A = frame(0.2), B = frame(1.5);
+            const diff = (y0, y1) => { let n = 0; for (let y = y0; y < y1; y++) for (let x = 0; x < A.w; x++) { const i = (y * A.w + x) * 4 + 3; if (Math.abs(A.d[i] - B.d[i]) > 40) n++; } return n; };
+            r.feetMoved = diff(A.pad + 560, A.pad + 680); r.headMoved = diff(A.pad, A.pad + 200);
+            const t0 = performance.now(); for (let k = 0; k < 30; k++) deformedPuppet(sp, sp, k / 30, 0.5); r.ms = +((performance.now() - t0) / 30).toFixed(2);
+            // dessiné par le vrai drawPuppet, puis réglage « rigide »
+            const cv = document.createElement('canvas'); cv.width = 540; cv.height = 960; const cg = cv.getContext('2d');
+            drawPuppet(cg, 540, 960, { sprite: { closed: sp }, t: 1, env: null, bufTime: 0 });
+            r.drawn = cg.getImageData(0, 0, 540, 960).data.filter((v, i) => i % 4 === 3 && v > 0).length;
+            state.puppetDeform = false; r.rigid = deformedPuppet(sp, sp, 1, 0) === null;
+            disposePuppetRenderer();
+        } catch (e) { r.err = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' '); }
+        finally { state.puppetDeform = keepDeform; }
+        return r;
+    });
+    check(!v90.err && v90.identity < 1e-6 && v90.rotation < 1e-3 && v90.flipped === 0, 'personnage déformable : calcul juste (repos exact, rotation d\'un bloc, corps plié sans triangle retourné) (' + (v90.err || v90.identity.toExponential(1) + ' / ' + v90.rotation.toExponential(1) + ' / ' + v90.flipped) + ')');
+    check(!v90.err && v90.feetMoved === 0 && v90.headMoved > 200 && v90.ms < 20 && v90.drawn > 10000 && v90.rigid, 'personnage vivant : pieds immobiles, tête qui bouge, ' + v90.ms + ' ms par image, dessiné par drawPuppet, réglage « rigide » respecté (' + (v90.err || v90.mesh + ', tête ' + v90.headMoved + ' px changés') + ')');
     // règle 8 : la version dans une autre langue traduit aussi les mots-clés des dessins (« VS » gardé), puis tout est remis
     const tr8 = await page.evaluate(async () => {
         const r = {}, keep = { drawings: state.drawings, queue: state.queue, scenes: state.scenes, plan: state.scenePlan, lang: state.language, voice: elevenlabsSelectedVoiceId, eleven: localStorage.getItem('elevenlabs_api_key'), claude: localStorage.getItem(STORAGE.CLAUDE_KEY) };

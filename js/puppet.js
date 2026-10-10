@@ -254,6 +254,8 @@ function drawPuppet(g, W, H, o) {
     const hTarget = portrait ? H * 0.5 : H * 0.8, s = hTarget / img.height, w = img.width * s, h = img.height * s;
     const cx = o.wb ? W * (portrait ? 0.5 : 0.22) : portrait ? W * 0.5 : W * 0.3, feet = portrait ? H * 0.94 : H * 0.97;
     const t = o.t, talk = o.env ? envAt(o.env, o.bufTime) : 0;
+    // 9.0 : personnage vivant (maillage déformé) ; sans WebGL ou réglage coupé : image rigide comme avant
+    const live = typeof deformedPuppet === 'function' ? deformedPuppet(img, sp.closed, t, talk) : null;
     const enter = o.first ? spring(t, SPRINGS.bouncy) : 1, pop = o.poseChanged ? 0.965 + 0.035 * spring(t, SPRINGS.snappy) : 1;
     const breathe = 1 + 0.012 * Math.sin(t * 2 * Math.PI / 3.2), sway = 0.008 * Math.sin(t * 2 * Math.PI / 4.3 + 1);
     const bob = -talk * h * 0.008;
@@ -261,8 +263,9 @@ function drawPuppet(g, W, H, o) {
     g.save();
     g.fillStyle = 'rgba(0,0,0,0.18)'; g.beginPath(); g.ellipse(cx, feet, w * 0.32 * enter, h * 0.025, 0, 0, Math.PI * 2); g.fill();
     g.translate(cx, feet + (1 - enter) * H * 0.25 + bob);
-    g.rotate(sway); g.scale(pop / Math.sqrt(breathe), pop * breathe);
-    g.drawImage(img, -w / 2, -h, w, h);
+    g.rotate(live ? sway * 0.3 : sway); g.scale(pop / Math.sqrt(breathe), pop * breathe);   // le corps qui se plie remplace l'essentiel du balancement
+    if (live) g.drawImage(live.canvas, -w / 2 - live.pad * s, -h - live.pad * s, w + 2 * live.pad * s, h + 2 * live.pad * s);
+    else g.drawImage(img, -w / 2, -h, w, h);
     g.restore();
     return mouth;
 }

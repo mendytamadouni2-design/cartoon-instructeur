@@ -19,6 +19,7 @@ const MAX_POLL_ATTEMPTS = 100;
 // Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
 // Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
 const APP_VERSIONS = [
+    { num: '9.0', date: '2026-10-10', note: 'Personnage vivant : le personnage stable n\'est plus une image rigide — un maillage déformable « aussi rigide que possible » (repris d\'EffectCraft) fait pencher et hocher la tête quand il parle et plier doucement le corps au-dessus des pieds, sans aucun appel payant ; réglage « Personnage rigide » pour revenir à avant' },
     { num: '8.9', date: '2026-10-10', note: 'Fond vert plus propre : le vert mélangé au bord du personnage est retiré pixel par pixel au lieu de rogner le contour (méthode « Color to Alpha » reprise de PhotoCraft) — mèches de cheveux gardées avec leur vraie couleur, plus de liseré vert, aussi pour le personnage stable et sans WebGL' },
     { num: '8.8', date: '2026-10-10', note: 'Vraies illustrations au tableau : un objet sans icône toute faite (guillotine, personnage historique…) est dessiné par Agnes Image (gratuit) puis retracé trait par trait au feutre ; bouton « Depuis une image » dans le storyboard pour transformer ta photo ou ton dessin en illustration (traceur repris de VectorCraft)' },
     { num: '8.7', date: '2026-10-10', note: 'Voix calée sur les lèvres : une seule prise ElevenLabs, étirée sur le téléphone sans changer sa hauteur (moitié moins de caractères) ; vraie police feutre Permanent Marker, identique sur tous les appareils et dans les exports' },
@@ -152,7 +153,7 @@ const state = {
     subtitlesMode: 'on', subtitlesStyle: 'words', syncWords: true,
     language: 'fr-FR', ttsEngine: 'elevenlabs', voiceSource: 'agnes',
     translateEngine: 'claude',
-    chainScenes: true, camera: 'static', transition: 'smart', stickersOn: true, followCard: 'tiktok', trimMode: 'auto', videoFormat: 'auto', target: 'shorts', stableChar: 'auto', cast: null, keyframes: 'off',
+    chainScenes: true, camera: 'static', transition: 'smart', stickersOn: true, followCard: 'tiktok', trimMode: 'auto', videoFormat: 'auto', target: 'shorts', stableChar: 'auto', puppetDeform: true, cast: null, keyframes: 'off',
     zoomOn: true, introOn: true, outroOn: true, sectionCards: true, exportQuality: '1080',
     musicSource: 'app', musicVolume: 0.35, sfxOn: true, photoSmall: null, regenerating: false,
     poses: [], storyboardOn: true, storyboardApproved: false, storyboardSig: '', storyboarding: false,

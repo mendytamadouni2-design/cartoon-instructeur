@@ -36,7 +36,7 @@ const SETTINGS = [
     ['gen-mode-select', 'genMode'], ['storyboard-select', 'storyboardOn', ...SET_BOOL], ['chain-select', 'chainScenes', ...SET_BOOL],
     ['camera-select', 'camera'], ['transition-select', 'transition'], ['stickers-select', 'stickersOn', ...SET_BOOL], ['follow-select', 'followCard'], ['trim-select', 'trimMode'], ['zoom-select', 'zoomOn', ...SET_BOOL],
     ['intro-select', 'introOn', ...SET_BOOL], ['sections-select', 'sectionCards', ...SET_BOOL], ['outro-select', 'outroOn', ...SET_BOOL],
-    ['quality-select', 'exportQuality'], ['video-format-select', 'videoFormat'], ['target-select', 'target'], ['stable-select', 'stableChar'], ['keyframes-select', 'keyframes'], ['sync-select', 'syncWords', ...SET_BOOL],
+    ['quality-select', 'exportQuality'], ['video-format-select', 'videoFormat'], ['target-select', 'target'], ['stable-select', 'stableChar'], ['deform-select', 'puppetDeform', ...SET_BOOL], ['keyframes-select', 'keyframes'], ['sync-select', 'syncWords', ...SET_BOOL],
     ['music-source-select', 'musicSource'], ['music-volume-select', 'musicVolume', v => parseFloat(v) || 0.35, v => String(v)],
     ['sfx-select', 'sfxOn', ...SET_BOOL], ['subtitles-style-select', 'subtitlesStyle'], ['voice-source-select', 'voiceSource'],
     ['tts-engine-select', 'ttsEngine'], ['audience-select', 'audience'], ['tone-select', 'tone'], ['language-select', 'language'],
