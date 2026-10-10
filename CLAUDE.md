@@ -133,7 +133,9 @@ simple ; les chefs d'équipe gardent le jugement et revérifient tout ce que leu
 | chercheur | `chercheur-sources` (Haiku : faits cités et datés), `chercheur-code` (Sonnet : inventaire d'un dépôt) |
 
 Un agent ne peut appeler ses mini-agents que si le chef le lance **au premier plan** (un agent en arrière-plan n'a pas
-l'outil Agent). Les équipes servent aux grosses missions (relecture avant « mets à jour », contrôle visuel d'une grosse
+l'outil Agent). Constaté en octobre 2026 : l'environnement lance parfois l'agent en arrière-plan même quand le chef demande le
+premier plan ; il fait alors tout seul. Pour une mission qui doit être répartie, **le chef envoie lui-même les
+mini-agents en parallèle** et confie la synthèse au chef d'équipe (ou la fait). Les équipes servent aux grosses missions (relecture avant « mets à jour », contrôle visuel d'une grosse
 nouveauté, enquête) ; au plus 3 mini-agents par mission.
 
 ### Compétences (skills, `.claude/skills/`)
