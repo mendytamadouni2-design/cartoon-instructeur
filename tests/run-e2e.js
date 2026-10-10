@@ -1226,14 +1226,26 @@ async function testCompositor(browser) {
                     if (y < 400 && t > 120 && (x < 200 || x > 520 || y < 290)) { strands++; if (la[i + 3] > 128) kept++; }
                     if (t > 200 && [[12, 0], [-12, 0], [0, 12], [0, -12], [9, 9], [-9, 9], [9, -9], [-9, -9]].every(([dx, dy]) => T(i, dx, dy) > 200) && la[i + 3] < 250) holes++;
                 }
-                r[mode] = { webgl: proc.webgl, fringe, strands: +(kept / strands).toFixed(2), holes };
+                // vêtements verts collés au fond (sarcelle, vert forêt, olive) : restent pleins et de leur couleur
+                const acc = document.createElement('canvas'); acc.width = 400; acc.height = 100; const ag = acc.getContext('2d');
+                ag.fillStyle = '#00B140'; ag.fillRect(0, 0, 400, 100);
+                const cols = [[0, 176, 144], [30, 120, 60], [110, 140, 40]];
+                cols.forEach((c, k) => { ag.fillStyle = 'rgb(' + c.join(',') + ')'; ag.fillRect(20 + k * 95, 20, 70, 60); });
+                const accImg = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = acc.toDataURL('image/png'); });
+                const al = proc.process(accImg, { key: true }), A2 = document.createElement('canvas'); A2.width = 400; A2.height = 100; const a2 = A2.getContext('2d'); a2.drawImage(al, 0, 0, 400, 100); const ad = a2.getImageData(0, 0, 400, 100).data;
+                const accOk = cols.every((c, k) => [0, 1].every(dx => { const i = (50 * 400 + 20 + k * 95 + dx) * 4; return ad[i + 3] > 240 && (dx === 0 || Math.max(Math.abs(ad[i] - c[0]), Math.abs(ad[i + 1] - c[1]), Math.abs(ad[i + 2] - c[2])) < 8); }));
+                r[mode] = { webgl: proc.webgl, fringe, strands: +(kept / strands).toFixed(2), holes, accOk };
+                // contexte WebGL perdu (retour d'arrière-plan sur iPhone) : null → la vidéo s'affiche, jamais un calque vide
+                if (mode === 'webgl') { proc.canvas.getContext('webgl').getExtension('WEBGL_lose_context').loseContext(); r.lost = proc.process(img, { key: true }) === null; }
                 proc.dispose();
             }
         } catch (e) { r.err = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' '); }
         return r;
     });
-    check(!v89.err && v89.webgl.webgl && v89.webgl.fringe < 1500 && v89.webgl.strands >= 0.7 && v89.webgl.holes === 0, 'fond vert (WebGL) : mèches de cheveux gardées, liseré vert presque nul, aucun trou (' + (v89.err || JSON.stringify(v89.webgl)) + ' ; avant 8.9 : liseré 4100, mèches 0,58)');
-    check(!v89.err && !v89['2d'].webgl && v89['2d'].fringe < 1500 && v89['2d'].strands >= 0.65 && v89['2d'].holes === 0, 'fond vert (repli sans WebGL) : liseré vert presque nul, mèches gardées, aucun trou (' + (v89.err || JSON.stringify(v89['2d'])) + ' ; avant 8.9 : liseré 7774)');
+    check(!v89.err && v89.webgl.accOk && v89['2d'].accOk, 'fond vert : un vêtement vert, sarcelle ou olive au bord du personnage reste plein et de sa couleur (WebGL et repli)');
+    check(!v89.err && v89.lost, 'fond vert : contexte WebGL perdu → la vidéo s\'affiche au lieu d\'un personnage vide');
+    check(!v89.err && v89.webgl.webgl && v89.webgl.fringe < 3000 && v89.webgl.strands >= 0.7 && v89.webgl.holes === 0, 'fond vert (WebGL) : mèches de cheveux gardées, liseré vert nettement réduit, aucun trou (' + (v89.err || JSON.stringify(v89.webgl)) + ' ; avant 8.9 : liseré 4100, mèches 0,58)');
+    check(!v89.err && !v89['2d'].webgl && v89['2d'].fringe < 3000 && v89['2d'].strands >= 0.65 && v89['2d'].holes === 0, 'fond vert (repli sans WebGL) : liseré vert nettement réduit, mèches gardées, aucun trou (' + (v89.err || JSON.stringify(v89['2d'])) + ' ; avant 8.9 : liseré 7774)');
     // 9.0 : personnage vivant — maillage « aussi rigide que possible » (porté d'EffectCraft), pieds tenus, tête qui bouge
     const v90 = await page.evaluate(async () => {
         const r = {}, keepDeform = state.puppetDeform;
