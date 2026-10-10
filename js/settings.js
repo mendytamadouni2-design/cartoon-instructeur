@@ -19,7 +19,9 @@ async function prepareFitVoice(item) {
         // Au-delà de ±25 à 35 %, l'étirement s'entend : on s'arrête là.
         const stretch = Math.max(0.75, Math.min(1.35, target / (sp.end - sp.start)));
         if (Math.abs(stretch - 1) > 0.03 && typeof stretchBuffer === 'function') {
-            buf = stretchBuffer(buf, stretch); sp = analyzeSpeech(buf); item.fitStretch = stretch;
+            // un étirement raté ne doit pas faire perdre la prise déjà payée : on la garde à sa vitesse
+            try { const nb = stretchBuffer(buf, stretch); buf = nb; sp = analyzeSpeech(nb); item.fitStretch = stretch; }
+            catch (e) { log('Étirement de la voix impossible (' + e.message + ') : voix gardée à sa vitesse'); }
         }
     }
     if (!buf) throw new Error('voix illisible');

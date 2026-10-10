@@ -86,8 +86,10 @@ function roundRectPath(ctx, x, y, w, h, r) {
     ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
 }
+// Retour à la ligne au mot ; la ponctuation française (« ? », « ! », « : », « ; », « » ») reste collée au mot
+// précédent par une espace insécable : jamais un « ? » seul en début de ligne.
 function wrapLines(ctx, text, maxWidth) {
-    const words = String(text).split(/\s+/).filter(Boolean), lines = [];
+    const words = String(text).replace(/ +([?!:;»])/g, '\u00a0$1').replace(/(«) +/g, '$1\u00a0').split(/[ \t\n\r]+/).filter(Boolean), lines = [];
     let cur = '';
     for (const w of words) { const test = cur ? cur + ' ' + w : w; if (ctx.measureText(test).width > maxWidth && cur) { lines.push(cur); cur = w; } else cur = test; }
     if (cur) lines.push(cur);
@@ -435,8 +437,9 @@ function drawTitleCard(ctx, cw, ch, title, t, kind) {
     let fs = Math.round(base * (kind === 'intro' ? 0.12 : 0.095));
     ctx.save();
     ctx.font = '900 ' + fs + 'px ' + MARKER_FONT;
-    let lines = wrapLines(ctx, title, cw * 0.82);
-    while (lines.length > 3 && fs > 20) { fs -= 4; ctx.font = '900 ' + fs + 'px ' + MARKER_FONT; lines = wrapLines(ctx, title, cw * 0.82); }
+    // 0,78 de la largeur : le feutre déborde un peu de ses lettres (traits épais)
+    let lines = wrapLines(ctx, title, cw * 0.78);
+    while (lines.length > 3 && fs > 20) { fs -= 4; ctx.font = '900 ' + fs + 'px ' + MARKER_FONT; lines = wrapLines(ctx, title, cw * 0.78); }
     const lh = fs * 1.15, y0 = ch / 2 - (lines.length - 1) * lh / 2 - (kind === 'intro' ? fs * 0.3 : 0);
     ctx.restore();
     // chaque mot monte dans sa fenêtre (révélation par masque), ligne après ligne

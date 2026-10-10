@@ -35,6 +35,9 @@ vs=$(grep -o '?v=[0-9]*' index.html | sort -u)
 [ "$(echo "$vs" | wc -l)" = "1" ] && ok "un seul ?v= dans index.html (${vs#?v=})" || ko "plusieurs ?v= dans index.html : $(echo $vs)"
 miss=""; for s in $(grep -o 'src="js/[^"?]*' index.html | sed 's/src="//'); do grep -q "'./$s'" sw.js || miss="$miss $s"; done
 [ -z "$miss" ] && ok "chaque script de index.html est dans APP_FILES (sw.js)" || ko "absents de APP_FILES :$miss"
+# chaque fichier mis en cache à l'installation doit aussi être relu par le fetch du service worker (8.7 : la police .ttf ne l'était pas)
+unserved=$(node -e "const s=require('fs').readFileSync('sw.js','utf8');const re=new RegExp(s.match(/own && !\/(.+?)\/\.test\(url\.pathname\)/)[1]);const f=JSON.parse(s.match(/APP_FILES = (\[[^\]]*\])/)[1].replace(/'/g,'\"'));console.log(f.filter(x=>!re.test(x.replace(/^\./,''))).join(' '))" 2>&1)
+[ -z "$unserved" ] && ok "chaque fichier d'APP_FILES est relu hors ligne par le service worker" || ko "mis en cache mais jamais relu hors ligne (filtre du fetch de sw.js) : $unserved"
 orph=""; for f in js/*.js; do grep -q "src=\"$f" index.html || orph="$orph $f"; done
 [ -z "$orph" ] || wa "fichiers jamais chargés par index.html :$orph"
 if [ $LIV = 1 ]; then

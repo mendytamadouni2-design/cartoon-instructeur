@@ -1086,6 +1086,11 @@ async function testCompositor(browser) {
             const item = { sceneIndex: 0, sceneText: 'Bonjour à tous.', speech: { silent: false, start: 0.2, end: 2.2 } };   // Agnes parle 2,0 s
             await prepareFitVoice(item);
             r.calls = calls; r.stretch = +item.fitStretch.toFixed(2); r.fitDur = +(item.fitSpeech.end - item.fitSpeech.start).toFixed(2);
+            // étirement en panne (vieil iPhone, mémoire) : la prise payée est gardée à sa vitesse, jamais perdue
+            const realStretch = window.stretchBuffer; window.stretchBuffer = () => { throw new Error('panne simulée'); };
+            const item2 = { sceneIndex: 0, sceneText: 'Bonjour à tous.', speech: { silent: false, start: 0.2, end: 2.2 } };
+            try { await prepareFitVoice(item2); } finally { window.stretchBuffer = realStretch; }
+            r.fallback = item2.fitStretch === 1 && !!item2.fitBuffer && Math.abs(item2.fitBuffer.duration - 1.8) < 0.01 && calls === 2;
         } catch (e) { r.err = e.message; } finally { window.generateElevenLabsAudio = realGen; }
         // police feutre chargée et réellement utilisée
         r.font = await ensureMarkerFont();
@@ -1093,11 +1098,15 @@ async function testCompositor(browser) {
         c.font = '900 60px ' + MARKER_FONT; const wMarker = c.measureText('Le savais-tu ? éàç').width;
         c.font = '900 60px "Comic Sans MS", sans-serif'; const wFallback = c.measureText('Le savais-tu ? éàç').width;
         r.fontUsed = Math.abs(wMarker - wFallback) > 2 && document.fonts.check('40px "Permanent Marker"');
+        // ponctuation française jamais seule en début de ligne (titres, bulles, notes)
+        c.font = '900 120px ' + MARKER_FONT; const wl = wrapLines(c, 'Pourquoi le ciel est bleu ?', c.measureText('Pourquoi le ciel est bleu').width + 5);
+        r.punct = wl.every(l => !/^[?!:;»]/.test(l)) && wl.length >= 2;
         return r;
     });
     check(v87.lens === '1.25 / 0.8' && v87.freqs === '440 / 440' && v87.even > 0.9, 'voix étirée ou resserrée sans changer sa hauteur (durées ' + v87.lens + ' s, ' + v87.freqs + ' Hz, régularité ' + (+v87.even).toFixed(2) + ')');
     check(!v87.err && v87.calls === 1 && v87.stretch === 1.33 && Math.abs(v87.fitDur - 2) < 0.1, 'voix calée sur les lèvres : une seule prise ElevenLabs, étirée sur le téléphone (' + (v87.err || v87.calls + ' appel, ×' + v87.stretch + ', ' + v87.fitDur + ' s pour 2 s') + ')');
-    check(v87.font && v87.fontUsed, 'vraie police feutre (Permanent Marker) chargée et utilisée dans la vidéo');
+    check(!v87.err && v87.fallback, 'étirement en panne : la voix ElevenLabs déjà payée est gardée à sa vitesse (' + (v87.err || v87.fallback) + ')');
+    check(v87.font && v87.fontUsed && v87.punct, 'vraie police feutre (Permanent Marker) chargée et utilisée ; « ? » jamais seul en début de ligne');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
