@@ -19,6 +19,7 @@ const MAX_POLL_ATTEMPTS = 100;
 // Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
 // Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
 const APP_VERSIONS = [
+    { num: '8.8', date: '2026-10-10', note: 'Vraies illustrations au tableau : un objet sans icône toute faite (guillotine, personnage historique…) est dessiné par Agnes Image (gratuit) puis retracé trait par trait au feutre ; bouton « Depuis une image » dans le storyboard pour transformer ta photo ou ton dessin en illustration (traceur repris de VectorCraft)' },
     { num: '8.7', date: '2026-10-10', note: 'Voix calée sur les lèvres : une seule prise ElevenLabs, étirée sur le téléphone sans changer sa hauteur (moitié moins de caractères) ; vraie police feutre Permanent Marker, identique sur tous les appareils et dans les exports' },
     { num: '8.6', date: '2026-10-10', note: 'Volume aux normes : chaque voix au même niveau (ElevenLabs, Agnes, voix off) et vidéo finale réglée sur -14 LUFS, le niveau de YouTube et TikTok, sans saturer (mesure EBU R128 reprise de FilmCraft)' },
     { num: '8.5', date: '2026-10-04', note: 'Corrections après la relecture de l\'équipe : carte « Suivre » aussi quand la vidéo finit sur un plan illustré, textes des autocollants dans la langue de la vidéo, pseudo jamais inventé (nouveau champ « pseudo » dans Ma chaîne), emojis justes, au tableau blanc autocollants et bulles écrits sous le dessin sans cacher le personnage, carte « Suivre » hors des boutons TikTok, transitions plus fiables sur iPhone' },
@@ -110,6 +111,7 @@ const STORAGE = {
     ALT_FRAMING: 'cartoon_alt_framing',
     FAST_EXPORT: 'cartoon_fast_export',
     ICON_STYLE: 'cartoon_icon_style',
+    TRACE: 'cartoon_trace_drawings',
     CHARTER: 'cartoon_charter', USER_IMAGES: 'cartoon_user_images',
     ELEVEN_USAGE: 'cartoon_eleven_usage', ELEVEN_EXHAUSTED: 'cartoon_eleven_exhausted', TTS_INDEX: 'cartoon_tts_index',
     BANK_USE: 'cartoon_bank_use',
@@ -160,7 +162,7 @@ const state = {
     cloudProvider: 'local',
     isLoadingImages: false, creationAttemptsSinceLastError: 0,
     scenePlan: null, timeline: null, drawings: [], drawingsPromise: null,
-    genMode: 'background', proxyJobs: false, proxyMedia: false, proxyTikTok: false, proxyInstagram: false, safeZones: true, testMode: false, testIdx: null, reference: null, richMode: true, qaOn: true, qaFrames: null, qaReport: null, oneShot: false, greenScreen: false, colorMatch: true, altFraming: true, fastExport: true, iconStyle: 'auto', decorImage: null, decorImg: null, apPlan: null, comments: null, autoRun: false, finalFresh: false,
+    genMode: 'background', proxyJobs: false, proxyMedia: false, proxyTikTok: false, proxyInstagram: false, safeZones: true, testMode: false, testIdx: null, reference: null, richMode: true, qaOn: true, qaFrames: null, qaReport: null, oneShot: false, greenScreen: false, colorMatch: true, altFraming: true, fastExport: true, iconStyle: 'auto', traceDrawings: true, decorImage: null, decorImg: null, apPlan: null, comments: null, autoRun: false, finalFresh: false,
     ttStats: null, hooks: null, parts: null, langSrt: {}, lastYouTubeId: null,
     bankItems: [], bankUse: true, backupOn: true, projectId: null, factIssues: null, ytStats: null,
     finalVideoUrl: null, finalBlob: null, finalExt: 'mp4',

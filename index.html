@@ -14,7 +14,7 @@
 <title>Cartoon Instructeur</title>
 <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Cartoon%20Instructeur%20ULTIMATE%22%2C%22short_name%22%3A%22Cartoon%20Inst%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22theme_color%22%3A%22%236c5ce7%22%2C%22background_color%22%3A%22%23fafafa%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22portrait%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%3Bcharset%3Dutf-8%2C%253Csvg%2520xmlns%253D%2527http%253A%2F%2Fwww.w3.org%2F2000%2Fsvg%2527%2520viewBox%253D%25270%25200%2520512%2520512%2527%253E%253Crect%2520width%253D%2527512%2527%2520height%253D%2527512%2527%2520rx%253D%2527100%2527%2520fill%253D%2527%25236c5ce7%2527%2F%253E%253Ctext%2520x%253D%2527256%2527%2520y%253D%2527340%2527%2520font-size%253D%2527280%2527%2520text-anchor%253D%2527middle%2527%2520fill%253D%2527white%2527%253E%25F0%259F%258E%2593%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
 <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20512%20512%27%3E%3Crect%20width%3D%27512%27%20height%3D%27512%27%20rx%3D%27100%27%20fill%3D%27%236c5ce7%27%2F%3E%3Ctext%20x%3D%27256%27%20y%3D%27340%27%20font-size%3D%27280%27%20text-anchor%3D%27middle%27%20fill%3D%27white%27%3E%F0%9F%8E%93%3C%2Ftext%3E%3C%2Fsvg%3E">
-<link rel="stylesheet" href="css/app.css?v=202610101800">
+<link rel="stylesheet" href="css/app.css?v=202610101900">
 </head>
 <body>
 
@@ -845,6 +845,7 @@
         <option value="3d">Toujours en 3D (moderne)</option>
         <option value="line">Toujours au trait (effet dessiné)</option>
     </select>
+    <label class="control-label" style="display:flex;align-items:center;gap:0.5rem;"><input type="checkbox" id="trace-toggle" checked> 🖊️ Vraies illustrations : quand aucune icône ne convient, Agnes Image (gratuit) dessine l'objet et l'appli le retrace au feutre</label>
 </div></div></div>
 <div class="section open"><div class="section-header"><span class="section-title">📋 Storyboard</span></div><div class="section-body"><div class="section-content"><label class="control-label">Avant de générer</label>
     <select id="storyboard-select" style="margin-top:0.5rem;">
@@ -1295,30 +1296,31 @@ Phrase 2..."></textarea>
 <div id="media-stage" aria-hidden="true"></div>
 <canvas id="noSleepCanvas" width="2" height="2"></canvas>
 <video id="noSleepVideo" playsinline muted loop></video>
-<script src="js/core.js?v=202610101800"></script>
-<script src="js/motion.js?v=202610101800"></script>
-<script src="js/voices.js?v=202610101800"></script>
-<script src="js/scenes.js?v=202610101800"></script>
-<script src="js/claude.js?v=202610101800"></script>
-<script src="js/settings.js?v=202610101800"></script>
-<script src="js/media.js?v=202610101800"></script>
-<script src="js/generation.js?v=202610101800"></script>
-<script src="js/render.js?v=202610101800"></script>
-<script src="js/montage.js?v=202610101800"></script>
-<script src="js/exports.js?v=202610101800"></script>
-<script src="js/studio.js?v=202610101800"></script>
-<script src="js/growth.js?v=202610101800"></script>
-<script src="js/navigation.js?v=202610101800"></script>
-<script src="js/projects.js?v=202610101800"></script>
-<script src="js/integrations.js?v=202610101800"></script>
-<script src="js/compositor.js?v=202610101800"></script>
-<script src="js/quality.js?v=202610101800"></script>
-<script src="js/graphics.js?v=202610101800"></script>
-<script src="js/transitions.js?v=202610101800"></script>
-<script src="js/stickers.js?v=202610101800"></script>
-<script src="js/channel.js?v=202610101800"></script>
-<script src="js/puppet.js?v=202610101800"></script>
-<script src="js/director.js?v=202610101800"></script>
-<script src="js/init.js?v=202610101800"></script>
+<script src="js/core.js?v=202610101900"></script>
+<script src="js/motion.js?v=202610101900"></script>
+<script src="js/voices.js?v=202610101900"></script>
+<script src="js/scenes.js?v=202610101900"></script>
+<script src="js/claude.js?v=202610101900"></script>
+<script src="js/settings.js?v=202610101900"></script>
+<script src="js/media.js?v=202610101900"></script>
+<script src="js/generation.js?v=202610101900"></script>
+<script src="js/render.js?v=202610101900"></script>
+<script src="js/montage.js?v=202610101900"></script>
+<script src="js/exports.js?v=202610101900"></script>
+<script src="js/studio.js?v=202610101900"></script>
+<script src="js/growth.js?v=202610101900"></script>
+<script src="js/navigation.js?v=202610101900"></script>
+<script src="js/projects.js?v=202610101900"></script>
+<script src="js/integrations.js?v=202610101900"></script>
+<script src="js/compositor.js?v=202610101900"></script>
+<script src="js/quality.js?v=202610101900"></script>
+<script src="js/graphics.js?v=202610101900"></script>
+<script src="js/trace.js?v=202610101900"></script>
+<script src="js/transitions.js?v=202610101900"></script>
+<script src="js/stickers.js?v=202610101900"></script>
+<script src="js/channel.js?v=202610101900"></script>
+<script src="js/puppet.js?v=202610101900"></script>
+<script src="js/director.js?v=202610101900"></script>
+<script src="js/init.js?v=202610101900"></script>
 </body>
 </html>

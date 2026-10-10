@@ -350,7 +350,7 @@ function strokeSketch(ctx, area, drawing, fracs, alpha, showTip) {
     drawing.strokes.forEach((st, i) => {
         const f = fracs[i];
         if (f <= 0 || st.ghost) return;   // trait fantôme : horloge d'un emoji, jamais dessiné
-        ctx.strokeStyle = st.color;
+        ctx.strokeStyle = st.color; ctx.lineWidth = st.lw || 4.5;   // illustration retracée (8.8) : trait plus fin, détails lisibles
         if (f >= 1) { ctx.setLineDash([]); ctx.stroke(st.path2d); return; }
         const l = st.len * f;
         ctx.setLineDash([l, st.len + 10]); ctx.lineDashOffset = 0; ctx.stroke(st.path2d);

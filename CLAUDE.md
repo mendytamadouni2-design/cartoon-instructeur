@@ -69,6 +69,7 @@ Ordre de chargement et rôle :
 | `compositor.js` | WebGL : incrustation fond vert, étalonnage, cadrage |
 | `quality.js` | image de référence, contrôle par l'IA (`createQa`), contrôle des coupes |
 | `graphics.js` | graphiques animés des plans illustrés |
+| `trace.js` | image → traits de feutre (8.8, porté de VectorCraft) : illustrations Agnes Image retracées, « Depuis une image » du storyboard |
 | `transitions.js` | 30 transitions (14 WebGL issues de HyperFrames + 16 en 2D), choix de Claude |
 | `stickers.js` | autocollants, carte « Suivre », styles de sous-titres, rythme serré (silences coupés) |
 | `channel.js` | charte de la chaîne, mode objectif, images de l'utilisateur |

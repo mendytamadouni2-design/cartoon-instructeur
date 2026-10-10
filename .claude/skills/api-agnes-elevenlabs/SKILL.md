@@ -14,6 +14,8 @@ description: Cartoon Instructeur uniquement. Référence des services externes d
 | Enchaînement parfait | même `POST`, sans `image`, avec `extra_body: { image: [début, fin], mode: 'keyframes' }` | option « keyframes » ; refusé (400) → `keyframesUnsupported`, on renvoie la demande simple |
 | Image | `POST https://apihub.agnes-ai.com/v1/images/generations` | `model: 'agnes-image-2.1-flash'`, `size: '720x1280'`, `extra_body: { image: [dataURI], response_format: 'b64_json' }` ; 404/403 → `agnesImageUnsupported` ; **gratuit** à la date de la 8.2 |
 
+- Image pour les illustrations (8.8, `traceDrawingElements`) : sans image de départ, `size: '960x960'` puis repli sur la
+  taille par défaut si 400 ; une à la fois ; refus 404/403 → dessin de Claude gardé.
 - Formats (`videoDimsFor`) : vertical 720×1280, horizontal 1280×720, intermédiaires 768×1024 / 1024×768, carré 960×960.
 - Débit : une création toutes les 62 s minimum (`CREATE_INTERVAL_MIN`, jusqu'à 90 s après des 429) ; 429 et 503 →
   attentes croissantes (`apiFetch`). Côté serveur : `CREATE_INTERVAL_MS = 62000`.

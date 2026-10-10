@@ -38,6 +38,15 @@ description: Cartoon Instructeur uniquement. Règles des consignes que l'appli e
   text anywhere »). ≤ 210 mots (vérifié par le groupe `styles` pour **tous** les styles).
 - Les interdits vont dans la consigne négative, pas en « don't » dans la consigne.
 - Tableau blanc : fond blanc pur, personnage dans le tiers gauche ; fond vert : #00B140 uni.
+
+## Illustrations des plans (`drawingRequestFor`, `DRAWING_SCHEMA` — `js/media.js` ; `tracePromptFor` — `js/trace.js`)
+
+- Claude rend 1 à 3 éléments : `label` (mot-clé dans la langue de la vidéo), `word`, `icon` (mots-clés anglais d'une icône
+  Lucide), `draw` (8.8 : si pas d'icône, l'objet décrit en anglais pour un illustrateur), `paths` (son propre dessin, repli).
+- Priorité au montage (`layoutDrawing`) : emoji 3D (styles colorés) → icône → **illustration retracée** (`traced`) → dessin de Claude.
+- Illustration retracée : `tracePromptFor(draw)` envoyé à Agnes Image (« Simple black marker line drawing of … », fond blanc
+  pur, sans texte), une image à la fois (`traceQueue`), puis `traceImageToPaths` ; les traits sont gardés dans le projet
+  (`raw.elements[k].traced`), jamais redemandés au rechargement.
 - Tester chaque changement sur au moins `whiteboard` + un style coloré + fond vert (`ONLY=styles`).
 
 ## Pièges vus

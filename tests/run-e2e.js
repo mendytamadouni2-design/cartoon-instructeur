@@ -1107,6 +1107,75 @@ async function testCompositor(browser) {
     check(!v87.err && v87.calls === 1 && v87.stretch === 1.33 && Math.abs(v87.fitDur - 2) < 0.1, 'voix calée sur les lèvres : une seule prise ElevenLabs, étirée sur le téléphone (' + (v87.err || v87.calls + ' appel, ×' + v87.stretch + ', ' + v87.fitDur + ' s pour 2 s') + ')');
     check(!v87.err && v87.fallback, 'étirement en panne : la voix ElevenLabs déjà payée est gardée à sa vitesse (' + (v87.err || v87.fallback) + ')');
     check(v87.font && v87.fontUsed && v87.punct, 'vraie police feutre (Permanent Marker) chargée et utilisée ; « ? » jamais seul en début de ligne');
+
+    // 8.8 : image → traits de feutre (traceur repris de VectorCraft), illustrations Agnes Image retracées, image de l'utilisateur
+    const v88 = await page.evaluate(async () => {
+        const r = {}, keep = { drawings: state.drawings, scenes: state.scenes, plan: state.scenePlan, trace: state.traceDrawings, unsup: agnesImageUnsupported, agnes: localStorage.getItem('agnes_api_key') };
+        const realFetch = window.fetch, realClaude = window.callClaude;
+        const lensOf = paths => paths.map(d => Math.round(measurePath(d).len));
+        try {
+            // 1. formes connues : anneau, carré plein (son seul bord), 8 tirets, poussières ignorées
+            const c = document.createElement('canvas'); c.width = c.height = 240; const g = c.getContext('2d');
+            g.fillStyle = '#fff'; g.fillRect(0, 0, 240, 240); g.strokeStyle = g.fillStyle = '#111'; g.lineWidth = 5; g.lineCap = 'round';
+            g.beginPath(); g.arc(70, 70, 40, 0, Math.PI * 2); g.stroke();
+            g.fillRect(140, 30, 70, 70);
+            for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; g.beginPath(); g.moveTo(120 + Math.cos(a) * 60, 175 + Math.sin(a) * 50); g.lineTo(120 + Math.cos(a) * 72, 175 + Math.sin(a) * 62); g.stroke(); }
+            g.fillRect(20, 220, 2, 2); g.fillRect(220, 220, 2, 2);
+            const shapes = traceLineArt(g.getImageData(0, 0, 240, 240).data, 240, 240), sl = lensOf(shapes);
+            r.shapes = shapes.length + ' traits, anneau ' + sl[0] + '/193, bord ' + sl[1] + '/209, tirets ' + sl.slice(2).join(',');
+            r.shapesOk = shapes.length === 10 && Math.abs(sl[0] - 193) < 10 && Math.abs(sl[1] - 209) < 12 && sl.slice(2).every(l => l >= 8 && l <= 20);
+            // 2. illustration : l'objet sans icône est dessiné par Agnes Image puis retracé ; l'élément avec icône la garde
+            const art = document.createElement('canvas'); art.width = art.height = 960; const a = art.getContext('2d');
+            a.fillStyle = '#fff'; a.fillRect(0, 0, 960, 960); a.strokeStyle = a.fillStyle = '#141414'; a.lineWidth = 12; a.lineCap = 'round';
+            a.strokeRect(300, 120, 360, 760); a.beginPath(); a.moveTo(300, 300); a.lineTo(660, 240); a.stroke();
+            a.beginPath(); a.arc(480, 640, 60, 0, Math.PI * 2); a.stroke(); a.fillRect(320, 140, 320, 60);
+            const png = art.toDataURL('image/png').split(',')[1];
+            let agnesCalls = 0, prompt = '';
+            window.fetch = async (u, o) => {
+                u = String(u);
+                if (u.includes('/images/generations')) { agnesCalls++; prompt = JSON.parse(o.body).prompt; return r.agnes404 ? new Response('nope', { status: 404 }) : new Response(JSON.stringify({ data: [{ b64_json: png }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }); }
+                return realFetch(u, o);
+            };
+            window.callClaude = async () => ({ elements: [
+                { label: 'Guillotine', word: '', icon: '', draw: 'a guillotine', paths: [{ d: 'M 20 20 L 180 180', color: 'black' }] },
+                { label: 'Roi', word: '', icon: 'crown', draw: '', paths: [] }], link: 'arrow' });
+            localStorage.setItem('agnes_api_key', 'sk-test'); agnesImageUnsupported = false; state.traceDrawings = true;
+            state.scenes = ['La guillotine remplace le roi.']; state.scenePlan = null;
+            const d1 = await generateDrawing(state.scenes[0], 0, 1);
+            const traced = d1.strokes.filter(st => st.lw === TRACE_LINE);
+            const inBox = d1.strokes.every(st => { const b = st.el.getBBox(); return b.x >= -1 && b.y >= -1 && b.x + b.width <= 401 && b.y + b.height <= 301; });
+            r.illus = agnesCalls + ' appel Agnes, ' + traced.length + ' traits retracés sur ' + d1.strokes.length + ', icône gardée : ' + !d1.raw.elements[1].traced;
+            r.illusOk = agnesCalls === 1 && /a guillotine/.test(prompt) && /line drawing/.test(prompt) && /no text/.test(prompt) && traced.length >= 4 && Array.isArray(d1.raw.elements[0].traced) && !d1.raw.elements[1].traced && inBox && d1.labels.length >= 2;
+            // rechargé depuis le projet : les traits enregistrés suffisent, aucun nouvel appel
+            const d1b = await compileStoredDrawing(JSON.parse(JSON.stringify(d1.raw)));
+            r.reload = d1b.strokes.length === d1.strokes.length && agnesCalls === 1;
+            // 3. replis : réglage coupé → aucun appel ; Agnes Image refusée → dessin de Claude gardé
+            state.traceDrawings = false; agnesCalls = 0;
+            const d2 = await generateDrawing(state.scenes[0], 0, 1);
+            state.traceDrawings = true; r.agnes404 = true;
+            const d3 = await generateDrawing(state.scenes[0], 0, 1);
+            r.fallback = agnesCalls === 1 && !d2.raw.elements[0].traced && !d3.raw.elements[0].traced && [d2, d3].every(d => d.strokes.length >= 2 && !d.strokes.some(st => st.lw === TRACE_LINE)) && agnesImageUnsupported === true;
+            // 4. image de l'utilisateur (photo) → illustration de la scène, mot-clé gardé, sans aucun appel payant
+            agnesCalls = 0; state.drawings = [d1];
+            const photo = document.createElement('canvas'); photo.width = 640; photo.height = 480; const ph = photo.getContext('2d');
+            const gr = ph.createLinearGradient(0, 0, 640, 480); gr.addColorStop(0, '#7ab'); gr.addColorStop(1, '#246'); ph.fillStyle = gr; ph.fillRect(0, 0, 640, 480);
+            ph.fillStyle = '#f2c94c'; ph.beginPath(); ph.arc(320, 220, 130, 0, Math.PI * 2); ph.fill(); ph.fillStyle = '#222'; ph.beginPath(); ph.arc(270, 190, 18, 0, Math.PI * 2); ph.arc(370, 190, 18, 0, Math.PI * 2); ph.fill();
+            ph.lineWidth = 10; ph.strokeStyle = '#222'; ph.beginPath(); ph.arc(320, 240, 70, 0.2 * Math.PI, 0.8 * Math.PI); ph.stroke();
+            const d4 = await drawingFromImage(0, photo.toDataURL('image/jpeg', 0.85));
+            r.photo = d4.strokes.length + ' traits, mot-clé « ' + (d4.labels[0]?.text || '') + ' »';
+            r.photoOk = state.drawings[0] === d4 && d4.strokes.length >= 3 && d4.strokes.length <= TRACE_MAX_STROKES && d4.labels[0]?.text === 'Guillotine' && d4.raw.elements[0].fromImage && agnesCalls === 0;
+        } catch (e) { r.err = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 4).join(' ').replace(/https:\/\/app\.test\//g, ''); }
+        finally {
+            window.fetch = realFetch; window.callClaude = realClaude;
+            Object.assign(state, { drawings: keep.drawings, scenes: keep.scenes, scenePlan: keep.plan, traceDrawings: keep.trace });
+            agnesImageUnsupported = keep.unsup; if (keep.agnes === null) localStorage.removeItem('agnes_api_key'); else localStorage.setItem('agnes_api_key', keep.agnes);
+        }
+        return r;
+    });
+    check(!v88.err && v88.shapesOk, 'image → traits de feutre : formes retrouvées, zones pleines par leur bord, poussières ignorées (' + (v88.err || v88.shapes) + ')');
+    check(!v88.err && v88.illusOk && v88.reload, 'objet sans icône dessiné par Agnes Image (gratuit) puis retracé au feutre, icône gardée, rien de redemandé au rechargement (' + (v88.err || v88.illus) + ')');
+    check(!v88.err && v88.fallback, 'illustrations retracées : réglage coupé → aucun appel ; Agnes Image refusée → dessin de Claude gardé');
+    check(!v88.err && v88.photoOk, 'image de l\'utilisateur transformée en illustration de la scène, sans aucun appel (' + (v88.err || v88.photo) + ')');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();

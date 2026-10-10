@@ -308,6 +308,7 @@ function showCloudConfigRow(provider) {
     bindToggle('altframing-toggle', 'ALT_FRAMING', 'altFraming', true, () => { state.exportCache = {}; });
     const isel = document.getElementById('iconstyle-select');
     if (isel) { state.iconStyle = getLS(STORAGE.ICON_STYLE) || 'auto'; isel.value = state.iconStyle; isel.addEventListener('change', () => { state.iconStyle = isel.value; setLS(STORAGE.ICON_STYLE, isel.value); state.exportCache = {}; }); }
+    bindToggle('trace-toggle', 'TRACE', 'traceDrawings', true);
     bindToggle('fastexport-toggle', 'FAST_EXPORT', 'fastExport', true, () => { state.exportCache = {}; });
     const fx = document.getElementById('fastexport-hint'); if (fx) fx.textContent = webcodecsAvailable() ? '✅ Disponible sur cet appareil' : 'Pas disponible sur cet appareil (iOS 26 ou plus récent requis) : montage classique';
     loadDecorImage();

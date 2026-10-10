@@ -17,10 +17,10 @@ const DRAWING_SCHEMA = {
             items: {
                 type: 'object',
                 properties: {
-                    label: { type: 'string' }, word: { type: 'string' }, icon: { type: 'string' },
+                    label: { type: 'string' }, word: { type: 'string' }, icon: { type: 'string' }, draw: { type: 'string' },
                     paths: { type: 'array', items: { type: 'object', properties: { d: { type: 'string' }, color: { type: 'string', enum: Object.keys(INK) } }, required: ['d', 'color'], additionalProperties: false } }
                 },
-                required: ['label', 'word', 'icon', 'paths'], additionalProperties: false
+                required: ['label', 'word', 'icon', 'draw', 'paths'], additionalProperties: false
             }
         },
         link: { type: 'string', enum: ['none', 'arrow', 'versus'] }
@@ -40,8 +40,10 @@ function layoutDrawing(out) {
         if (em && emojiImageNow(em)) return { ...e, emoji: em, paths: [{ d: 'M 20 100 L 180 100', color: 'ghost' }] };
         const ic = e.icon && typeof findIcon === 'function' ? findIcon(String(e.icon).split(/\s*[,;|]\s*/)) : null;
         const norm = d => typeof normalizePath === 'function' ? normalizePath(d).map(sp => segsToD(sp.segs)).join(' ') : d;
-        return ic ? { ...e, paths: ic.paths.map((d, i) => ({ d, color: i === 0 && e.accent ? 'red' : 'black' })), iconName: ic.name }
-            : { ...e, paths: (Array.isArray(e.paths) ? e.paths : []).map(p => ({ ...p, d: norm(p.d) })) };
+        if (ic) return { ...e, paths: ic.paths.map((d, i) => ({ d, color: i === 0 && e.accent ? 'red' : 'black' })), iconName: ic.name };
+        // 8.8 : vraie illustration retracée au feutre (Agnes Image ou image de l'utilisateur), sinon le dessin de Claude
+        if (Array.isArray(e.traced) && e.traced.length) return { ...e, paths: e.traced.map(d => ({ d: String(d), color: 'black' })), isTraced: true };
+        return { ...e, paths: (Array.isArray(e.paths) ? e.paths : []).map(p => ({ ...p, d: norm(p.d) })) };
     });
     const els = withIcons.filter(e => e && Array.isArray(e.paths) && e.paths.length).slice(0, 3);
     const n = els.length, paths = [], labels = [], images = [];
@@ -75,7 +77,7 @@ function layoutDrawing(out) {
         return out;
     };
     els.forEach((el, k) => {
-        const parsed = el.paths.map(p => ({ p, toks: parse(p.d) })).filter(x => x.toks).slice(0, 24);
+        const parsed = el.paths.map(p => ({ p, toks: parse(p.d) })).filter(x => x.toks).slice(0, el.isTraced ? TRACE_MAX_STROKES : 24);
         if (!parsed.length) return;
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         parsed.forEach(x => walk(x.toks, (px, py) => { if (isFinite(px) && isFinite(py)) { x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); } return [0, 0]; }));
@@ -92,7 +94,7 @@ function layoutDrawing(out) {
         if (k > 0 && link === 'versus') labels.push({ text: 'VS', x: r(M + k * (cellW + gap) - gap / 2), y: cy, size: 20, path: paths.length - 1, accent: true });
         parsed.forEach((x, i) => {
             const d = walk(x.toks, (px, py) => [r(ox + px * s), r(oy + py * s)]).join(' ');
-            paths.push({ d, color: x.p.color || 'black', word: i === 0 ? String(el.word || '') : '' });
+            paths.push({ d, color: x.p.color || 'black', word: i === 0 ? String(el.word || '') : '', lw: el.isTraced ? TRACE_LINE : undefined });
         });
         if (el.emoji) images.push({ name: el.emoji, x: r(cx), y: r(cy), size: r(Math.min(cellW, zoneH) * 0.9), path: paths.length - 1 });
         const label = String(el.label || '').trim().slice(0, 28);
@@ -141,12 +143,12 @@ function compileDrawing(raw) {
         const pieces = String(p.d || '').split(/(?=M)/).map(x => x.trim()).filter(x => /^M/.test(x));
         let first = true;
         for (const d of pieces) {
-            if (strokes.length >= 40) break;
+            if (strokes.length >= 100) break;   // 3 illustrations retracées de 30 traits tiennent
             let path2d;
             try { path2d = new Path2D(d); } catch (e) { continue; }
             const { el, len } = measurePath(d);
             if (!len || !isFinite(len)) continue;
-            strokes.push({ d, path2d, el, len, color: INK[p.color] || INK.black, ghost: p.color === 'ghost', word: first ? String(p.word || '') : '' });
+            strokes.push({ d, path2d, el, len, color: INK[p.color] || INK.black, ghost: p.color === 'ghost', word: first ? String(p.word || '') : '', lw: +p.lw || 0 });
             first = false;
         }
         lastStroke[lastStroke.length - 1] = strokes.length - 1;
@@ -167,6 +169,7 @@ function drawingRequestFor(sceneText, index, total, feedback, visual) {
             'Pour chaque élément :\n- "label" : son mot-clé, 1 à 3 mots dans la langue de la vidéo (ex. « Privilèges », « Constitution », « Coup d\'État »)\n' +
             '- "word" : le mot de la phrase (écrit exactement pareil) au moment duquel il commence à être dessiné, ou ""\n' +
             '- "icon" : 1 à 3 mots-clés ANGLAIS séparés par des virgules pour trouver une icône toute faite (ex. "crown, king" ; "scale, justice" ; "factory"). Mets d\'abord un nom d\'icône Lucide exact si tu le connais (' + ICON_HINTS + '). Si l\'élément est trop particulier pour une icône (ex. une guillotine, un personnage historique précis), mets "" et dessine-le dans "paths".\n' +
+            '- "draw" : si "icon" est vide, cet élément décrit en ANGLAIS en quelques mots précis pour un illustrateur (ex. "a guillotine" ; "Napoleon Bonaparte wearing his bicorne hat"), sinon ""\n' +
             '- "paths" : si "icon" est vide, 3 à 10 traits qui dessinent CET élément seul (sinon []), centré dans une case de 200 × 200 (coordonnées SVG de 0 à 200, origine en haut à gauche, marge de 15). Chaque "d" est UN seul trait continu : il commence par un seul "M" puis uniquement des commandes absolues L, Q, C (et Z pour fermer). Dessin au trait, sans remplissage, AUCUNE lettre ni chiffre dans les traits. Surtout du noir ("black"), une couleur d\'accent pour le détail important.\n' +
             '"link" : "arrow" si les éléments se suivent (cause → conséquence, avant → après, étapes), "versus" s\'ils s\'opposent, sinon "none".',
         schema: DRAWING_SCHEMA,
@@ -177,6 +180,7 @@ async function generateDrawing(sceneText, index, total, feedback) {
     const p = scenePlanFor(index);
     const out = await callClaude(drawingRequestFor([sceneText, p.narration].filter(Boolean).join(' '), index, total, feedback));
     await prepareDrawingIcons(out);
+    await traceDrawingElements(out);   // 8.8 : objets sans icône dessinés par Agnes Image (gratuit) puis retracés au feutre
     const compiled = compileDrawing(layoutDrawing(out));
     if (compiled) compiled.raw = out;   // on garde la réponse brute : la mise en page est refaite à chaque ouverture
     return compiled;

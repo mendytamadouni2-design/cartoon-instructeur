@@ -315,7 +315,7 @@ function renderStoryboard() {
             const p = scenePlanFor(i);
             return '<div class="sb-card">' +
                 '<div class="sb-head"><b>Scène ' + (i + 1) + '</b>' + (p.section ? '<span class="sb-part">📌 ' + esc(p.section) + '</span>' : '') + '</div>' +
-                (wb ? '<canvas class="sb-draw' + (state.drawings[i] ? '' : ' hidden') + '" data-sb-canvas="' + i + '" width="400" height="300"></canvas><button type="button" class="sb-mini" data-sb-redraw="' + i + '">' + (state.drawings[i] ? '🔄 Redessiner' : '🖊️ Dessiner cette scène') + '</button>' : '') +
+                (wb ? '<canvas class="sb-draw' + (state.drawings[i] ? '' : ' hidden') + '" data-sb-canvas="' + i + '" width="400" height="300"></canvas><button type="button" class="sb-mini" data-sb-redraw="' + i + '">' + (state.drawings[i] ? '🔄 Redessiner' : '🖊️ Dessiner cette scène') + '</button><button type="button" class="sb-mini" data-sb-photo="' + i + '">📷 Depuis une image</button>' : '') +
                 '<label class="control-label">Texte dit par le personnage</label><textarea class="sb-text" data-sb-field="spoken" data-i="' + i + '">' + esc(p.spoken || line) + '</textarea>' +
                 '<div class="sb-grid">' +
                 (p.narration || richActive() ? '<label class="control-label">Voix off sur le plan illustré</label><textarea class="sb-text" data-sb-field="narration" data-i="' + i + '" placeholder="(aucune)">' + esc(p.narration || '') + '</textarea>' : '') +
@@ -369,6 +369,21 @@ document.addEventListener('click', async e => {
         try { state.drawings[i] = await generateDrawing(scenePlanFor(i).spoken || state.scenes[i], i, state.scenes.length); document.querySelector('[data-sb-canvas="' + i + '"]')?.classList.remove('hidden'); drawStoryboardCanvas(i); }
         catch (err) { showToast('Dessin impossible : ' + err.message, 'error'); }
         finally { t.disabled = false; t.textContent = '🔄 Redessiner'; }
+    } else if (t.dataset?.sbPhoto !== undefined) {
+        // 8.8 : une photo ou un dessin de l'utilisateur, retracé au feutre (gratuit, rien n'est envoyé)
+        const i = parseInt(t.dataset.sbPhoto, 10), input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*';
+        input.onchange = async () => {
+            const file = input.files && input.files[0]; if (!file) return;
+            t.disabled = true; t.textContent = '⏳ Dessin…';
+            try {
+                const uri = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('image illisible')); r.readAsDataURL(file); });
+                await drawingFromImage(i, uri);
+                document.querySelector('[data-sb-canvas="' + i + '"]')?.classList.remove('hidden'); drawStoryboardCanvas(i);
+            } catch (err) { showToast('Dessin impossible : ' + err.message, 'error'); }
+            finally { t.disabled = false; t.textContent = '📷 Depuis une image'; }
+        };
+        input.click();
     } else if (t.dataset?.poseDel) {
         state.poses = state.poses.filter(p => p.id !== t.dataset.poseDel); savePoses();
     }
