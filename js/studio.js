@@ -291,19 +291,32 @@ async function buildLanguageVersion(lang) {
     if (!getElevenLabsKey() || !(elevenlabsSelectedVoiceId || getLS(STORAGE.ELEVENLABS_VOICE))) throw new Error('choisis une voix ElevenLabs (section Voix)');
     setStatus('Claude traduit la vidéo…');
     const scenes = state.scenes.map((_, i) => scenePlanFor(i));
+    // mots-clés écrits sous les dessins (règle 8 : tout texte de la vidéo dans sa langue) ; « VS » reste tel quel
+    const drawLabels = state.scenes.map((_, i) => (state.drawings[i]?.labels || []).filter(l => !l.accent).map(l => l.text));
     const out = await callClaude({
         system: 'Tu traduis des vidéos pédagogiques en gardant le ton, le niveau et des phrases faciles à prononcer par une voix de synthèse.',
-        prompt: 'Traduis en ' + (LANG_NAMES_FR[lang] || lang) + '. Garde exactement ' + scenes.length + ' scènes, dans le même ordre. Pour chaque scène : "spoken" (la réplique), "narration" (la voix off), "bubble", "highlight", "section", "hook" (l\'accroche écrite) et "stickerText" (le texte de l\'autocollant), vides si vides dans l\'original. Donne aussi "title" (le titre de la vidéo).\n\nTitre : ' + (state.theme || '') + '\n' +
-            JSON.stringify(scenes.map(p => ({ spoken: p.spoken, narration: p.narration || '', bubble: p.bubble || '', highlight: p.highlight || '', section: p.section || '', hook: p.hook || '', stickerText: p.stickerText || '' }))),
-        schema: { type: 'object', properties: { title: { type: 'string' }, scenes: { type: 'array', items: { type: 'object', properties: { spoken: { type: 'string' }, narration: { type: 'string' }, bubble: { type: 'string' }, highlight: { type: 'string' }, section: { type: 'string' }, hook: { type: 'string' }, stickerText: { type: 'string' } }, required: ['spoken', 'narration', 'bubble', 'highlight', 'section', 'hook', 'stickerText'], additionalProperties: false } } }, required: ['title', 'scenes'], additionalProperties: false }
+        prompt: 'Traduis en ' + (LANG_NAMES_FR[lang] || lang) + '. Garde exactement ' + scenes.length + ' scènes, dans le même ordre. Pour chaque scène : "spoken" (la réplique), "narration" (la voix off), "bubble", "highlight", "section", "hook" (l\'accroche écrite) et "stickerText" (le texte de l\'autocollant), vides si vides dans l\'original, et "labels" (les mots-clés écrits sous les dessins : même nombre, 1 à 3 mots chacun). Donne aussi "title" (le titre de la vidéo).\n\nTitre : ' + (state.theme || '') + '\n' +
+            JSON.stringify(scenes.map((p, i) => ({ spoken: p.spoken, narration: p.narration || '', bubble: p.bubble || '', highlight: p.highlight || '', section: p.section || '', hook: p.hook || '', stickerText: p.stickerText || '', labels: drawLabels[i] }))),
+        schema: { type: 'object', properties: { title: { type: 'string' }, scenes: { type: 'array', items: { type: 'object', properties: { spoken: { type: 'string' }, narration: { type: 'string' }, bubble: { type: 'string' }, highlight: { type: 'string' }, section: { type: 'string' }, hook: { type: 'string' }, stickerText: { type: 'string' }, labels: { type: 'array', items: { type: 'string' } } }, required: ['spoken', 'narration', 'bubble', 'highlight', 'section', 'hook', 'stickerText', 'labels'], additionalProperties: false } } }, required: ['title', 'scenes'], additionalProperties: false }
     });
     if (!out.scenes || out.scenes.length !== scenes.length) throw new Error('traduction incomplète');
     // on échange temporairement textes, voix et langue, puis on remet tout en place
-    const saved = { plan: state.scenePlan, theme: state.theme, language: state.language, voice: state.voiceSource, segs: subtitleSegments, sig: subtitleScriptSignature, bank: state.bankUse,
+    const saved = { drawings: state.drawings, plan: state.scenePlan, theme: state.theme, language: state.language, voice: state.voiceSource, segs: subtitleSegments, sig: subtitleScriptSignature, bank: state.bankUse,
         items: items.map(it => ({ it, fitBuffer: it.fitBuffer, fitSpeech: it.fitSpeech, stt: it.sttWords, edit: it.edit, narrBuffer: it.narrBuffer, narrSpeech: it.narrSpeech, narrKey: it.narrKey })) };
     try {
         state.scenePlan = { ...state.scenePlan, scenes: scenes.map((p, i) => ({ ...p, ...out.scenes[i], section: i > 0 ? out.scenes[i].section : '' })) };
         state.theme = out.title || state.theme; state.language = lang; state.voiceSource = 'fit'; state.bankUse = false;
+        // dessins : mêmes traits, mots-clés traduits (plus petits si le mot traduit est plus long)
+        state.drawings = state.drawings.map((d, i) => {
+            const tr = Array.isArray(out.scenes[i]?.labels) ? out.scenes[i].labels : [];
+            if (!d || !d.labels || !tr.length) return d;
+            let k = 0;
+            return { ...d, labels: d.labels.map(l => {
+                if (l.accent) return l;
+                const t = String(tr[k++] || '').trim().slice(0, 28);
+                return t ? { ...l, text: t, size: l.size * Math.min(1, Math.max(4, l.text.length) / Math.max(4, t.length)) } : l;
+            }) };
+        });
         subtitleSegments = [];
         items.forEach((it, i) => {
             const cache = it.langCache?.[lang];
@@ -318,7 +331,7 @@ async function buildLanguageVersion(lang) {
         items.forEach(it => { it.langCache = it.langCache || {}; it.langCache[lang] = { fitBuffer: it.fitBuffer, fitSpeech: it.fitSpeech, narrBuffer: it.narrBuffer, narrSpeech: it.narrSpeech }; });
         return { blob: r.blob, name: 'video-' + lang.split('-')[0] + '-' + Date.now() + '.' + r.ext };
     } finally {
-        state.scenePlan = saved.plan; state.theme = saved.theme; state.language = saved.language; state.voiceSource = saved.voice; state.bankUse = saved.bank;
+        state.drawings = saved.drawings; state.scenePlan = saved.plan; state.theme = saved.theme; state.language = saved.language; state.voiceSource = saved.voice; state.bankUse = saved.bank;
         subtitleSegments = saved.segs; subtitleScriptSignature = saved.sig;
         saved.items.forEach(s => { s.it.fitBuffer = s.fitBuffer; s.it.fitSpeech = s.fitSpeech; s.it.sttWords = s.stt; s.it.edit = s.edit; s.it.narrBuffer = s.narrBuffer; s.it.narrSpeech = s.narrSpeech; s.it.narrKey = s.narrKey; });
     }

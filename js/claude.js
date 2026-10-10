@@ -372,9 +372,9 @@ document.addEventListener('click', async e => {
     } else if (t.dataset?.sbPhoto !== undefined) {
         // 8.8 : une photo ou un dessin de l'utilisateur, retracé au feutre (gratuit, rien n'est envoyé)
         const i = parseInt(t.dataset.sbPhoto, 10), input = document.createElement('input');
-        input.type = 'file'; input.accept = 'image/*';
+        input.type = 'file'; input.accept = 'image/*'; input.style.display = 'none'; document.body.appendChild(input);   // iOS : champ attaché à la page
         input.onchange = async () => {
-            const file = input.files && input.files[0]; if (!file) return;
+            const file = input.files && input.files[0]; input.remove(); if (!file) return;
             if (file.size > 25 * 1048576) { showToast('Image trop lourde (25 Mo au plus)', 'error'); return; }
             t.disabled = true; t.textContent = '⏳ Dessin…';
             try {

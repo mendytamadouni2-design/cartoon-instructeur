@@ -52,7 +52,10 @@ function downscaleImage(dataUri, max = 1280, quality = 0.88) {
             c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
             const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
             g.drawImage(img, 0, 0, c.width, c.height);
-            try { resolve(c.toDataURL('image/jpeg', quality)); } catch (e) { resolve(dataUri); }   // image « protégée » (SVG sur Safari) : jamais bloqué
+            let out = dataUri;
+            try { out = c.toDataURL('image/jpeg', quality); } catch (e) {}   // image « protégée » (SVG sur Safari) : jamais bloqué
+            c.width = c.height = 0;   // iPhone : mémoire du canvas rendue tout de suite
+            resolve(out);
         };
         img.onerror = () => resolve(dataUri);
         img.src = dataUri;
@@ -90,7 +93,7 @@ async function sendBackgroundJob(scenes, theme, script, useStoryboard) {
             templates, fallbackPlan: fallbackScenePlan(scenes),
             planRequest: withClaude && !sb ? planRequestFor(scenes) : null,
             plan: sb ? state.scenePlan : undefined,
-            drawings: sb ? scenes.map((_, i) => state.drawings[i]?.raw || null) : undefined,
+            drawings: sb ? scenes.map((_, i) => drawingForServer(state.drawings[i]?.raw)) : undefined,
             drawingRequests: withClaude && needsDrawings() ? scenes.map((t, i) => ({ ...drawingRequestFor('{{SPOKEN}} {{NARRATION}}', i, n, '', '{{VISUAL}}'), fallbackText: t, verify: true })) : [],
             poses: referenceImage() ? [] : await Promise.all(state.poses.map(async p => ({ id: p.id, image: await downscaleImage(p.image, 1024, 0.85) }))),
             // voix off des scènes riches, créée par le serveur (téléphone éteint)

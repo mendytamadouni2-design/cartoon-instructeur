@@ -168,16 +168,21 @@ function tracePrune(runs, nodes, width) {
     return runs.filter((_, i) => keep[i]);
 }
 // Raccords : deux traits qui se rejoignent seuls en un point n'en font plus qu'un (un trait qui se rejoint se ferme).
+// Index des traits par point (au lieu de tout relire à chaque point : 7× plus rapide sur une image très chargée).
 function traceJoin(runs, nodes) {
     runs = runs.slice();
+    const touch = Array.from({ length: nodes }, () => []), owner = runs.map((_, i) => i);   // trait → trait où il a été fondu
+    const own = i => { while (owner[i] !== i) i = owner[i] = owner[owner[i]]; return i; };
+    runs.forEach((r, i) => r.ends.forEach(e => { if (e !== null) touch[e].push(i); }));
     for (let n = 0; n < nodes; n++) {
+        if (!touch[n].length) continue;
         const at = [];
-        runs.forEach((r, i) => { if (r) for (let k = 0; k < 2; k++) if (r.ends[k] === n) at.push([i, k]); });
+        for (const i of [...new Set(touch[n].map(own))].sort((a, b) => a - b)) { const r = runs[i]; if (r) for (let k = 0; k < 2; k++) if (r.ends[k] === n) at.push([i, k]); }
         if (at.length !== 2) continue;
         const [[i, ki], [j, kj]] = at;
         if (i === j) { const r = runs[i]; r.pts.pop(); r.ends = [null, null]; r.closed = r.pts.length >= 3; continue; }
         const a = runs[i], b = runs[j];
-        runs[j] = null;
+        runs[j] = null; owner[j] = i;
         if (ki === 0) { a.pts.reverse(); a.ends.reverse(); }
         if (kj === 1) { b.pts.reverse(); b.ends.reverse(); }
         for (let k = 1; k < b.pts.length; k++) a.pts.push(b.pts[k]);
@@ -381,6 +386,12 @@ async function traceDrawingElements(raw, opts = {}) {
         } catch (err) { log('Illustration « ' + subject + ' » : ' + err.message + ' — dessin de Claude gardé'); }
     }
     return done;
+}
+// Dessin envoyé au serveur : sans les traits retracés (repris du cache au retour, ≈ 360 Ko de moins à chaque suivi),
+// sauf ceux d'une image de l'utilisateur, qui ne sont nulle part ailleurs
+function drawingForServer(raw) {
+    if (!raw || !Array.isArray(raw.elements)) return raw || null;
+    return { ...raw, elements: raw.elements.map(e => { if (!e || e.fromImage || !Array.isArray(e.traced)) return e; const { traced, ...rest } = e; return rest; }) };
 }
 // Génération en arrière-plan : le serveur fait les dessins de Claude mais ne peut pas les retracer. Le téléphone le fait
 // pendant que le serveur fabrique les vidéos (résultats gardés en cache), puis au retour des résultats (borné dans le temps).

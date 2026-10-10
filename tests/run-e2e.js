@@ -1161,6 +1161,9 @@ async function testCompositor(browser) {
             const back = { elements: [{ label: 'Renard', word: '', icon: '', draw: 'a fox', paths: [] }, { label: 'Loup', word: '', icon: '', draw: 'a wolf', paths: [] }], link: 'none' };
             await traceDrawingElements(back, { deadline: Date.now() - 1 });   // délai dépassé : cache seulement
             r.bg = agnesCalls === 1 && Array.isArray(back.elements[0].traced) && !back.elements[1].traced;
+            // envoyé au serveur sans les traits retracés (repris du cache), sauf ceux d'une image de l'utilisateur
+            const srv = drawingForServer({ link: 'none', elements: [{ label: 'Renard', draw: 'a fox', traced: ['M 1 1 L 9 9', 'M 2 2 L 8 8'] }, { label: 'Moi', traced: ['M 1 1 L 5 5', 'M 3 3 L 4 4'], fromImage: true }] });
+            r.srv = !('traced' in srv.elements[0]) && srv.elements[0].draw === 'a fox' && srv.elements[1].traced.length === 2 && drawingForServer(null) === null;
             // 3. replis : réglage coupé → aucun appel ; Agnes Image refusée → dessin de Claude gardé, casting de poses pas coupé
             state.traceDrawings = false; agnesCalls = 0;
             const d2 = await generateDrawing(state.scenes[0], 0, 1);
@@ -1186,9 +1189,32 @@ async function testCompositor(browser) {
         }
         return r;
     });
+    // règle 8 : la version dans une autre langue traduit aussi les mots-clés des dessins (« VS » gardé), puis tout est remis
+    const tr8 = await page.evaluate(async () => {
+        const r = {}, keep = { drawings: state.drawings, queue: state.queue, scenes: state.scenes, plan: state.scenePlan, lang: state.language, voice: elevenlabsSelectedVoiceId, eleven: localStorage.getItem('elevenlabs_api_key'), claude: localStorage.getItem(STORAGE.CLAUDE_KEY) };
+        const realClaude = window.callClaude, realAssemble = window.assembleVideo;
+        try {
+            state.scenes = ['Le roi contre le peuple.']; state.scenePlan = null;
+            state.drawings = [compileDrawing(layoutDrawing({ link: 'versus', elements: [{ label: 'Roi', word: '', icon: 'crown', paths: [] }, { label: 'Peuple', word: '', icon: 'users', paths: [] }] }))];
+            state.queue = [{ sceneIndex: 0, status: 'done', videoUrl: 'puppet:0' }];
+            localStorage.setItem('elevenlabs_api_key', 'sk_test'); localStorage.setItem(STORAGE.CLAUDE_KEY, 'sk-ant-test'); elevenlabsSelectedVoiceId = 'v1';
+            window.callClaude = async req => { r.asked = JSON.stringify(req.prompt).includes('Roi') && !!req.schema.properties.scenes.items.properties.labels; return { title: 'King', scenes: [{ spoken: 'The king against the people.', narration: '', bubble: '', highlight: '', section: '', hook: '', stickerText: '', labels: ['King', 'The common people'] }] }; };
+            window.assembleVideo = async () => { r.during = state.drawings[0].labels.map(l => l.text).join('|') + ' ' + state.language; r.smaller = state.drawings[0].labels.find(l => l.text === 'The common people')?.size < keep2.size; return { blob: new Blob(['x']), ext: 'mp4', timeline: state.timeline }; };
+            const keep2 = { size: state.drawings[0].labels.find(l => l.text === 'Peuple').size };
+            await buildLanguageVersion('en-US');
+            r.after = state.drawings[0].labels.map(l => l.text).join('|') + ' ' + state.language;
+        } catch (e) { r.err = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' '); }
+        finally {
+            window.callClaude = realClaude; window.assembleVideo = realAssemble;
+            Object.assign(state, { drawings: keep.drawings, queue: keep.queue, scenes: keep.scenes, scenePlan: keep.plan, language: keep.lang }); elevenlabsSelectedVoiceId = keep.voice;
+            for (const [k, v] of [['elevenlabs_api_key', keep.eleven], [STORAGE.CLAUDE_KEY, keep.claude]]) { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); }
+        }
+        return r;
+    });
+    check(!tr8.err && tr8.asked && /^King\|VS\|The common people en-US$|^King\|The common people\|VS en-US$/.test(tr8.during || '') && tr8.smaller && /Roi/.test(tr8.after || '') && /Peuple/.test(tr8.after || ''), 'version dans une autre langue : mots-clés des dessins traduits (plus petits si plus longs), « VS » gardé, puis tout remis (' + (tr8.err || tr8.during + ' → ' + tr8.after) + ')');
     check(!v88.err && v88.shapesOk, 'image → traits de feutre : formes retrouvées, zones pleines par leur bord, poussières ignorées (' + (v88.err || v88.shapes) + ')');
     check(!v88.err && v88.illusOk && v88.reload && v88.max3 === 3, 'objet sans icône dessiné par Agnes Image (gratuit) puis retracé au feutre, icône gardée, rien de redemandé (projet rouvert ou même objet), 3 objets au plus (' + (v88.err || v88.illus + ', ' + v88.max3 + ' appels pour 5 objets') + ')');
-    check(!v88.err && v88.bg, 'génération en arrière-plan : dessins du serveur retracés par le téléphone pendant le travail, repris du cache au retour, plus aucun appel après le délai');
+    check(!v88.err && v88.bg && v88.srv, 'génération en arrière-plan : dessins du serveur retracés par le téléphone pendant le travail, repris du cache au retour, plus aucun appel après le délai ; traits non renvoyés au serveur (sauf image de l\'utilisateur)');
     check(!v88.err && v88.fallback, 'illustrations retracées : réglage coupé → aucun appel ; Agnes Image refusée → dessin de Claude gardé, casting de poses pas coupé');
     check(!v88.err && v88.photoOk, 'image de l\'utilisateur transformée en illustration de la scène, sans aucun appel (' + (v88.err || v88.photo) + ')');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
