@@ -95,7 +95,14 @@ function wrapLines(ctx, text, maxWidth) {
 }
 const easeOut = x => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
 const clamp01 = x => Math.max(0, Math.min(1, x));
-const MARKER_FONT = '"Marker Felt", "Chalkboard SE", "Comic Sans MS", -apple-system, sans-serif';
+// Feutre : Permanent Marker (Font Diner, Apache 2.0, data/PermanentMarker-Regular.ttf) — identique sur tous les appareils et
+// dans les exports ; les lettres absentes (japonais, arabe…) passent aux polices suivantes.
+const MARKER_FONT = '"Permanent Marker", "Marker Felt", "Chalkboard SE", "Comic Sans MS", -apple-system, sans-serif';
+// Le canvas n'attend pas les polices : on charge le feutre avant de dessiner (sans bloquer plus de 3 s s'il manque).
+function ensureMarkerFont() {
+    if (!document.fonts || !document.fonts.load) return Promise.resolve(false);
+    return Promise.race([document.fonts.load('400 40px "Permanent Marker"').then(f => f.length > 0), new Promise(r => setTimeout(() => r(false), 3000))]).catch(() => false);
+}
 const UI_FONT = '-apple-system, "Helvetica Neue", Arial, sans-serif';
 
 // ─────────────── Analyse du son ───────────────
@@ -769,6 +776,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     let pending = firstClip ? await createStageVideo(urls.get(firstClip)) : null;
     const { w: W, h: H } = computeOutputSize(pending || { videoWidth: 720, videoHeight: 1280 }, format);
     // personnage stable : les poses validées remplacent le personnage des scènes Agnes
+    await ensureMarkerFont();
     const puppet = typeof stableActive === 'function' && stableActive() ? await loadPuppetSprites() : draft && typeof draftSprites === 'function' ? await draftSprites() : null;
     if (state.transition === 'smart' && typeof warmTransitions === 'function') { try { warmTransitions(items.map(it => scenePlanFor(it.sceneIndex))); } catch (e) {} }
     let prevPose = null, puppetMouth = 'closed', prevTx = null;

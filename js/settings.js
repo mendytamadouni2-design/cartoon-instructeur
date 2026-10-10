@@ -12,13 +12,14 @@ async function prepareFitVoice(item) {
     const target = item.speech && !item.speech.silent ? item.speech.end - item.speech.start : null;
     let blob = await generateElevenLabsAudio(text, voiceId, model, '0.5', '0.75', 1);
     let buf = await decodeAudioBlob(blob), sp = analyzeSpeech(buf);
-    if (target && sp && !sp.silent) {
-        const ratio = (sp.end - sp.start) / target;
-        // 2e prise à la bonne vitesse, seulement si le quota du mois le permet sans se priver d'une autre scène
-        const left = typeof elevenRemaining === 'function' ? elevenRemaining() : null;
-        if (Math.abs(ratio - 1) > 0.08 && (left === null || left > text.length * 4)) {
-            blob = await generateElevenLabsAudio(text, voiceId, model, '0.5', '0.75', Math.max(0.7, Math.min(1.2, ratio)));
-            buf = await decodeAudioBlob(blob); sp = analyzeSpeech(buf);
+    item.fitStretch = 1;
+    if (target && sp && !sp.silent && buf) {
+        // la voix est étirée ou resserrée sur le téléphone, sans changer sa hauteur, pour durer autant que la parole
+        // d'Agnes (les lèvres) : plus de 2e prise ElevenLabs, donc aucun caractère dépensé en plus.
+        // Au-delà de ±25 à 35 %, l'étirement s'entend : on s'arrête là.
+        const stretch = Math.max(0.75, Math.min(1.35, target / (sp.end - sp.start)));
+        if (Math.abs(stretch - 1) > 0.03 && typeof stretchBuffer === 'function') {
+            buf = stretchBuffer(buf, stretch); sp = analyzeSpeech(buf); item.fitStretch = stretch;
         }
     }
     if (!buf) throw new Error('voix illisible');

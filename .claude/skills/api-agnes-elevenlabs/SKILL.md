@@ -49,5 +49,7 @@ gants ou moufles dans l'identité → ajouter « separate detailed fingers, bare
   `elevenCharsNeeded()` / `elevenQuotaShort()` ; quota épuisé (`quota_exceeded`) → `markElevenExhausted()`, plus aucun appel.
 - Voix de la bibliothèque : 402 / `paid_plan_required` → voix réservée aux abonnés, proposer une voix gratuite.
 - **Cache** : une phrase déjà dite (même voix, mêmes réglages, même texte) n'est jamais repayée (IndexedDB `tts:` + sha256).
+- **Voix calée sur les lèvres** (`prepareFitVoice`, 8.7) : UNE seule prise ElevenLabs, puis `stretchBuffer` (WSOLA, `render.js`)
+  l'étire ou la resserre (×0,75 à ×1,35) à la durée de la parole d'Agnes ; plus jamais de 2e prise payante à une autre vitesse.
 - **Jamais deux voix différentes** dans une même vidéo : si ElevenLabs échoue en cours, toute la vidéo repasse en voix d'Agnes.
 - Prix indicatif suivi : `ELEVENLABS_PRICE_1K = 0.2` € pour 1 000 caractères (`growth.js`), affiché même en gratuit.

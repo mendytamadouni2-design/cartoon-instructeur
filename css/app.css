@@ -700,3 +700,7 @@ select:focus { outline: none; border-color: var(--ink); }
 .fold-count:not(:empty) { background: var(--brand); color: var(--brand-ink); border-radius: 999px; padding: 1px 8px; font-size: 0.72rem; }
 .fmt-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .fmt-chips .chip { text-align: center; padding: 10px 8px; }
+
+/* Feutre des vidéos (titres, tableau blanc, sous-titres « feutre ») : Permanent Marker, Font Diner, Apache 2.0.
+   Une seule graisse : déclarée pour toutes les graisses pour que le navigateur ne fabrique pas un faux gras. */
+@font-face { font-family: 'Permanent Marker'; src: url('../data/PermanentMarker-Regular.ttf') format('truetype'); font-weight: 100 900; font-style: normal; font-display: swap; }

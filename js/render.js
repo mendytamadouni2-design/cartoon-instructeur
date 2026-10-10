@@ -235,6 +235,43 @@ function normalizeLoudness(buffer, target = LOUDNESS_TARGET, peakMax = LOUDNESS_
     loudnessCache.delete(buffer);
     return { before: m.lufs, gain: gainDb, after: m.lufs + gainDb, peak: m.peak + gainDb };
 }
+// ─────────────── Étirer la voix sans changer sa hauteur (WSOLA) ───────────────
+// Portage de soundcraft crates/dsp/src/offline.rs `time_stretch` (ArtCraft Team and the SoundCraft contributors,
+// MIT OU Apache 2.0) : fenêtres de Hann de 40 ms posées tous les 20 ms ; chaque fenêtre est prise dans le son
+// d'origine à ±10 ms de sa place théorique, là où elle ressemble le plus à la suite naturelle (pas de « clic »).
+// ratio = durée de sortie / durée d'entrée (borné à 0,1 – 10). Renvoie un nouvel AudioBuffer.
+function stretchBuffer(buffer, ratio) {
+    ratio = isFinite(ratio) ? Math.max(0.1, Math.min(10, ratio)) : 1;
+    const len = buffer.length, nch = buffer.numberOfChannels, sr = buffer.sampleRate;
+    const outLen = Math.max(1, Math.round(len * ratio));
+    const out = new AudioBuffer({ numberOfChannels: nch, length: outLen, sampleRate: sr });
+    const ch = Array.from({ length: nch }, (_, c) => buffer.getChannelData(c));
+    if (Math.abs(ratio - 1) < 1e-9) { ch.forEach((d, c) => out.copyToChannel(d.subarray(0, outLen), c)); return out; }
+    const frame = Math.max(64, Math.min(8192, Math.floor(sr * 0.04) & ~1)), hop = frame / 2;
+    const tol = Math.max(8, Math.min(2048, Math.floor(sr * 0.01)));
+    const win = new Float32Array(frame); for (let i = 0; i < frame; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / frame);
+    const guide = new Float32Array(len); ch.forEach(d => { for (let i = 0; i < len; i++) guide[i] += d[i] / nch; });
+    const g = i => (i < 0 || i >= len ? 0 : guide[i]);
+    const bufLen = outLen + frame, acc = ch.map(() => new Float32Array(bufLen)), wsum = new Float32Array(bufLen);
+    const score = (natural, p) => { let xy = 0, yy = 1e-9; for (let i = 0; i < hop; i += 2) { const b = g(p + i); xy += g(natural + i) * b; yy += b * b; } return xy / Math.sqrt(yy); };
+    let prevIn = 0;
+    for (let k = 0; k * hop < outLen; k++) {
+        const outPos = k * hop;
+        let inPos = 0;
+        if (k > 0) {
+            const nominal = Math.round(outPos / ratio), natural = prevIn + hop, lo = Math.max(0, nominal - tol), hi = nominal + tol;
+            let best = Math.max(0, nominal), bestS = -Infinity;
+            for (let p = lo; p <= hi; p += 4) { const s = score(natural, p); if (s > bestS) { bestS = s; best = p; } }
+            for (let p = Math.max(lo, best - 3), e = Math.min(hi, best + 3); p <= e; p++) { const s = score(natural, p); if (s > bestS) { bestS = s; best = p; } }
+            inPos = best;
+        }
+        for (let c = 0; c < nch; c++) { const d = ch[c], o = acc[c]; for (let i = 0; i < frame; i++) { const src = inPos + i; if (src < len) o[outPos + i] += d[src] * win[i]; } }
+        for (let i = 0; i < frame; i++) wsum[outPos + i] += win[i];
+        prevIn = inPos;
+    }
+    acc.forEach((o, c) => { for (let i = 0; i < outLen; i++) if (wsum[i] > 1e-3) o[i] /= wsum[i]; out.copyToChannel(o.subarray(0, outLen), c); });
+    return out;
+}
 function trimAudio(buffer, seconds) {
     const n = Math.max(1, Math.min(buffer.length, Math.round(seconds * buffer.sampleRate)));
     const out = new AudioBuffer({ numberOfChannels: 2, length: n, sampleRate: buffer.sampleRate });

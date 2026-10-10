@@ -2,9 +2,9 @@
 // 1. l'appli s'ouvre même avec un réseau faible ou absent (dernière version gardée en cache),
 //    tout en restant toujours à jour quand le réseau répond (réseau d'abord, cache en secours) ;
 // 2. notifications (génération terminée, vidéo publiée).
-const CACHE = 'cartoon-app-v21';
+const CACHE = 'cartoon-app-v22';
 const NETWORK_TIMEOUT_MS = 4000;
-const APP_FILES = ['./', './index.html', './css/app.css', './js/core.js', './js/motion.js', './js/voices.js', './js/scenes.js', './js/claude.js', './js/settings.js', './js/media.js', './js/generation.js', './js/render.js', './js/montage.js', './js/exports.js', './js/studio.js', './js/growth.js', './js/navigation.js', './js/projects.js', './js/integrations.js', './js/compositor.js', './js/quality.js', './js/graphics.js', './js/transitions.js', './js/stickers.js', './js/channel.js', './js/puppet.js', './js/director.js', './js/init.js', './data/icons.json', './data/emoji3d.json'];
+const APP_FILES = ['./', './index.html', './css/app.css', './js/core.js', './js/motion.js', './js/voices.js', './js/scenes.js', './js/claude.js', './js/settings.js', './js/media.js', './js/generation.js', './js/render.js', './js/montage.js', './js/exports.js', './js/studio.js', './js/growth.js', './js/navigation.js', './js/projects.js', './js/integrations.js', './js/compositor.js', './js/quality.js', './js/graphics.js', './js/transitions.js', './js/stickers.js', './js/channel.js', './js/puppet.js', './js/director.js', './js/init.js', './data/icons.json', './data/PermanentMarker-Regular.ttf', './data/emoji3d.json'];
 
 self.addEventListener('install', e => {
     e.waitUntil(caches.open(CACHE).then(c => c.addAll(APP_FILES).catch(() => {})).then(() => self.skipWaiting()));

@@ -8,7 +8,7 @@ const ORIGIN = 'https://app.test';
 const RELAY = 'https://cartoon-instructeur.mendy-tamadouni2.workers.dev';
 let failures = 0;
 // Sert les fichiers de l'appli (index.html, css/, js/, sw.js) comme GitHub Pages
-const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json' };
+const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.ttf': 'font/ttf' };
 // Emojis 3D (jsDelivr / GitHub) : une image locale pour tous, les tests ne dépendent pas d'internet
 const EMOJI_PNG = fs.readFileSync(path.join(__dirname, 'fixtures', 'emoji3d.png'));
 function routeEmoji(ctx) { return ctx.route(/cdn\.jsdelivr\.net|raw\.githubusercontent\.com/, r => { mockStats.emoji = (mockStats.emoji || 0) + 1; return r.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, contentType: 'image/png', body: EMOJI_PNG }); }); }
@@ -1063,6 +1063,41 @@ async function testCompositor(browser) {
     check(/^-14 \/ -14 \/ /.test(loud.norm) && +loud.norm.split(' / ')[2] <= -1.5 && loud.peakCap, 'vidéo mise à -14 LUFS (niveau YouTube / TikTok) sans jamais dépasser -1,5 dBFS (' + loud.norm + ')');
     check(loud.voices === '-19 / -19', 'chaque voix au même niveau, quelle que soit sa source (' + loud.voices + ' LUFS)');
     check(loud.montageOk, 'montage complet : volume final réglé automatiquement (' + loud.montage + ')');
+    // 8.7 : voix étirée sans changer sa hauteur (WSOLA, repris de SoundCraft) + vraie police feutre
+    const v87 = await page.evaluate(async () => {
+        const r = {}, sr = 48000;
+        const tone = (f, sec) => { const b = new AudioBuffer({ numberOfChannels: 1, length: Math.round(sr * sec), sampleRate: sr }), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = 0.5 * Math.sin(2 * Math.PI * f * i / sr); return b; };
+        const freq = b => { const d = b.getChannelData(0), a = Math.floor(d.length * 0.2), z = Math.floor(d.length * 0.8); let first = -1, last = -1, n = 0;   // passages par zéro interpolés : précision < 0,1 Hz
+            for (let i = a + 1; i < z; i++) if (d[i - 1] < 0 && d[i] >= 0) { const t = i - 1 + d[i - 1] / (d[i - 1] - d[i]); if (first < 0) first = t; last = t; n++; } return (n - 1) / ((last - first) / sr); };
+        const rmsSpread = b => { const d = b.getChannelData(0), w = 2400, v = []; for (let i = 4800; i + w < d.length - 4800; i += w) { let s = 0; for (let k = i; k < i + w; k++) s += d[k] * d[k]; v.push(Math.sqrt(s / w)); } return Math.min(...v) / Math.max(...v); };
+        const src = tone(440, 1);
+        const long = stretchBuffer(src, 1.25), short = stretchBuffer(src, 0.8);
+        r.lens = [long.duration, short.duration].map(x => +x.toFixed(3)).join(' / ');
+        r.freqs = [freq(long), freq(short)].map(x => Math.round(x)).join(' / ');
+        r.even = Math.min(rmsSpread(long), rmsSpread(short));   // aucun trou ni à-coup de volume
+        // voix calée sur les lèvres : une seule prise ElevenLabs, étirée sur le téléphone
+        const wav = (() => { const n = 24000 * 1.8, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf); const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+            w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 24000, true); v.setUint32(28, 48000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+            for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, (i > 2400 && i < 38400 ? Math.sin(i / 8) * 12000 : 0), true); return buf; })();
+        const realGen = window.generateElevenLabsAudio; let calls = 0;
+        window.generateElevenLabsAudio = async () => { calls++; return new Blob([wav], { type: 'audio/wav' }); };
+        try {
+            localStorage.setItem('elevenlabs_api_key', 'sk_test'); elevenlabsSelectedVoiceId = 'v1';
+            const item = { sceneIndex: 0, sceneText: 'Bonjour à tous.', speech: { silent: false, start: 0.2, end: 2.2 } };   // Agnes parle 2,0 s
+            await prepareFitVoice(item);
+            r.calls = calls; r.stretch = +item.fitStretch.toFixed(2); r.fitDur = +(item.fitSpeech.end - item.fitSpeech.start).toFixed(2);
+        } catch (e) { r.err = e.message; } finally { window.generateElevenLabsAudio = realGen; }
+        // police feutre chargée et réellement utilisée
+        r.font = await ensureMarkerFont();
+        const c = document.createElement('canvas').getContext('2d');
+        c.font = '900 60px ' + MARKER_FONT; const wMarker = c.measureText('Le savais-tu ? éàç').width;
+        c.font = '900 60px "Comic Sans MS", sans-serif'; const wFallback = c.measureText('Le savais-tu ? éàç').width;
+        r.fontUsed = Math.abs(wMarker - wFallback) > 2 && document.fonts.check('40px "Permanent Marker"');
+        return r;
+    });
+    check(v87.lens === '1.25 / 0.8' && v87.freqs === '440 / 440' && v87.even > 0.9, 'voix étirée ou resserrée sans changer sa hauteur (durées ' + v87.lens + ' s, ' + v87.freqs + ' Hz, régularité ' + (+v87.even).toFixed(2) + ')');
+    check(!v87.err && v87.calls === 1 && v87.stretch === 1.33 && Math.abs(v87.fitDur - 2) < 0.1, 'voix calée sur les lèvres : une seule prise ElevenLabs, étirée sur le téléphone (' + (v87.err || v87.calls + ' appel, ×' + v87.stretch + ', ' + v87.fitDur + ' s pour 2 s') + ')');
+    check(v87.font && v87.fontUsed, 'vraie police feutre (Permanent Marker) chargée et utilisée dans la vidéo');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
