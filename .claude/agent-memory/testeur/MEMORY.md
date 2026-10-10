@@ -25,4 +25,8 @@
 - WebCodecs présent ou non (sinon : encodeur WASM de la feuille de route) ; la police feutre servie hors ligne (mode avion).
 - 8.8 Agnes Image en texte seul (`tracePromptFor`, `size: '960x960'`) : vraie réponse, dessin propre sans texte, et
   surtout le PRIX / quota d'agnes-image-2.1-flash (noté gratuit sans source) ; photo HEIC choisie dans « Depuis une image ».
+- 8.9 fond vert : bords en `mediump` 16 bits (shader `unmixA`, division par l'opacité) — regarder une scène fond vert
+  et le personnage stable sur fond blanc, zoom sur les cheveux.
+- 9.0 personnage vivant : fluidité du montage (≈ 0,5 ms par image dans Chromium), 1re image (maillage + Cholesky),
+  retour d'arrière-plan en plein montage (contexte WebGL perdu → l'image suivante doit être juste).
 - Lancer les tests avec `CHROMIUM_PATH=/opt/pw-browsers/chromium` (sinon Playwright cherche un navigateur absent).
