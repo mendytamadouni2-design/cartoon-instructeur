@@ -16,3 +16,11 @@
 ## Leçons 8.6
 - Groupe `background` lancé seul : échouait car `mockStats.refChecks` (scène 2 jugée ratée au 1er appel) était consommé par `phone` en exécution complète → corrigé (`mockStats.flagScene2 = false`). Toujours valider un groupe seul ET la suite complète.
 - Durées mesurées (oct. 2026) : styles 15 s, compositor 45 s, phone ≈ 7 min, background ≈ 6 min.
+
+## À tester sur un vrai iPhone (reprise des tests vers le 24 oct. 2026)
+- 8.7 police feutre : écrire « Le savais-tu » en `400` puis en `900` sur un canvas (police `MARKER_FONT`) et comparer
+  l'épaisseur des traits — vérifier que Safari ne fabrique pas un faux gras (plage déclarée `font-weight: 100 900`).
+- 8.7 voix étirée (`stretchBuffer`, WSOLA) : temps bloquant par scène (Node : 0,3 à 0,7 s pour 10–20 s de voix) ; si
+  l'écran gèle plus d'1 s par scène sur Safari, envisager de découper le calcul.
+- WebCodecs présent ou non (sinon : encodeur WASM de la feuille de route) ; la police feutre servie hors ligne (mode avion).
+- Lancer les tests avec `CHROMIUM_PATH=/opt/pw-browsers/chromium` (sinon Playwright cherche un navigateur absent).
