@@ -6,7 +6,7 @@
 // L'enregistrement survit à un rechargement de l'appli (un plantage de Safari se voit dans le rapport).
 // ══════════════════════════════════════════════════════════════════
 const TESTLOG_KEY = 'cartoon_testlog';
-const TESTLOG_MAX = 4000;   // évènements gardés (les 500 premiers + les plus récents)
+const TESTLOG_MAX = 2000;   // évènements gardés (les 500 premiers + les plus récents) : ≈ 0,5 Mo au plus, place gardée pour les projets
 const TEST_STEPS = [
     { id: 'version', t: 'Version', how: 'Ouvre l\'appli depuis l\'écran d\'accueil. Ici même (Réglages → Aide et journal), la version écrite au-dessus de cette fiche doit être la ' + APP_VERSION.num + '.' },
     { id: 'police', t: 'Police feutre', how: 'Projet au tableau blanc : dans le brouillon animé ou la vidéo, les titres et mots-clés sont écrits au feutre (lettres de marqueur), pas avec une police d\'ordinateur.' },
@@ -21,7 +21,7 @@ const TEST_STEPS = [
     { id: 'video', t: 'Vidéo finale', how: 'La vidéo s\'enregistre et se lit dans Photos. Note sa durée dans la remarque.' },
     { id: 'prix', t: 'Prix Agnes Image', how: 'Après le test, regarde ton compte Agnes : les images (illustrations, poses) ont-elles été facturées ? Note le montant dans la remarque.' }
 ];
-let testRec = null, testSaveTimer = 0, testFetchOrig = null, testMontage = null;
+let testRec = null, testSaveTimer = 0, testFetchOrig = null, testMontage = null, testFetchGen = 0;
 
 function testlogLoad() {
     try { const v = JSON.parse(localStorage.getItem(TESTLOG_KEY) || 'null'); return v && Array.isArray(v.events) ? v : null; } catch (e) { return null; }
@@ -36,7 +36,7 @@ function testlogSave(now) {
 function testlogNote(kind, msg) {
     if (!testRec || !testRec.active) return;
     const ev = testRec.events;
-    ev.push([Math.round(performance.now() - testRec.t0 + testRec.offset), kind, sanitizeForJournal(String(msg)).slice(0, 400)]);
+    ev.push([Math.round(performance.now() - testRec.t0 + testRec.offset), kind, sanitizeForJournal(String(msg)).slice(0, 250)]);
     if (ev.length > TESTLOG_MAX) ev.splice(500, ev.length - TESTLOG_MAX);
     testlogSave();
 }
@@ -88,6 +88,7 @@ async function testlogResume() {
     testlogHook();
     testlogNote('réouverture', 'appli rouverte pendant le test (rechargement ou plantage de Safari) — dernière note il y a ' + Math.round((Date.now() - new Date(saved.lastSaved || saved.started).getTime()) / 1000) + ' s');
     testRec.devices.push({ at: testRec.offset, info: await testlogDevice() });
+    if (testRec.devices.length > 6) testRec.devices.splice(1, testRec.devices.length - 6);   // le 1er et les 5 derniers
     testlogSave(true); renderTestlog();
 }
 function testlogStop() {
@@ -107,7 +108,9 @@ function testlogClear() {
 function testlogClick(e) {
     const el = e.target.closest && e.target.closest('button, a, [role="button"], .list-item, summary');
     if (!el || el.closest('#section-testlog')) return;
-    const label = (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 70);
+    // éléments de liste (titres de vidéos et de projets = texte de l'utilisateur) : on note leur destination, jamais leur texte
+    const dyn = el.matches('.list-item, [data-project]');
+    const label = dyn ? (el.dataset.open || el.dataset.push || (el.dataset.project ? 'projet' : '') || 'élément de liste') : (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 70);
     testlogNote('appui', (el.id ? '#' + el.id + ' ' : '') + '« ' + label + ' »');
 }
 function testlogChange(e) {
@@ -133,11 +136,13 @@ function testlogHook() {
     window.addEventListener('pagehide', testlogPageHide);
     // appels aux services : adresse sans paramètres, statut, durée, taille (jamais les en-têtes ni le contenu)
     testFetchOrig = window.fetch;
-    const orig = testFetchOrig;
+    const orig = testFetchOrig, gen = ++testFetchGen;
     window.fetch = async function (input, init) {
-        const url = String(input && input.url ? input.url : input), t0 = performance.now(), method = (init && init.method) || 'GET';
+        if (gen !== testFetchGen || !testRec || !testRec.active) return orig.apply(this, arguments);   // enveloppe périmée : transparente
+        const url = String(input && input.url ? input.url : input), t0 = performance.now(), method = (init && init.method) || (input && input.method) || 'GET';
         let where = url;
-        try { const u = new URL(url, location.href); where = u.protocol === 'data:' || u.protocol === 'blob:' ? u.protocol : u.host + u.pathname; } catch (e) {}
+        // adresse sans paramètres ; identifiants longs (suivi d'un projet, médias) masqués : ils donnent accès au projet
+        try { const u = new URL(url, location.href); where = u.protocol === 'data:' || u.protocol === 'blob:' ? u.protocol : u.host + u.pathname.replace(/\/[\w-]{24,}/g, '/[id]'); } catch (e) {}
         try {
             const res = await orig.apply(this, arguments);
             if (!/^(data:|blob:)/.test(where) && !where.startsWith(location.host)) testlogNote('service', method + ' ' + where + ' → ' + res.status + ' en ' + Math.round(performance.now() - t0) + ' ms' + (res.headers?.get?.('content-length') ? ', ' + Math.round(+res.headers.get('content-length') / 1024) + ' Ko' : ''));
@@ -153,7 +158,7 @@ function testlogUnhook() {
     window.removeEventListener('online', testlogOnline); window.removeEventListener('offline', testlogOnline);
     window.removeEventListener('pagehide', testlogPageHide);
     if (testFetchOrig && window.fetch && window.fetch.isTestlog) window.fetch = testFetchOrig;
-    testFetchOrig = null;
+    testFetchOrig = null; testFetchGen++;
 }
 
 // ── Montages : mode, taille, vitesse image par image (appelé par montage.js) ──
@@ -216,8 +221,20 @@ function testReportText() {
     R.events.forEach(e => out.push(hms(e[0]) + '  ' + e[1].padEnd(10) + ' ' + e[2]));
     out.push('', '## Journal de l\'appli (200 dernières lignes)', '');
     getJournal().slice(-200).forEach(l => out.push(l));
-    // dernier filet de sécurité : aucune clé ne sort, même collée par erreur dans une remarque
-    return sanitizeForJournal(out.join('\n'));
+    // derniers filets : formats de clés connus, puis les vraies valeurs stockées (quel que soit leur format)
+    let text = sanitizeForJournal(out.join('\n'));
+    for (const v of testlogSecretValues()) text = text.split(v).join('[clé masquée]');
+    return text;
+}
+function testlogSecretValues() {
+    const vals = new Set(), add = v => { if (typeof v === 'string' && v.length >= 8) vals.add(v); };
+    const walk = x => { if (typeof x === 'string') add(x); else if (x && typeof x === 'object') Object.values(x).forEach(walk); };
+    Object.keys(STORAGE).filter(k => /KEY|TOKEN|SECRET|CONFIG/.test(k)).forEach(k => {
+        const raw = String(getLS(STORAGE[k]) || '').trim();
+        if (!raw) return;
+        if (raw[0] === '{' || raw[0] === '[') { try { walk(JSON.parse(raw)); } catch (e) { add(raw); } } else add(raw);
+    });
+    return [...vals].sort((a, b) => b.length - a.length);
 }
 async function testlogDownload() {
     if (!testRec) { showToast('Aucun test enregistré', 'warn'); return; }

@@ -207,7 +207,10 @@ function sanitizeForJournal(s) {
     return String(s)
         .replace(/sk-ant-[\w-]{6,}/g, '[clé masquée]').replace(/sk[-_][\w-]{10,}/g, '[clé masquée]')
         .replace(/AKIA[0-9A-Z]{8,}/g, '[clé masquée]').replace(/AIza[\w-]{10,}/g, '[clé masquée]').replace(/gh[pousr]_\w{10,}/g, '[clé masquée]')
-        .replace(/("(?:key|token|secret|apiKey|agnesKey|claudeKey)"\s*:\s*")[^"]+"/gi, '$1[masqué]"');
+        .replace(/Bearer\s+[\w.~+\/=-]{8,}/gi, 'Bearer [clé masquée]')
+        .replace(/\bya29\.[\w-]{10,}|\b(?:act|clt|aat)\.[\w-]{16,}|\bIG[A-Z]{1,3}[\w-]{20,}|\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]*/g, '[clé masquée]')
+        .replace(/([?&#](?:key|api_?key|token|access_token|sig|signature|code|xi-api-key)=)[^&\s"'#]+/gi, '$1[masqué]')
+        .replace(/("(?![\w-]*keyframes)[\w-]*(?:key|token|secret|password)[\w-]*"\s*:\s*")[^"]+"/gi, '$1[masqué]"');
 }
 function getJournal() {
     if (!journalBuf) { try { journalBuf = JSON.parse(localStorage.getItem(JOURNAL_KEY) || '[]'); } catch (e) { journalBuf = []; } }

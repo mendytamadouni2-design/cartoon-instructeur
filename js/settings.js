@@ -149,11 +149,12 @@ function updateEstimate() {
     }
     if (typeof puppetOnly === 'function' && puppetOnly()) {
         const need = typeof elevenCharsNeeded === 'function' ? elevenCharsNeeded() : 0, left = typeof elevenRemaining === 'function' ? elevenRemaining() : null;
-        el.textContent = '⏱️ ≈ ' + Math.max(1, Math.ceil(n * 0.3)) + ' min (personnage stable, rien à attendre chez Agnes) · 💶 0 € Agnes' + (claude ? ' + ' + claude.toFixed(2).replace('.', ',') + ' € Claude' : '') +
+        const imgs = state.traceDrawings ? n * 3 * AGNES_IMAGE_PRICE : 0;   // illustrations : 3 images au plus par scène
+        el.textContent = '⏱️ ≈ ' + Math.max(1, Math.ceil(n * 0.3)) + ' min (personnage stable, rien à attendre chez Agnes) · 💶 ' + (imgs ? '≈ ' + imgs.toFixed(2).replace('.', ',') + ' € Agnes Image au plus' : '0 € Agnes') + (claude ? ' + ' + claude.toFixed(2).replace('.', ',') + ' € Claude' : '') +
             ' · 🗣️ ≈ ' + fmtInt(need) + ' caractères ElevenLabs' + (left === null ? '' : ' (il t\'en reste ' + fmtInt(left) + ')');
         return;
     }
-    const agnes = n * 0.02;
+    const agnes = n * 0.02 + (state.traceDrawings ? n * 3 * AGNES_IMAGE_PRICE : 0);   // + illustrations (3 images au plus par scène)
     const fmt = x => x.toFixed(2).replace('.', ',') + ' €';
     el.textContent = '⏱️ ≈ ' + genMin + ' min de génération' + (bg ? ' (téléphone éteint possible)' : '') + ' + ' + montageMin + ' min de montage · 💶 ≈ ' + fmt(agnes) + ' Agnes' + (claude ? ' + ' + fmt(claude) + ' Claude' : '') +
         (state.syncWords && getElevenLabsKey() ? ' + transcription ElevenLabs' : '') + (state.voiceSource === 'fit' ? ' + voix ElevenLabs' : '') + ' (estimation)';

@@ -183,7 +183,7 @@ async function generateDrawing(sceneText, index, total, feedback) {
     if (prevDraw.length) feedback += ' Descriptions "draw" du premier essai : ' + prevDraw.join(' ; ') + '. Change-les (objet plus simple, plus reconnaissable).';
     const out = await callClaude(drawingRequestFor([sceneText, p.narration].filter(Boolean).join(' '), index, total, feedback));
     await prepareDrawingIcons(out);
-    await traceDrawingElements(out, { fresh: !!feedback });   // 8.8 : objets sans icône dessinés par Agnes Image (gratuit) puis retracés au feutre
+    await traceDrawingElements(out, { fresh: !!feedback });   // 8.8 : objets sans icône dessinés par Agnes Image (si le réglage est activé) puis retracés au feutre
     const compiled = compileDrawing(layoutDrawing(out));
     if (compiled) compiled.raw = out;   // on garde la réponse brute : la mise en page est refaite à chaque ouverture
     return compiled;

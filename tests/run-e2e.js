@@ -1334,6 +1334,12 @@ async function testCompositor(browser) {
             log('essai clé ' + ['sk', 'ant', 'api03', 'zyxwvutsrqponmlkjihgf'].join('-'));
             window.dispatchEvent(new ErrorEvent('error', { message: 'Erreur simulée du test', filename: 'https://app.test/js/montage.js', lineno: 42 }));
             try { await fetch('https://api.elevenlabs.io/v1/user/subscription?xi-api-key=' + ['sk', '0123456789abcdef0123'].join('_')); } catch (e) {}
+            // titre d'une vidéo dans la liste (texte de l'utilisateur), clé de format inconnu, identifiant de projet dans une adresse
+            const li = document.createElement('button'); li.className = 'list-item'; li.dataset.open = 'videos'; li.textContent = 'Fusion secrète Acme 2027'; document.body.appendChild(li);
+            li.dispatchEvent(new MouseEvent('click', { bubbles: true })); li.remove();
+            r.keepAgnes = localStorage.getItem('agnes_api_key'); const oddKey = 'agnes' + '-perso-' + 'ZZtop9876543';
+            localStorage.setItem('agnes_api_key', oddKey); log('réponse du service : clé reçue ' + oddKey);
+            try { await fetch('https://relais.test/jobs/' + 'a1b2c3d4'.repeat(8)); } catch (e) {}
             // un montage : mode, vitesse, résultat
             const m = testlogMontageStart({ label: 'Montage essai' }); testlogMontageInfo('image par image (WebCodecs), 1080×1920');
             [12, 18, 70, 15].forEach(testlogFrame); testlogMontageEnd(m, { offline: true, blob: new Blob([new Uint8Array(2e6)]), ext: 'mp4' });
@@ -1352,15 +1358,16 @@ async function testCompositor(browser) {
             r.content = t.includes('deform-select = off') && t.includes('tl-champ-essai texte modifié (') && t.includes('#journal-copy-btn') && t.includes('Erreur simulée du test') && /api\.elevenlabs\.io\/v1\/user\/subscription → ÉCHEC/.test(t)
                 && t.includes('Montage essai') && t.includes('1 lentes') && t.includes('❌ **Personnage vivant**') && t.includes('saccade au début') && t.includes('webgl') && t.includes('réouverture');
             r.missing = ['deform-select = off', 'tl-champ-essai texte modifié (', '#journal-copy-btn', 'Erreur simulée du test', 'Montage essai', '1 lentes', '❌ **Personnage vivant**', 'saccade au début', 'webgl', 'réouverture'].filter(x => !t.includes(x)).concat(/api\.elevenlabs\.io\/v1\/user\/subscription → ÉCHEC/.test(t) ? [] : ['service ÉCHEC']);
-            r.secret = /sk-ant-api03|sk_0123456789|xi-api-key/.test(t);
+            r.secret = /sk-ant-api03|sk_0123456789|xi-api-key|Fusion secrète|ZZtop9876543|a1b2c3d4a1b2c3d4/.test(t);
+            r.masked = t.includes('relais.test/jobs/[id]') && /appui +« videos »/.test(t);
             r.unhooked = !window.fetch.isTestlog && testRec.active === false;
             testlogClear(); r.cleared = localStorage.getItem(TESTLOG_KEY) === null && testRec === null;
         } catch (e) { r.err = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' '); }
-        finally { window.saveBlob = realSave; if (testRec) { testlogUnhook(); testRec = null; localStorage.removeItem(TESTLOG_KEY); } }
+        finally { window.saveBlob = realSave; if (r.keepAgnes === null) localStorage.removeItem('agnes_api_key'); else if (r.keepAgnes !== undefined) localStorage.setItem('agnes_api_key', r.keepAgnes); if (testRec) { testlogUnhook(); testRec = null; localStorage.removeItem(TESTLOG_KEY); } }
         return r;
     });
     check(!v91.err && v91.hooked && v91.resumed && v91.sections && v91.content && /^rapport-test-\d{4}-\d\d-\d\d\.txt$/.test(v91.name), 'enregistreur de test : appuis, réglages, erreurs, services, montages et fiche notés ; reprend après un rechargement ; rapport téléchargé (' + (v91.err || JSON.stringify(v91)) + ')');
-    check(!v91.err && v91.secret === false && v91.unhooked && v91.cleared, 'enregistreur de test : aucune clé ni texte saisi dans le rapport, appels réseau rendus à la normale à la fin, effaçable');
+    check(!v91.err && v91.secret === false && v91.masked && v91.unhooked && v91.cleared, 'enregistreur de test : aucune clé (même de format inconnu), aucun texte saisi ni titre de vidéo, identifiants de projet masqués ; appels réseau rendus à la normale, effaçable');
     // règle 8 : la version dans une autre langue traduit aussi les mots-clés des dessins (« VS » gardé), puis tout est remis
     const tr8 = await page.evaluate(async () => {
         const r = {}, keep = { drawings: state.drawings, queue: state.queue, scenes: state.scenes, plan: state.scenePlan, lang: state.language, voice: elevenlabsSelectedVoiceId, eleven: localStorage.getItem('elevenlabs_api_key'), claude: localStorage.getItem(STORAGE.CLAUDE_KEY) };

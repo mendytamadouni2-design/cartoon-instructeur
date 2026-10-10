@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════════
 // IMAGE → TRAITS DE FEUTRE (8.8)
-// Une image (dessin d'Agnes Image, gratuit, ou image de l'utilisateur) devient des traits que le feutre trace un à un
+// Une image (dessin d'Agnes Image ou image de l'utilisateur) devient des traits que le feutre trace un à un
 // sur le tableau. Portage JavaScript de vectorcraft-trace (crates/trace/src/centerline.rs et fit.rs : distance de
 // chanfrein 3-4, squelette Zhang–Suen gardant la topologie, graphe des traits entre extrémités et croisements,
 // ébarbage, raccords, Douglas–Peucker) — ArtCraft Team et contributeurs de VectorCraft, MIT ou Apache 2.0.
@@ -340,7 +340,7 @@ async function traceImageToPaths(src, opts = {}) {
 
 // ── Branchement sur les illustrations ──
 // Un élément sans icône toute faite (objet trop particulier : guillotine, personnage historique…) est dessiné par
-// Agnes Image (gratuit) puis retracé au feutre ; sans Agnes (réglage coupé, clé absente, refus, panne), le dessin de
+// Agnes Image (prix non vérifié, ≈ 0,003 $ par image ; réglage coupé par défaut) puis retracé au feutre ; sans Agnes (réglage coupé, clé absente, refus, panne), le dessin de
 // Claude reste. Les images partent une à une (débit d'Agnes), même quand trois illustrations se préparent ensemble.
 // Chaque objet retracé est gardé (IndexedDB « trace: ») : jamais redemandé, même pour un autre projet.
 let traceQueue = Promise.resolve(), traceUnsupported = false, traceSizeRefused = false, traceCalls = 0;
@@ -370,7 +370,7 @@ async function traceDrawingElements(raw, opts = {}) {
             if (state.stopRequested || agnesImageUnsupported || traceUnsupported) return null;
             // un refus de cette demande (texte seul) ne doit pas couper Agnes Image pour le casting de poses
             const before = agnesImageUnsupported;
-            const ask = size => { traceCalls++; log('Agnes Image (gratuit) : illustration « ' + subject + ' » (' + traceCalls + ' depuis l\'ouverture)'); return agnesImage(tracePromptFor(subject), null, size); };
+            const ask = size => { traceCalls++; log('Agnes Image (≈ 0,003 $, prix non vérifié) : illustration « ' + subject + ' » (' + traceCalls + ' depuis l\'ouverture)'); return agnesImage(tracePromptFor(subject), null, size); };
             // taille carrée d'abord ; refusée une fois (400/422) → taille par défaut pour toute la session
             const first = traceSizeRefused ? ask() : ask('960x960').catch(err => {
                 if (!/HTTP 4(00|22)/.test(err.message) || state.stopRequested) return Promise.reject(err);
