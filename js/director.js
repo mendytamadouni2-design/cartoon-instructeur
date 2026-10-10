@@ -30,7 +30,7 @@ async function draftSprites() {
     const g = c.getContext('2d');
     g.fillStyle = '#fff'; roundRectPath(g, 0, 0, c.width, c.height, 36); g.fill();
     g.save(); roundRectPath(g, pad, pad, w, h, 24); g.clip(); g.drawImage(img, pad, pad, w, h); g.restore();
-    return { main: { closed: c } };
+    return { main: { closed: c, rigid: true } };   // une carte photo ne se plie pas (personnage vivant : rigide)
 }
 async function runAnimatic() {
     if (assembling || state.isRunning) return;

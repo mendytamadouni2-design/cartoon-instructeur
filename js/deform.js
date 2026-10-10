@@ -6,7 +6,7 @@
 // Différence voulue : les matrices ne dépendent que du maillage et des points tenus, elles sont donc préparées et
 // factorisées une fois par personnage (`arapPrepare`, Cholesky) ; chaque image ne refait que les seconds membres.
 // ══════════════════════════════════════════════════════════════════
-const ARAP_REG = 1e-9;
+const ARAP_REG = 1e-6;   // (1e-9 dans le Rust) assez grand pour que Cholesky reste juste sur une pièce détachée du corps
 
 // Matrice creuse symétrique : lignes en Map pendant l'assemblage, puis réduite aux inconnues libres (CSR).
 function arapSparse(n) { return Array.from({ length: n }, () => new Map()); }
@@ -183,23 +183,23 @@ const PUPPET_MESH_ROWS = 26;
 function puppetMeshFor(canvas) {
     const W = canvas.width, H = canvas.height;
     if (!W || !H) return null;
-    const cs = H / PUPPET_MESH_ROWS, cols = Math.max(2, Math.ceil(W / cs)), rows = PUPPET_MESH_ROWS;
-    // transparence lue sur une copie réduite (4 × 4 échantillons par case)
-    const sw = cols * 4, sh = rows * 4, c = document.createElement('canvas'); c.width = sw; c.height = sh;
+    const cs = H / PUPPET_MESH_ROWS, cols = Math.max(2, Math.ceil(W / cs)), rows = PUPPET_MESH_ROWS, cw = W / cols;   // cases calées sur l'image
+    // transparence lue en pleine résolution, une fois par pose (un objet fin détaché ne doit pas disparaître)
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
     let a;
-    try { const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(canvas, 0, 0, W * sw / (cols * cs), sh); /* la grille couvre un peu plus que l image */ a = g.getImageData(0, 0, sw, sh).data; }
+    try { const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(canvas, 0, 0); a = g.getImageData(0, 0, W, H).data; }
     finally { c.width = c.height = 0; }
     const on = new Uint8Array(cols * rows);
-    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) if (a[(y * sw + x) * 4 + 3] > 20) on[((y / 4) | 0) * cols + ((x / 4) | 0)] = 1;
+    for (let y = 0; y < H; y++) { const j = Math.min(rows - 1, (y / cs) | 0); for (let x = 0; x < W; x++) if (a[(y * W + x) * 4 + 3] > 20) on[j * cols + Math.min(cols - 1, (x / cw) | 0)] = 1; }
     const grown = on.slice();   // élargi d'une case
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) if (on[j * cols + i]) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ii = i + di, jj = j + dj; if (ii >= 0 && jj >= 0 && ii < cols && jj < rows) grown[jj * cols + ii] = 1; }
     const vid = new Int32Array((cols + 1) * (rows + 1)).fill(-1), rest = [], tris = [];
-    const v = (i, j) => { const k = j * (cols + 1) + i; if (vid[k] < 0) { vid[k] = rest.length; rest.push([i * cs, j * cs]); } return vid[k]; };
+    const v = (i, j) => { const k = j * (cols + 1) + i; if (vid[k] < 0) { vid[k] = rest.length; rest.push([i * cw, j * cs]); } return vid[k]; };
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) if (grown[j * cols + i]) {
         const a0 = v(i, j), b0 = v(i + 1, j), c0 = v(i + 1, j + 1), d0 = v(i, j + 1);
         tris.push([a0, c0, b0], [a0, d0, c0]);
     }
-    if (tris.length < 4) return null;
+    if (tris.length < 4 || rest.length > 65535) return null;   // indices 16 bits
     // points tenus : les pieds (bas 8 %) restent, la tête (haut 24 %) bouge d'un bloc ; le corps entre les deux se plie
     let top = Infinity, bottom = -Infinity;
     rest.forEach(p => { top = Math.min(top, p[1]); bottom = Math.max(bottom, p[1]); });
@@ -226,6 +226,7 @@ function puppetTargets(M, theta, dx, dy) {
 // ── Rendu WebGL du maillage déformé (un seul contexte pour tout le montage ; sans WebGL : personnage rigide) ──
 let puppetGl = null;
 function puppetGlRenderer() {
+    if (puppetGl && !puppetGl.failed && !puppetGl.lost && puppetGl.gl.isContextLost()) { puppetGl.lost = true; puppetGl.canvas.width = puppetGl.canvas.height = 1; }
     if (puppetGl && !puppetGl.lost) return puppetGl.failed ? null : puppetGl;
     const canvas = document.createElement('canvas');
     let gl = null;
@@ -236,7 +237,7 @@ function puppetGlRenderer() {
         const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
         const prog = gl.createProgram();
         gl.attachShader(prog, sh(gl.VERTEX_SHADER, 'attribute vec2 pos; attribute vec2 uv; uniform vec2 size; varying vec2 v; void main() { v = uv; gl_Position = vec4(pos.x / size.x * 2.0 - 1.0, 1.0 - pos.y / size.y * 2.0, 0.0, 1.0); }'));
-        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, 'precision mediump float; varying vec2 v; uniform sampler2D tex; void main() { gl_FragColor = texture2D(tex, v); }'));
+        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, '#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\nvarying vec2 v; uniform sampler2D tex; void main() { gl_FragColor = texture2D(tex, v); }'));
         gl.linkProgram(prog);
         if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error('programme WebGL');
         gl.useProgram(prog);
@@ -245,11 +246,12 @@ function puppetGlRenderer() {
         gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);   // plis : textures prémultipliées
         gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     } catch (e) { log('Personnage déformable indisponible (' + e.message + ') : personnage rigide'); puppetGl = { failed: true }; return null; }
-    canvas.addEventListener('webglcontextlost', ev => { ev.preventDefault(); R.lost = true; });   // iPhone : recréé à l'image suivante
-    R.draw = (img, M, def, pad) => {
-        const W = M.W + 2 * pad, H = M.H + 2 * pad;
-        if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
-        gl.viewport(0, 0, W, H);
+    canvas.addEventListener('webglcontextlost', () => { R.lost = true; });   // iPhone : nouveau contexte à l'image suivante (pas de restauration : mémoire)
+    // k : échelle de rendu (taille affichée) — moins de pixels à recopier dans l'image de la vidéo à chaque image
+    R.draw = (img, M, def, pad, k = 1) => {
+        const W = M.W + 2 * pad, H = M.H + 2 * pad, cw = Math.max(1, Math.round(W * k)), chh = Math.max(1, Math.round(H * k));
+        if (canvas.width !== cw || canvas.height !== chh) { canvas.width = cw; canvas.height = chh; }
+        gl.viewport(0, 0, cw, chh);
         if (R.mesh !== M) {   // maillage changé (autre pose) : coordonnées de texture et triangles
             gl.bindBuffer(gl.ARRAY_BUFFER, R.uvBuf); gl.bufferData(gl.ARRAY_BUFFER, Float32Array.from(M.uv.flat()), gl.STATIC_DRAW);
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, R.idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, M.idx, gl.STATIC_DRAW);
@@ -277,22 +279,46 @@ function puppetGlRenderer() {
     puppetGl = R;
     return R;
 }
-function disposePuppetRenderer() { if (puppetGl && puppetGl.dispose) puppetGl.dispose(); puppetGl = null; }
+function disposePuppetRenderer() { if (puppetGl && puppetGl.dispose) puppetGl.dispose(); puppetGl = null; puppetSlow = { n: 0, sum: 0, off: false }; puppetBudget = PUPPET_SLOW_MS; }
 
 // Personnage vivant : la tête penche et hoche quand il parle, le corps se plie doucement au-dessus des pieds.
 // img = image de bouche à dessiner, base = image bouche fermée de la même pose (maillage commun, même cadre).
 // Rend { canvas, pad } ou null (réglage coupé, pas de WebGL, maillage impossible) → personnage rigide comme avant.
 const puppetMeshes = new WeakMap();
-function deformedPuppet(img, base, t, talk) {
-    if (state.puppetDeform === false || !img || !base) return null;
+// Garde-fou : si un appareil met trop longtemps à dessiner le personnage vivant (copie de l'image WebGL lente),
+// l'appli repasse d'elle-même au personnage rigide jusqu'à la fin du montage (remis à zéro par disposePuppetRenderer).
+const PUPPET_SLOW_MS = 14;
+let puppetSlow = { n: 0, sum: 0, off: false }, puppetBudget = PUPPET_SLOW_MS;
+function setPuppetBudget(ms) { puppetBudget = ms; }
+function puppetCost(ms) {
+    if (puppetSlow.off) return;
+    puppetSlow.n++; puppetSlow.sum += ms;
+    if (puppetSlow.n >= 12 && puppetSlow.sum / puppetSlow.n > puppetBudget) { puppetSlow.off = true; log('Personnage vivant trop lent sur cet appareil (' + Math.round(puppetSlow.sum / puppetSlow.n) + ' ms par image) : personnage rigide pour ce montage'); }
+    if (puppetSlow.n >= 60) { puppetSlow.n = 0; puppetSlow.sum = 0; }   // moyenne glissante
+}
+function deformedPuppet(img, base, t, talk, k) {
+    if (state.puppetDeform === false || puppetSlow.off || !img || !base) return null;
     const R = puppetGlRenderer();
     if (!R) return null;
     let M = puppetMeshes.get(base);
     if (M === undefined) { try { M = puppetMeshFor(base); } catch (e) { log('Maillage du personnage impossible : ' + e.message); M = null; } puppetMeshes.set(base, M); }
     if (!M) return null;
-    const theta = 0.055 * Math.sin(t * 2 * Math.PI / 3.7 + 0.5) + 0.03 * talk * Math.sin(t * 2 * Math.PI * 1.4);
-    const dx = M.span * 0.022 * Math.sin(t * 2 * Math.PI / 5.3 + 1), dy = M.span * 0.008 * talk;
+    // tête qui penche (≈ 5°) et hoche en parlant, corps qui se plie (≈ 3,5 % de la hauteur) : visible sans être agité
+    const theta = 0.085 * Math.sin(t * 2 * Math.PI / 3.7 + 0.5) + 0.05 * talk * Math.sin(t * 2 * Math.PI * 1.4);
+    const dx = M.span * 0.035 * Math.sin(t * 2 * Math.PI / 5.3 + 1), dy = M.span * 0.012 * talk;
     const def = arapDeform(M.P, puppetTargets(M, theta, dx, dy), 0);
-    const pad = Math.round(M.span * 0.08);
-    return { canvas: R.draw(img, M, def, pad), pad };
+    const pad = Math.round(M.span * 0.1);
+    const cv = R.draw(img, M, def, pad, Math.min(1, k || 1));
+    if (R.gl.isContextLost()) { R.lost = true; return null; }   // cette image-ci rigide, la suivante avec un nouveau contexte
+    return { canvas: cv, pad };
+}
+
+// 5. Préparation des poses avant le montage (maillage, Cholesky, textures) : pas d'à-coup à leur première apparition
+async function prewarmPuppet(sprites) {
+    if (state.puppetDeform === false) return;
+    for (const sp of Object.values(sprites || {})) {
+        if (!sp || !sp.closed || sp.rigid) continue;
+        for (const k of ['closed', 'mid', 'open']) if (sp[k]) deformedPuppet(sp[k], sp.closed, 0, 0, 1);
+        await new Promise(r => setTimeout(r, 0));
+    }
 }

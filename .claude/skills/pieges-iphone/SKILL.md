@@ -12,6 +12,9 @@ par le chemin de code et la règle ci-dessous, et chaque fonctionnalité récent
 
 - **WebGL `mediump` = 16 bits sur iPhone** (Chromium de test : 32 bits). Le bruit `fract(sin(…) * 43758.5)` s'effondre.
   Toujours `#ifdef GL_FRAGMENT_PRECISION_HIGH precision highp float; #else precision mediump float; #endif` (`TX_H`).
+- **Copie d'un canvas WebGL vers un canvas 2D** (`drawImage(glCanvas)`) : rapide sur GPU, mais 30 à 40 ms par image
+  dans Chromium logiciel (relecture des pixels). Tout rendu WebGL recopié à chaque image doit avoir un repli et, en temps
+  réel, un garde-fou de vitesse (exemple : `puppetCost` dans deform.js).
 - **Contexte WebGL perdu** (mémoire, retour d'arrière-plan) : un contexte gardé en cache dessine du vide sans erreur.
   Tester `gl.isContextLost()` avant usage et en recréer un (`renderGlTransition`). Nombre de contextes limité : un seul
   contexte réutilisé par usage (`txGl`, `compositor.js`).

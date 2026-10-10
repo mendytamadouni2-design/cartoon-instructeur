@@ -1284,12 +1284,39 @@ async function testCompositor(browser) {
             drawPuppet(cg, 540, 960, { sprite: { closed: sp }, t: 1, env: null, bufTime: 0 });
             r.drawn = cg.getImageData(0, 0, 540, 960).data.filter((v, i) => i % 4 === 3 && v > 0).length;
             state.puppetDeform = false; r.rigid = deformedPuppet(sp, sp, 1, 0) === null;
+            state.puppetDeform = true; disposePuppetRenderer();
+            // correctifs de l'équipe : maillage dans l'image, trait fin détaché gardé, contexte perdu, temps du montage, préparation, brouillon rigide
+            r.inside = Math.max(...M.rest.map(p => p[0])) <= sp.width + 0.01;
+            const sp2 = document.createElement('canvas'); sp2.width = 300; sp2.height = 700; const g2 = sp2.getContext('2d'); g2.drawImage(sp, 0, 0);
+            g2.fillStyle = '#000'; g2.fillRect(280, 300, 2, 120);   // baguette fine, loin du corps
+            const lone = deformedPuppet(sp2, sp2, 0, 0); const lc = document.createElement('canvas'); lc.width = lone.canvas.width; lc.height = lone.canvas.height; lc.getContext('2d').drawImage(lone.canvas, 0, 0);
+            const ld = lc.getContext('2d').getImageData(0, 0, lc.width, lc.height).data; let thin = 0;
+            for (let y = lone.pad + 280; y < lone.pad + 440; y++) for (let x = lone.pad + 255; x < lc.width; x++) if (ld[(y * lc.width + x) * 4 + 3] > 100) thin++;
+            r.thin = thin;
+            const R0 = puppetGlRenderer(); R0.gl.getExtension('WEBGL_lose_context').loseContext();
+            const afterLoss = deformedPuppet(sp, sp, 0.5, 0), next = deformedPuppet(sp, sp, 0.6, 0);
+            r.lost = (afterLoss === null || afterLoss.canvas !== R0.canvas) && !!next && puppetGlRenderer() !== R0;
+            const pix = (o) => { const c3 = document.createElement('canvas'); c3.width = 540; c3.height = 960; const g3 = c3.getContext('2d'); drawPuppet(g3, 540, 960, o); return g3.getImageData(0, 0, 540, 960).data; };
+            const same = (A1, B1) => { for (let i = 3; i < A1.length; i += 4) if (Math.abs(A1[i] - B1[i]) > 40) return false; return true; };
+            r.tAbs = !same(pix({ sprite: { closed: sp }, t: 0, tAbs: 0 }), pix({ sprite: { closed: sp }, t: 0, tAbs: 2.2 }));
+            const sp3 = document.createElement('canvas'); sp3.width = 300; sp3.height = 700; sp3.getContext('2d').drawImage(sp, 0, 0);
+            await prewarmPuppet({ main: { closed: sp3 } }); r.prewarm = puppetMeshes.has(sp3);
+            const card = { closed: sp, rigid: true };
+            const live1 = pix({ sprite: card, t: 1, tAbs: 1 }); state.puppetDeform = false; const rigid1 = pix({ sprite: card, t: 1, tAbs: 1 }); state.puppetDeform = true;
+            r.draftRigid = same(live1, rigid1);
+            // garde-fou : appareil trop lent → rigide pour la fin du montage ; en image par image, on tolère 40 ms
+            disposePuppetRenderer(); for (let k = 0; k < 12; k++) puppetCost(30);
+            const slowRealtime = deformedPuppet(sp, sp, 1, 0) === null;
+            disposePuppetRenderer(); setPuppetBudget(40); for (let k = 0; k < 12; k++) puppetCost(30);
+            const okOffline = deformedPuppet(sp, sp, 1, 0) !== null;
+            disposePuppetRenderer(); r.guard = slowRealtime && okOffline && deformedPuppet(sp, sp, 1, 0) !== null;
             disposePuppetRenderer();
         } catch (e) { r.err = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' '); }
         finally { state.puppetDeform = keepDeform; }
         return r;
     });
     check(!v90.err && v90.identity < 1e-6 && v90.rotation < 1e-3 && v90.flipped === 0, 'personnage déformable : calcul juste (repos exact, rotation d\'un bloc, corps plié sans triangle retourné) (' + (v90.err || v90.identity.toExponential(1) + ' / ' + v90.rotation.toExponential(1) + ' / ' + v90.flipped) + ')');
+    check(!v90.err && v90.inside && v90.thin > 150 && v90.lost && v90.tAbs && v90.prewarm && v90.draftRigid && v90.guard, 'personnage vivant : maillage dans l\'image, trait fin détaché gardé, contexte perdu repris, mouvement continu entre scènes, poses préparées, brouillon rigide, garde-fou de vitesse (' + (v90.err || JSON.stringify({ inside: v90.inside, thin: v90.thin, lost: v90.lost, tAbs: v90.tAbs, prewarm: v90.prewarm, draft: v90.draftRigid, guard: v90.guard })) + ')');
     check(!v90.err && v90.feetMoved === 0 && v90.headMoved > 200 && v90.ms < 20 && v90.drawn > 10000 && v90.rigid, 'personnage vivant : pieds immobiles, tête qui bouge, ' + v90.ms + ' ms par image, dessiné par drawPuppet, réglage « rigide » respecté (' + (v90.err || v90.mesh + ', tête ' + v90.headMoved + ' px changés') + ')');
     // règle 8 : la version dans une autre langue traduit aussi les mots-clés des dessins (« VS » gardé), puis tout est remis
     const tr8 = await page.evaluate(async () => {

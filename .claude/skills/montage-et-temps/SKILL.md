@@ -39,6 +39,10 @@ description: Cartoon Instructeur uniquement. Carte du moteur de montage (js/mont
   découpé en morceaux avec fondus de 15 ms ; la vidéo n'est remappée que sans voix TTS.
 - Personnage stable : un élément `puppet` suppose `stableActive()` (≥ 2 poses validées) ; bouche = enveloppe de la voix
   réellement jouée (`voiceEnvelope`, temps `bt`).
+- Personnage vivant (9.0, `js/deform.js`) : `drawPuppet` dessine la pose déformée (ARAP) ; le mouvement suit le temps du
+  montage `tAbs = T + t` (jamais le temps du segment : saut au raccord) ; poses préparées avant la 1re image
+  (`prewarmPuppet`) ; garde-fou de vitesse (`puppetCost`, 14 ms en temps réel, 40 ms en image par image via
+  `setPuppetBudget`) → rigide pour la fin du montage ; rendu libéré en fin de montage (`disposePuppetRenderer`).
 - Tableau blanc : la note (autocollant ou bulle) se met en page une fois par scène (`boardNoteLayout`) ; le dessin
   prend la case réduite (`sketchArea`), aussi pour `prevSketch`.
 - Fin : carte « Suivre » sur le **dernier segment joué** (`isFinalSeg` : un plan illustré peut suivre la dernière scène ;

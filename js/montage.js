@@ -781,6 +781,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     // personnage stable : les poses validées remplacent le personnage des scènes Agnes
     await ensureMarkerFont();
     const puppet = typeof stableActive === 'function' && stableActive() ? await loadPuppetSprites() : draft && typeof draftSprites === 'function' ? await draftSprites() : null;
+    if (puppet && typeof prewarmPuppet === 'function') await prewarmPuppet(puppet);   // personnage vivant prêt avant la 1re image
     if (state.transition === 'smart' && typeof warmTransitions === 'function') { try { warmTransitions(items.map(it => scenePlanFor(it.sceneIndex))); } catch (e) {} }
     let prevPose = null, puppetMouth = 'closed', prevTx = null;
     // transitions à effet : copie de l'image du nouveau plan (B) avant de la mélanger avec le plan précédent (A)
@@ -796,6 +797,8 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
     const vStream = preview || offline ? null : canvas.captureStream(30);
     const dest = preview || offline ? actx.destination : actx.createMediaStreamDestination();
     const session = offline ? await createOfflineSession({ W, H, bitrate: state.exportQuality === '720' ? 5000000 : 10000000, sampleRate: actx.sampleRate }) : null;
+    // personnage vivant : en image par image, une image plus lente rallonge seulement l'export ; en temps réel elle saccade
+    if (typeof setPuppetBudget === 'function') setPuppetBudget(session ? 40 : PUPPET_SLOW_MS);
     // Voix : compresseur « studio » puis gain de rattrapage
     const comp = actx.createDynamicsCompressor();
     comp.threshold.value = -22; comp.knee.value = 12; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
@@ -1012,7 +1015,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             const pz = puppet ? { sprite: puppetSprite(puppet, poseId), env: voiceEnvelope(buf), bt: t => usingTts ? srcT(t) : usingFit ? t - fitDelay : srcT(t) + cut.tin, first: prevPose === null, changed: prevPose !== null && prevPose !== poseId } : null;
             const drawStage = (ctx, t) => {
                 if (wb && !state.greenScreen) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); } else drawDecor(ctx, W, H);
-                return drawPuppet(ctx, W, H, { sprite: pz.sprite, t, env: pz.env, bufTime: pz.bt(t), first: pz.first, poseChanged: pz.changed, wb, mouth: puppetMouth });
+                return drawPuppet(ctx, W, H, { sprite: pz.sprite, t, tAbs: T + t, env: pz.env, bufTime: pz.bt(t), first: pz.first, poseChanged: pz.changed, wb, mouth: puppetMouth });
             };
             let src = null, vg = null;
             if (buf) {
