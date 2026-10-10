@@ -143,7 +143,7 @@ function compileDrawing(raw) {
         const pieces = String(p.d || '').split(/(?=M)/).map(x => x.trim()).filter(x => /^M/.test(x));
         let first = true;
         for (const d of pieces) {
-            if (strokes.length >= 100) break;   // 3 illustrations retracées de 30 traits tiennent
+            if (strokes.length >= 100) break;   // 3 illustrations retracées de 30 traits + flèches tiennent
             let path2d;
             try { path2d = new Path2D(d); } catch (e) { continue; }
             const { el, len } = measurePath(d);
@@ -178,9 +178,12 @@ function drawingRequestFor(sceneText, index, total, feedback, visual) {
 }
 async function generateDrawing(sceneText, index, total, feedback) {
     const p = scenePlanFor(index);
+    // dessin refusé : Claude revoit ses descriptions pour l'illustrateur, sinon Agnes redessinerait le même objet
+    const prevDraw = feedback ? (state.drawings[index]?.raw?.elements || []).map(e => e && e.draw).filter(Boolean) : [];
+    if (prevDraw.length) feedback += ' Descriptions "draw" du premier essai : ' + prevDraw.join(' ; ') + '. Change-les (objet plus simple, plus reconnaissable).';
     const out = await callClaude(drawingRequestFor([sceneText, p.narration].filter(Boolean).join(' '), index, total, feedback));
     await prepareDrawingIcons(out);
-    await traceDrawingElements(out);   // 8.8 : objets sans icône dessinés par Agnes Image (gratuit) puis retracés au feutre
+    await traceDrawingElements(out, { fresh: !!feedback });   // 8.8 : objets sans icône dessinés par Agnes Image (gratuit) puis retracés au feutre
     const compiled = compileDrawing(layoutDrawing(out));
     if (compiled) compiled.raw = out;   // on garde la réponse brute : la mise en page est refaite à chaque ouverture
     return compiled;

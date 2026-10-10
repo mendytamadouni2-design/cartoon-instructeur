@@ -15,6 +15,8 @@ Déployé **automatiquement depuis `main`** (`wrangler.jsonc` : Durable Object `
    `POST /jobs/:id/cancel`. Le Durable Object fait la mise en scène Claude (`plan` → `mergePlan`), les dessins, crée
    les scènes Agnes (une toutes les `CREATE_INTERVAL_MS = 62000` ms, travail toutes les `TICK_MS = 8000` ms, scène
    abandonnée après `SCENE_TIMEOUT_MS` = 25 min), puis notifie le téléphone (Web Push, `/push/key`).
+   Le serveur ne retrace pas les illustrations (8.8, pas de canvas) : le téléphone le fait pendant le suivi
+   (`traceBackgroundDrawings`, cache IndexedDB `trace:`) puis au retour (`loadBackgroundResults`, 90 s au plus).
 3. **Stockage des médias** : `PUT|GET|DELETE /media/:clé`, `GET /media-list?kind=final`. Blocs de `MEDIA_CHUNK` = 1,5 Mo ;
    envoi découpé `?upload=&part=&parts=` en morceaux de `MEDIA_PART` = 6 Mo, jusqu'à `MEDIA_MAX` = 600 Mo
    (Cloudflare refuse une requête de plus de 100 Mo : une vidéo finale de 2 min à 10 Mbit/s en fait ≈ 150).

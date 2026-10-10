@@ -1146,15 +1146,27 @@ async function testCompositor(browser) {
             const inBox = d1.strokes.every(st => { const b = st.el.getBBox(); return b.x >= -1 && b.y >= -1 && b.x + b.width <= 401 && b.y + b.height <= 301; });
             r.illus = agnesCalls + ' appel Agnes, ' + traced.length + ' traits retracés sur ' + d1.strokes.length + ', icône gardée : ' + !d1.raw.elements[1].traced;
             r.illusOk = agnesCalls === 1 && /a guillotine/.test(prompt) && /line drawing/.test(prompt) && /no text/.test(prompt) && traced.length >= 4 && Array.isArray(d1.raw.elements[0].traced) && !d1.raw.elements[1].traced && inBox && d1.labels.length >= 2;
-            // rechargé depuis le projet : les traits enregistrés suffisent, aucun nouvel appel
+            // rechargé depuis le projet : les traits enregistrés suffisent ; même objet redemandé : pris dans le cache
             const d1b = await compileStoredDrawing(JSON.parse(JSON.stringify(d1.raw)));
-            r.reload = d1b.strokes.length === d1.strokes.length && agnesCalls === 1;
-            // 3. replis : réglage coupé → aucun appel ; Agnes Image refusée → dessin de Claude gardé
+            const d1c = await generateDrawing(state.scenes[0], 0, 1);
+            r.reload = d1b.strokes.length === d1.strokes.length && Array.isArray(d1c.raw.elements[0].traced) && agnesCalls === 1 && !!(await traceCacheGet('a guillotine'));
+            // jamais plus de 3 objets dessinés (l'affichage n'en garde que 3)
+            agnesCalls = 0;
+            await traceDrawingElements({ elements: ['a cat', 'a dog', 'a cow', 'a hen', 'a pig'].map(draw => ({ label: draw, word: '', icon: '', draw, paths: [] })), link: 'none' });
+            r.max3 = agnesCalls;
+            // génération en arrière-plan : dessins du serveur retracés pendant le travail, puis repris du cache au retour
+            agnesCalls = 0;
+            traceBackgroundDrawings('job-test', [{ elements: [{ label: 'Renard', word: '', icon: '', draw: 'a fox', paths: [] }], link: 'none' }]);
+            for (let k = 0; k < 50 && !(await traceCacheGet('a fox')); k++) await new Promise(res => setTimeout(res, 100));
+            const back = { elements: [{ label: 'Renard', word: '', icon: '', draw: 'a fox', paths: [] }, { label: 'Loup', word: '', icon: '', draw: 'a wolf', paths: [] }], link: 'none' };
+            await traceDrawingElements(back, { deadline: Date.now() - 1 });   // délai dépassé : cache seulement
+            r.bg = agnesCalls === 1 && Array.isArray(back.elements[0].traced) && !back.elements[1].traced;
+            // 3. replis : réglage coupé → aucun appel ; Agnes Image refusée → dessin de Claude gardé, casting de poses pas coupé
             state.traceDrawings = false; agnesCalls = 0;
             const d2 = await generateDrawing(state.scenes[0], 0, 1);
-            state.traceDrawings = true; r.agnes404 = true;
+            state.traceDrawings = true; r.agnes404 = true; await idbDel(traceCacheKey('a guillotine'));
             const d3 = await generateDrawing(state.scenes[0], 0, 1);
-            r.fallback = agnesCalls === 1 && !d2.raw.elements[0].traced && !d3.raw.elements[0].traced && [d2, d3].every(d => d.strokes.length >= 2 && !d.strokes.some(st => st.lw === TRACE_LINE)) && agnesImageUnsupported === true;
+            r.fallback = agnesCalls === 1 && !d2.raw.elements[0].traced && !d3.raw.elements[0].traced && [d2, d3].every(d => d.strokes.length >= 2 && !d.strokes.some(st => st.lw === TRACE_LINE)) && agnesImageUnsupported === false && traceUnsupported === true;
             // 4. image de l'utilisateur (photo) → illustration de la scène, mot-clé gardé, sans aucun appel payant
             agnesCalls = 0; state.drawings = [d1];
             const photo = document.createElement('canvas'); photo.width = 640; photo.height = 480; const ph = photo.getContext('2d');
@@ -1168,13 +1180,16 @@ async function testCompositor(browser) {
         finally {
             window.fetch = realFetch; window.callClaude = realClaude;
             Object.assign(state, { drawings: keep.drawings, scenes: keep.scenes, scenePlan: keep.plan, traceDrawings: keep.trace });
+            traceUnsupported = false; traceSizeRefused = false;
+            for (const k of ['a guillotine', 'a cat', 'a dog', 'a cow', 'a hen', 'a pig', 'a fox']) await idbDel(traceCacheKey(k)).catch(() => {});
             agnesImageUnsupported = keep.unsup; if (keep.agnes === null) localStorage.removeItem('agnes_api_key'); else localStorage.setItem('agnes_api_key', keep.agnes);
         }
         return r;
     });
     check(!v88.err && v88.shapesOk, 'image → traits de feutre : formes retrouvées, zones pleines par leur bord, poussières ignorées (' + (v88.err || v88.shapes) + ')');
-    check(!v88.err && v88.illusOk && v88.reload, 'objet sans icône dessiné par Agnes Image (gratuit) puis retracé au feutre, icône gardée, rien de redemandé au rechargement (' + (v88.err || v88.illus) + ')');
-    check(!v88.err && v88.fallback, 'illustrations retracées : réglage coupé → aucun appel ; Agnes Image refusée → dessin de Claude gardé');
+    check(!v88.err && v88.illusOk && v88.reload && v88.max3 === 3, 'objet sans icône dessiné par Agnes Image (gratuit) puis retracé au feutre, icône gardée, rien de redemandé (projet rouvert ou même objet), 3 objets au plus (' + (v88.err || v88.illus + ', ' + v88.max3 + ' appels pour 5 objets') + ')');
+    check(!v88.err && v88.bg, 'génération en arrière-plan : dessins du serveur retracés par le téléphone pendant le travail, repris du cache au retour, plus aucun appel après le délai');
+    check(!v88.err && v88.fallback, 'illustrations retracées : réglage coupé → aucun appel ; Agnes Image refusée → dessin de Claude gardé, casting de poses pas coupé');
     check(!v88.err && v88.photoOk, 'image de l\'utilisateur transformée en illustration de la scène, sans aucun appel (' + (v88.err || v88.photo) + ')');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));

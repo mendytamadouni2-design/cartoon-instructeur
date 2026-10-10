@@ -375,6 +375,7 @@ document.addEventListener('click', async e => {
         input.type = 'file'; input.accept = 'image/*';
         input.onchange = async () => {
             const file = input.files && input.files[0]; if (!file) return;
+            if (file.size > 25 * 1048576) { showToast('Image trop lourde (25 Mo au plus)', 'error'); return; }
             t.disabled = true; t.textContent = '⏳ Dessin…';
             try {
                 const uri = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('image illisible')); r.readAsDataURL(file); });

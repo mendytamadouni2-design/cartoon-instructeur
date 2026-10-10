@@ -23,4 +23,6 @@
 - 8.7 voix étirée (`stretchBuffer`, WSOLA) : temps bloquant par scène (Node : 0,3 à 0,7 s pour 10–20 s de voix) ; si
   l'écran gèle plus d'1 s par scène sur Safari, envisager de découper le calcul.
 - WebCodecs présent ou non (sinon : encodeur WASM de la feuille de route) ; la police feutre servie hors ligne (mode avion).
+- 8.8 Agnes Image en texte seul (`tracePromptFor`, `size: '960x960'`) : vraie réponse, dessin propre sans texte, et
+  surtout le PRIX / quota d'agnes-image-2.1-flash (noté gratuit sans source) ; photo HEIC choisie dans « Depuis une image ».
 - Lancer les tests avec `CHROMIUM_PATH=/opt/pw-browsers/chromium` (sinon Playwright cherche un navigateur absent).

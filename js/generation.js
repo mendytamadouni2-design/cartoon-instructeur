@@ -52,7 +52,7 @@ function downscaleImage(dataUri, max = 1280, quality = 0.88) {
             c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
             const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
             g.drawImage(img, 0, 0, c.width, c.height);
-            resolve(c.toDataURL('image/jpeg', quality));
+            try { resolve(c.toDataURL('image/jpeg', quality)); } catch (e) { resolve(dataUri); }   // image « protégée » (SVG sur Safari) : jamais bloqué
         };
         img.onerror = () => resolve(dataUri);
         img.src = dataUri;
@@ -151,6 +151,7 @@ async function pollBackgroundJob() {
             if (done) { document.getElementById('bg-finish-btn').classList.remove('hidden'); }
             return;
         }
+        if (job.drawings) traceBackgroundDrawings(saved.id, job.drawings);   // 8.8 : retracées pendant que le serveur travaille
         const planning = job.status === 'planning';
         bgUI({ title: '☁️ Génération en arrière-plan', text: (planning ? 'Claude prépare la mise en scène…' : job.message) + ' · Tu peux éteindre ton téléphone.', pct: planning ? 4 : 5 + (done + failed) / n * 95, running: true });
         scheduleBgPoll(15000);
@@ -168,6 +169,10 @@ async function loadBackgroundResults(saved, job) {
     updateScriptStats();
     state.scenePlan = job.plan || fallbackScenePlan(lines);
     if (saved.photo) state.photoSmall = saved.photo;
+    // 8.8 : dessins du serveur retracés (souvent déjà en cache, faits pendant la génération) ; au plus 90 s d'attente
+    const deadline = Date.now() + 90000;
+    for (const d of (job.drawings || [])) if (d && Array.isArray(d.elements)) { setStatus('Illustrations dessinées au feutre…'); await traceDrawingElements(d, { deadline }).catch(() => {}); }
+    setStatus(null);
     state.drawings = await Promise.all((job.drawings || []).map(compileStoredDrawing));
     state.queue = job.scenes.map(sc => ({ sceneIndex: sc.index, sceneText: lines[sc.index] || '', image: null, status: sc.status === 'done' ? 'done' : 'failed', progress: sc.status === 'done' ? 'Terminé' : 'Échec', error: sc.error, videoUrl: sc.videoUrl, mediaKey: sc.mediaKey || undefined, narrKey: sc.narrKey || undefined, videoId: null, prompt: null, startTime: null }));
     state.completed = state.queue.filter(q => q.status === 'done').length;

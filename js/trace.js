@@ -6,7 +6,7 @@
 // ébarbage, raccords, Douglas–Peucker) — ArtCraft Team et contributeurs de VectorCraft, MIT ou Apache 2.0.
 // ══════════════════════════════════════════════════════════════════
 const TRACE_SIZE = 240;          // côté de l'image analysée : assez de détail pour une case du tableau, rapide sur iPhone
-const TRACE_MAX_STROKES = 40;    // traits gardés par élément (les plus longs) : lisible et tracé en quelques secondes
+const TRACE_MAX_STROKES = 30;    // traits gardés par élément (les plus longs) : 3 illustrations + flèches tiennent dans les 100 traits
 const TRACE_LINE = 3.4;          // épaisseur du feutre d'une illustration retracée (4,5 pour les icônes) : détails lisibles
 
 // Masque « encre » : pixel nettement plus sombre que son voisinage (seuil adaptatif), et pour un dessin au trait tout
@@ -337,36 +337,64 @@ async function traceImageToPaths(src, opts = {}) {
 // Un élément sans icône toute faite (objet trop particulier : guillotine, personnage historique…) est dessiné par
 // Agnes Image (gratuit) puis retracé au feutre ; sans Agnes (réglage coupé, clé absente, refus, panne), le dessin de
 // Claude reste. Les images partent une à une (débit d'Agnes), même quand trois illustrations se préparent ensemble.
-let traceQueue = Promise.resolve();
+// Chaque objet retracé est gardé (IndexedDB « trace: ») : jamais redemandé, même pour un autre projet.
+let traceQueue = Promise.resolve(), traceUnsupported = false, traceSizeRefused = false, traceCalls = 0;
 function tracePromptFor(subject) {
     return 'Simple black marker line drawing of ' + subject + ', whiteboard doodle: bold clean black outlines on a pure white background, no shading, no fill, no grey, no color, no text, no letters, no frame, one single subject centered and filling the frame, few lines, minimal details, like a teacher drawing on a whiteboard.';
 }
-async function traceDrawingElements(raw) {
+const traceCacheKey = subject => 'trace:' + subject.toLowerCase().replace(/\s+/g, ' ');
+async function traceCacheGet(subject) { try { const v = await idbGet(traceCacheKey(subject)); return Array.isArray(v) && v.length ? v : null; } catch (e) { return null; } }
+// opts.fresh : nouveau dessin demandé (dessin refusé par Claude) ; opts.deadline : plus d'appel à Agnes après cette heure
+async function traceDrawingElements(raw, opts = {}) {
     if (state.traceDrawings === false || !Array.isArray(raw?.elements) || !getAgnesKey()) return 0;
     await loadIcons();
     const use3d = iconStyle() === '3d';
     let done = 0;
-    for (const e of raw.elements) {
-        if (!e || Array.isArray(e.traced) || agnesImageUnsupported || state.stopRequested) continue;
+    for (const e of raw.elements.slice(0, 3)) {   // l'affichage n'en garde que 3 (layoutDrawing)
+        if (!e || Array.isArray(e.traced) || state.stopRequested) continue;
         const keys = String(e.icon || '').split(/\s*[,;|]\s*/);
         if (e.icon && (findIcon(keys) || (use3d && typeof findEmoji === 'function' && findEmoji(keys)))) continue;   // icône toute faite : nette, on la garde
-        const subject = String(e.draw || e.label || '').trim().slice(0, 120);
+        // objet décrit en anglais par Claude, sinon les mots-clés anglais de l'icône introuvable (jamais le mot-clé
+        // affiché, souvent abstrait : « Privilèges »)
+        const subject = String(e.draw || keys.filter(Boolean).join(', ')).trim().slice(0, 120);
         if (!subject) continue;
+        const cached = opts.fresh ? null : await traceCacheGet(subject);
+        if (cached) { e.traced = cached; done++; continue; }
+        if (agnesImageUnsupported || traceUnsupported || (opts.deadline && Date.now() > opts.deadline)) continue;
         const job = traceQueue.then(async () => {
-            if (state.stopRequested || agnesImageUnsupported) return null;
-            const ask = size => agnesImage(tracePromptFor(subject), null, size);
-            const img = await withTimeout(ask('960x960').catch(err => /HTTP 400/.test(err.message) ? ask() : Promise.reject(err)), 150000, 'Agnes Image trop lent');
-            return traceImageToPaths(img);
+            if (state.stopRequested || agnesImageUnsupported || traceUnsupported) return null;
+            // un refus de cette demande (texte seul) ne doit pas couper Agnes Image pour le casting de poses
+            const before = agnesImageUnsupported;
+            const ask = size => { traceCalls++; log('Agnes Image (gratuit) : illustration « ' + subject + ' » (' + traceCalls + ' depuis l\'ouverture)'); return agnesImage(tracePromptFor(subject), null, size); };
+            // taille carrée d'abord ; refusée une fois (400/422) → taille par défaut pour toute la session
+            const first = traceSizeRefused ? ask() : ask('960x960').catch(err => {
+                if (!/HTTP 4(00|22)/.test(err.message) || state.stopRequested) return Promise.reject(err);
+                traceSizeRefused = true; return ask();
+            });
+            try { return await traceImageToPaths(await withTimeout(first, 150000, 'Agnes Image trop lent')); }
+            catch (err) { if (agnesImageUnsupported && !before) { agnesImageUnsupported = false; traceUnsupported = true; } throw err; }
         });
         traceQueue = job.catch(() => {});
-        try { const paths = await job; if (paths && paths.length >= 2) { e.traced = paths; done++; } }
-        catch (err) { log('Illustration « ' + subject + ' » : ' + err.message + ' — dessin de Claude gardé'); }
+        try {
+            const paths = await job;
+            if (paths && paths.length >= 2) { e.traced = paths; done++; idbPut(traceCacheKey(subject), paths).catch(() => {}); }
+        } catch (err) { log('Illustration « ' + subject + ' » : ' + err.message + ' — dessin de Claude gardé'); }
     }
     return done;
 }
+// Génération en arrière-plan : le serveur fait les dessins de Claude mais ne peut pas les retracer. Le téléphone le fait
+// pendant que le serveur fabrique les vidéos (résultats gardés en cache), puis au retour des résultats (borné dans le temps).
+let traceBgJob = '';
+function traceBackgroundDrawings(jobId, drawings) {
+    if (!jobId || traceBgJob === jobId || !Array.isArray(drawings) || !drawings.some(Boolean)) return;
+    traceBgJob = jobId;
+    (async () => { for (const d of drawings) if (d && Array.isArray(d.elements)) await traceDrawingElements(JSON.parse(JSON.stringify(d))).catch(() => {}); })();
+}
 // Image choisie par l'utilisateur (photo, dessin scanné…) → illustration au feutre de la scène i
 async function drawingFromImage(i, dataUri) {
-    const traced = await traceImageToPaths(await downscaleImage(dataUri, 1024, 0.9), { photo: 'auto' });
+    const probe = await loadImageEl(dataUri);   // la taille se lit avant le décodage complet
+    if ((probe.naturalWidth || 0) * (probe.naturalHeight || 0) > 50e6) throw new Error('image trop grande (50 millions de pixels au plus)');
+    const traced = await withTimeout((async () => traceImageToPaths(await downscaleImage(dataUri, 1024, 0.9), { photo: 'auto' }))(), 30000, 'image trop longue à lire');
     if (!traced) throw new Error('rien d\'assez net à dessiner dans cette image');
     const old = state.drawings[i]?.raw;
     const label = String(old?.elements?.[0]?.label || scenePlanFor(i).bubble || '').trim().slice(0, 28);
