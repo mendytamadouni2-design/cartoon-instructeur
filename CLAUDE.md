@@ -66,7 +66,7 @@ Ordre de chargement et rôle :
 | `navigation.js` | écrans, onglets, mise en route |
 | `projects.js` | projets, publication, pilote automatique, commentaires YouTube |
 | `integrations.js` | YouTube, Firebase, sauvegarde cloud, PWA |
-| `compositor.js` | WebGL : incrustation fond vert, étalonnage, cadrage |
+| `compositor.js` | WebGL : incrustation fond vert (bords démêlés du vert, 8.9, Color to Alpha de PhotoCraft ; même calcul dans le repli 2D), étalonnage, cadrage |
 | `quality.js` | image de référence, contrôle par l'IA (`createQa`), contrôle des coupes |
 | `graphics.js` | graphiques animés des plans illustrés |
 | `trace.js` | image → traits de feutre (8.8, porté de VectorCraft) : illustrations Agnes Image retracées, « Depuis une image » du storyboard |

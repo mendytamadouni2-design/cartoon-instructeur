@@ -19,6 +19,7 @@ const MAX_POLL_ATTEMPTS = 100;
 // Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
 // Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
 const APP_VERSIONS = [
+    { num: '8.9', date: '2026-10-10', note: 'Fond vert plus propre : le vert mélangé au bord du personnage est retiré pixel par pixel au lieu de rogner le contour (méthode « Color to Alpha » reprise de PhotoCraft) — mèches de cheveux gardées avec leur vraie couleur, plus de liseré vert, aussi pour le personnage stable et sans WebGL' },
     { num: '8.8', date: '2026-10-10', note: 'Vraies illustrations au tableau : un objet sans icône toute faite (guillotine, personnage historique…) est dessiné par Agnes Image (gratuit) puis retracé trait par trait au feutre ; bouton « Depuis une image » dans le storyboard pour transformer ta photo ou ton dessin en illustration (traceur repris de VectorCraft)' },
     { num: '8.7', date: '2026-10-10', note: 'Voix calée sur les lèvres : une seule prise ElevenLabs, étirée sur le téléphone sans changer sa hauteur (moitié moins de caractères) ; vraie police feutre Permanent Marker, identique sur tous les appareils et dans les exports' },
     { num: '8.6', date: '2026-10-10', note: 'Volume aux normes : chaque voix au même niveau (ElevenLabs, Agnes, voix off) et vidéo finale réglée sur -14 LUFS, le niveau de YouTube et TikTok, sans saturer (mesure EBU R128 reprise de FilmCraft)' },

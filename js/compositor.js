@@ -3,6 +3,9 @@
 
 // ══════════════════════════════════════════════════════════════════
 // PROCESSEUR VIDÉO (WebGL, repli 2D) : couleurs harmonisées + fond vert retiré
+// 8.9 : bords démêlés du vert (Color to Alpha, porté de PhotoCraft crates/algo/src/color_to_alpha.rs, ArtCraft Team and
+// the PhotoCraft contributors, MIT ou Apache 2.0) : un pixel de bord mélangé au fond garde sa vraie couleur et sa vraie
+// transparence au lieu d'être rogné (mèches de cheveux gardées, plus de liseré vert).
 // ══════════════════════════════════════════════════════════════════
 const KEY_GREEN = [0, 177 / 255, 64 / 255];   // #00B140
 const VP_VERT = 'attribute vec2 p; varying vec2 uv; void main() { uv = vec2((p.x + 1.0) * 0.5, 1.0 - (p.y + 1.0) * 0.5); gl_Position = vec4(p, 0.0, 1.0); }';
@@ -11,14 +14,21 @@ const VP_FRAG = [
     'varying vec2 uv; uniform sampler2D tex; uniform vec3 gain; uniform vec3 off; uniform float keyOn; uniform vec3 keyCol; uniform float sim; uniform float smoothv; uniform float spill; uniform vec2 texel;',
     'vec2 cbcr(vec3 c) { return vec2(-0.1687 * c.r - 0.3313 * c.g + 0.5 * c.b, 0.5 * c.r - 0.4187 * c.g - 0.0813 * c.b); }',
     'float keyA(vec2 p) { return smoothstep(sim, sim + smoothv, distance(cbcr(texture2D(tex, p).rgb), cbcr(keyCol))); }',
+    // plus petite opacité qui explique le pixel comme une couleur propre mélangée au vert (Color to Alpha, PhotoCraft)
+    'float unmixA(vec3 p, vec3 k) { vec3 ai = max((p - k) / max(vec3(1.0) - k, vec3(0.001)), (k - p) / max(k, vec3(0.001))); return clamp(max(ai.r, max(ai.g, ai.b)), 0.0, 1.0); }',
     'void main() {',
     '  vec4 src = texture2D(tex, uv);',
     '  float a = 1.0; vec3 c = src.rgb;',
     '  if (keyOn > 0.5) {',
     '    float d = distance(cbcr(c), cbcr(keyCol));',
     '    a = smoothstep(sim, sim + smoothv, d);',
-    '    a = min(a, min(min(keyA(uv + vec2(texel.x, 0.0)), keyA(uv - vec2(texel.x, 0.0))), min(keyA(uv + vec2(0.0, texel.y)), keyA(uv - vec2(0.0, texel.y)))));',   // bord resserré d'un pixel : plus de halo
-    '    float s = max(0.0, c.g - max(c.r, c.b));',   // débordement de vert sur les contours
+    '    vec2 t2 = texel * 2.0;',   // le fond est-il à moins de 2 pixels ? (bord du personnage)
+    '    float nb = min(min(min(keyA(uv + vec2(texel.x, 0.0)), keyA(uv - vec2(texel.x, 0.0))), min(keyA(uv + vec2(0.0, texel.y)), keyA(uv - vec2(0.0, texel.y)))),',
+    '                   min(min(keyA(uv + vec2(t2.x, 0.0)), keyA(uv - vec2(t2.x, 0.0))), min(keyA(uv + vec2(0.0, t2.y)), keyA(uv - vec2(0.0, t2.y)))));',
+    '    if (nb < 0.5) a = min(a, clamp((unmixA(c, keyCol) - 0.1) / 0.4, 0.0, 1.0));',   // pixel de bord : sa vraie part de couleur propre
+    '    if (a > 0.004 && a < 0.996) c = clamp(keyCol + (c - keyCol) / a, 0.0, 1.0);',   // le vert mélangé est retiré (cheveux gardés, plus de liseré)
+    '    if (nb < 0.5) c.g = min(c.g, max(c.r, c.b));',   // bande du bord : plus aucun vert qui dépasse
+    '    float s = max(0.0, c.g - max(c.r, c.b));',   // reflet vert sur un pixel opaque
     '    c.g -= s * spill * (1.0 - smoothstep(sim + smoothv * 0.5, sim + smoothv * 1.2, d));',   // seulement près du fond : un accessoire vert garde sa couleur
     '  }',
     '  c = clamp(c * gain + off, 0.0, 1.0);',
@@ -49,6 +59,7 @@ function createVideoProcessor() {
     } catch (e) { log('WebGL indisponible : ' + e.message); gl = null; }
     // repli 2D (plus lent : image réduite)
     const c2 = gl ? null : canvas.getContext('2d', { willReadFrequently: true });
+    let am = null, dists = null;   // repli 2D : tableaux gardés d'une image à l'autre (iPhone : pas de mémoire créée à chaque image)
     return {
         canvas, webgl: !!gl,
         // libère le contexte WebGL (l'iPhone en limite le nombre)
@@ -79,12 +90,20 @@ function createVideoProcessor() {
             if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
             c2.clearRect(0, 0, w, h); c2.drawImage(src, 0, 0, w, h);
             const img = c2.getImageData(0, 0, w, h), d = img.data;
-            const kc = cbcrOf(KEY_GREEN[0], KEY_GREEN[1], KEY_GREEN[2]);
-            for (let i = 0; i < d.length; i += 4) {
+            const kc = cbcrOf(KEY_GREEN[0], KEY_GREEN[1], KEY_GREEN[2]), K = KEY_GREEN;
+            // même calcul que le shader : détourage par la teinte, puis bords démêlés du vert (Color to Alpha)
+            if (opts.key && (!am || am.length !== w * h)) { am = new Float32Array(w * h); dists = new Float32Array(w * h); }
+            if (opts.key) for (let i = 0, p = 0; i < d.length; i += 4, p++) { const cc = cbcrOf(d[i] / 255, d[i + 1] / 255, d[i + 2] / 255); dists[p] = Math.hypot(cc[0] - kc[0], cc[1] - kc[1]); am[p] = smoothstep(0.085, 0.145, dists[p]); }
+            const at = (x, y) => am[Math.max(0, Math.min(h - 1, y)) * w + Math.max(0, Math.min(w - 1, x))];
+            for (let i = 0, p = 0; i < d.length; i += 4, p++) {
                 let r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255, a = 1;
                 if (opts.key) {
-                    const cc = cbcrOf(r, g, b), dist = Math.hypot(cc[0] - kc[0], cc[1] - kc[1]);
-                    a = smoothstep(0.085, 0.145, dist);
+                    const x = p % w, y = (p / w) | 0, dist = dists[p];
+                    a = am[p];
+                    const nb = Math.min(at(x + 1, y), at(x - 1, y), at(x, y + 1), at(x, y - 1), at(x + 2, y), at(x - 2, y), at(x, y + 2), at(x, y - 2));
+                    if (nb < 0.5) a = Math.min(a, Math.max(0, Math.min(1, (unmixOpacity(r, g, b) - 0.1) / 0.4)));
+                    if (a > 0.004 && a < 0.996) { r = clamp01k(K[0] + (r - K[0]) / a); g = clamp01k(K[1] + (g - K[1]) / a); b = clamp01k(K[2] + (b - K[2]) / a); }
+                    if (nb < 0.5) g = Math.min(g, Math.max(r, b));
                     g -= Math.max(0, g - Math.max(r, b)) * 0.85 * (1 - smoothstep(0.115, 0.157, dist));
                 }
                 d[i] = clampByte((r * gain[0] + off[0]) * 255); d[i + 1] = clampByte((g * gain[1] + off[1]) * 255); d[i + 2] = clampByte((b * gain[2] + off[2]) * 255); d[i + 3] = a * 255;
@@ -98,6 +117,12 @@ function createVideoProcessor() {
 function stylePromptFor(style) {
     if (!style) return '';
     return state.greenScreen ? style.prompt.replace(/[^,.:;]*\bbackgrounds?\b[^,.;]*[,.;]?/gi, ' ').replace(/\s+/g, ' ').replace(/\s+([,.:;])/g, '$1').trim() : style.prompt;
+}
+const clamp01k = x => x < 0 ? 0 : x > 1 ? 1 : x;
+// Color to Alpha (PhotoCraft, color_to_alpha.rs) : plus petite opacité qui explique la couleur comme un mélange avec le vert
+function unmixOpacity(r, g, b) {
+    const one = (p, k) => p > k ? (k < 1 ? (p - k) / (1 - k) : 1) : p < k ? (k > 0 ? (k - p) / k : 1) : 0;
+    return Math.min(1, Math.max(one(r, KEY_GREEN[0]), one(g, KEY_GREEN[1]), one(b, KEY_GREEN[2])));
 }
 function cbcrOf(r, g, b) { return [-0.1687 * r - 0.3313 * g + 0.5 * b, 0.5 * r - 0.4187 * g - 0.0813 * b]; }
 function smoothstep(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }

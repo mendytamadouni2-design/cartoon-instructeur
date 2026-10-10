@@ -1189,6 +1189,51 @@ async function testCompositor(browser) {
         }
         return r;
     });
+    // 8.9 : bords du fond vert démêlés (Color to Alpha de PhotoCraft) — mèches gardées, plus de liseré vert, WebGL et repli 2D
+    const v89 = await page.evaluate(async () => {
+        const r = {};
+        try {
+            const W = 720, H = 1280, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+            g.fillStyle = '#00B140'; g.fillRect(0, 0, W, H);
+            const fg = document.createElement('canvas'); fg.width = W; fg.height = H; const f = fg.getContext('2d');
+            f.fillStyle = '#f0f0ee'; f.beginPath(); f.ellipse(360, 1000, 230, 330, 0, 0, Math.PI * 2); f.fill();
+            f.fillStyle = '#e9b48f'; f.beginPath(); f.ellipse(360, 520, 150, 190, 0, 0, Math.PI * 2); f.fill();
+            f.fillStyle = '#3a2416'; f.beginPath(); f.ellipse(360, 400, 170, 120, 0, Math.PI, 0); f.fill();
+            f.strokeStyle = '#3a2416'; f.lineCap = 'round';
+            for (let k = 0; k < 40; k++) { const a = Math.PI + k / 39 * Math.PI, x0 = 360 + Math.cos(a) * 165, y0 = 400 + Math.sin(a) * 115; f.lineWidth = 1 + (k % 3) * 0.6; f.beginPath(); f.moveTo(x0, y0); f.quadraticCurveTo(x0 + Math.cos(a) * 30, y0 + Math.sin(a) * 30 - 10, x0 + Math.cos(a) * 55 + (k % 5 - 2) * 6, y0 + Math.sin(a) * 50); f.stroke(); }
+            const sp = document.createElement('canvas'); sp.width = W; sp.height = H; const s2 = sp.getContext('2d');
+            s2.filter = 'blur(6px)'; s2.drawImage(fg, 0, 0); s2.filter = 'none'; s2.globalCompositeOperation = 'source-in'; s2.fillStyle = '#00B140'; s2.fillRect(0, 0, W, H);
+            g.save(); g.filter = 'blur(0.8px)'; g.drawImage(fg, 0, 0); g.restore();
+            g.save(); g.globalCompositeOperation = 'source-atop'; g.globalAlpha = 0.18; g.drawImage(sp, 0, 0); g.restore();   // reflet vert
+            const img = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = c.toDataURL('image/jpeg', 0.72); });   // compression vidéo
+            const truth = f.getImageData(0, 0, W, H).data;
+            for (const mode of ['webgl', '2d']) {
+                let proc;
+                if (mode === 'webgl') proc = createVideoProcessor();
+                else { const orig = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function (t, o) { return t === 'webgl' ? null : orig.call(this, t, o); }; try { proc = createVideoProcessor(); } finally { HTMLCanvasElement.prototype.getContext = orig; } }
+                const layer = proc.process(img, { key: true });
+                const comp = document.createElement('canvas'); comp.width = W; comp.height = H; const cg = comp.getContext('2d');
+                cg.fillStyle = '#5a6478'; cg.fillRect(0, 0, W, H); cg.drawImage(layer, 0, 0, W, H);
+                const cd = cg.getImageData(0, 0, W, H).data;
+                const lc = document.createElement('canvas'); lc.width = W; lc.height = H; const lg = lc.getContext('2d'); lg.drawImage(layer, 0, 0, W, H); const la = lg.getImageData(0, 0, W, H).data;
+                let fringe = 0, kept = 0, strands = 0, holes = 0;
+                const T = (i, dx, dy) => truth[i + (dy * W + dx) * 4 + 3];
+                for (let y = 14; y < H - 14; y++) for (let x = 14; x < W - 14; x++) {
+                    const i = (y * W + x) * 4, t = truth[i + 3];
+                    // bord visible : à 2 pixels ou moins de la limite du personnage
+                    const edge = t > 0 ? (T(i, 2, 0) === 0 || T(i, -2, 0) === 0 || T(i, 0, 2) === 0 || T(i, 0, -2) === 0) : (T(i, 2, 0) > 0 || T(i, -2, 0) > 0 || T(i, 0, 2) > 0 || T(i, 0, -2) > 0);
+                    if (edge && la[i + 3] > 25 && cd[i + 1] - Math.max(cd[i], cd[i + 2]) > 12) fringe++;
+                    if (y < 400 && t > 120 && (x < 200 || x > 520 || y < 290)) { strands++; if (la[i + 3] > 128) kept++; }
+                    if (t > 200 && [[12, 0], [-12, 0], [0, 12], [0, -12], [9, 9], [-9, 9], [9, -9], [-9, -9]].every(([dx, dy]) => T(i, dx, dy) > 200) && la[i + 3] < 250) holes++;
+                }
+                r[mode] = { webgl: proc.webgl, fringe, strands: +(kept / strands).toFixed(2), holes };
+                proc.dispose();
+            }
+        } catch (e) { r.err = e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 3).join(' '); }
+        return r;
+    });
+    check(!v89.err && v89.webgl.webgl && v89.webgl.fringe < 1500 && v89.webgl.strands >= 0.7 && v89.webgl.holes === 0, 'fond vert (WebGL) : mèches de cheveux gardées, liseré vert presque nul, aucun trou (' + (v89.err || JSON.stringify(v89.webgl)) + ' ; avant 8.9 : liseré 4100, mèches 0,58)');
+    check(!v89.err && !v89['2d'].webgl && v89['2d'].fringe < 1500 && v89['2d'].strands >= 0.65 && v89['2d'].holes === 0, 'fond vert (repli sans WebGL) : liseré vert presque nul, mèches gardées, aucun trou (' + (v89.err || JSON.stringify(v89['2d'])) + ' ; avant 8.9 : liseré 7774)');
     // règle 8 : la version dans une autre langue traduit aussi les mots-clés des dessins (« VS » gardé), puis tout est remis
     const tr8 = await page.evaluate(async () => {
         const r = {}, keep = { drawings: state.drawings, queue: state.queue, scenes: state.scenes, plan: state.scenePlan, lang: state.language, voice: elevenlabsSelectedVoiceId, eleven: localStorage.getItem('elevenlabs_api_key'), claude: localStorage.getItem(STORAGE.CLAUDE_KEY) };
