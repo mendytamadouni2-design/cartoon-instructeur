@@ -45,6 +45,8 @@ description: Cartoon Instructeur uniquement. Carte du moteur de montage (js/mont
   un plan sans voix off est sauté).
 - Contrôle : `createQa(n, { frames })` — vérification des coupes toujours faite (gratuit) ; images pour Claude seulement
   si le contrôle par l'IA est coché ; image « début » prise après la transition (`settle`).
+- Volume : chaque voix réglée à `VOICE_LOUDNESS` (-19 LUFS) par `voiceGainFor(item, speech, buf)` (deux modes) ; en image
+  par image, le mixage final passe par `normalizeLoudness` (-14 LUFS, crête ≤ -1 dBFS, `state.lastLoudness`).
 - Durée totale bornée par `maxDuration` (Short 30 s / 60 s) : un segment peut être coupé.
 
 ## Pièges

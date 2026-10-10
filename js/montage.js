@@ -140,7 +140,13 @@ function sceneCutAuto(item, vDur, index) {
     }
     return { tin: index > 0 ? Math.min(0.4, vDur / 3) : 0, tout: vDur };
 }
-function voiceGainFor(item, speech) {
+// Gain de la voix : mesuré selon la norme (même niveau pour chaque voix, ElevenLabs, Agnes ou voix off) ;
+// à défaut, l'ancien calcul sur le volume moyen de la parole.
+function voiceGainFor(item, speech, buf) {
+    if (buf && typeof measureLoudness === 'function') {
+        const l = measureLoudness(buf).lufs;
+        if (isFinite(l)) return Math.max(0.3, Math.min(4, Math.pow(10, (VOICE_LOUDNESS - l) / 20)));
+    }
     const sp = speech || item.speech;
     const lvl = sp && !sp.silent ? sp.level : 0;
     return lvl ? Math.max(0.5, Math.min(3, 0.12 / lvl)) : 1;
@@ -850,7 +856,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
                 sfx.whoosh();
                 const src = actx.createBufferSource(); src.buffer = buf;
                 const vg = actx.createGain(), now = actx.currentTime;
-                const gv = voiceGainFor(item, sp);
+                const gv = voiceGainFor(item, sp, buf);
                 vg.gain.setValueAtTime(0.0001, now); vg.gain.linearRampToValueAtTime(gv, now + 0.03);
                 src.connect(vg).connect(comp);
                 try { src.start(actx.currentTime + 0.05, 0, dur); } catch (e) {}
@@ -999,7 +1005,7 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
             if (buf) {
                 src = actx.createBufferSource(); src.buffer = buf;
                 vg = actx.createGain();
-                const gv = usingTts ? 1 : usingFit ? voiceGainFor(item, item.fitSpeech) : voiceGainFor(item), now = actx.currentTime;
+                const gv = usingTts ? voiceGainFor(item, item.ttsSpeech, buf) : usingFit ? voiceGainFor(item, item.fitSpeech, buf) : voiceGainFor(item, null, buf), now = actx.currentTime;
                 vg.gain.setValueAtTime(0.0001, now); vg.gain.linearRampToValueAtTime(gv, now + 0.03);
                 vg.gain.setValueAtTime(gv, now + Math.max(0.05, dur - 0.05)); vg.gain.linearRampToValueAtTime(0.0001, now + dur);
                 src.connect(vg).connect(comp);
@@ -1127,6 +1133,9 @@ async function assembleVideoCore({ maxDuration = Infinity, label = 'Montage', fo
         // mixage du son (hors temps réel), puis encodage et assemblage du MP4
         setStatus(label + ' : mixage du son…');
         const mixed = trimAudio(await actx.startRendering(), T);
+        // volume final au niveau de YouTube et TikTok (-14 LUFS), sans saturer
+        state.lastLoudness = typeof normalizeLoudness === 'function' ? normalizeLoudness(mixed) : null;
+        if (state.lastLoudness && isFinite(state.lastLoudness.before)) log('Volume : ' + state.lastLoudness.before.toFixed(1) + ' → ' + state.lastLoudness.after.toFixed(1) + ' LUFS (crête ' + state.lastLoudness.peak.toFixed(1) + ' dBFS)');
         setStatus(label + ' : finalisation du fichier…');
         const blob = await session.finish(mixed);
         if (qa) { state.qaFrames = qa.frames; state.cutReport = qa.cuts; }

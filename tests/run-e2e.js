@@ -1037,6 +1037,29 @@ async function testCompositor(browser) {
     check(fix.cjk && fix.followRight > 0 && fix.followRight <= 1080 * 0.83, 'japonais coupé proprement ; carte « Suivre » hors de la colonne de boutons TikTok (bord droit ' + fix.followRight + ' px)');
     check(fix.qaSettle && fix.qaNoFrames, 'contrôle par l\'IA : image de début prise après la transition ; contrôle des coupes sans envoyer d\'images');
     check(fix.loadScript && fix.translate, 'une seule fonction loadScript ; la version traduite traduit aussi l\'accroche et les autocollants');
+    // 8.6 : volume aux normes (ITU-R BS.1770 / EBU R128, méthode reprise de FilmCraft)
+    const loud = await page.evaluate(() => {
+        const tone = (amp, ch = 1, sec = 3, f = 997, spikes = 0) => { const b = new AudioBuffer({ numberOfChannels: ch, length: 48000 * sec, sampleRate: 48000 });
+            for (let c = 0; c < ch; c++) { const d = b.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = amp * Math.sin(2 * Math.PI * f * i / 48000) + (spikes && i % 24000 === 0 ? spikes : 0); } return b; };
+        const r = {};
+        r.mono = +measureLoudness(tone(0.1)).lufs.toFixed(2);            // référence de la norme : -23,01 LUFS
+        r.stereo = +measureLoudness(tone(0.1, 2)).lufs.toFixed(2);       // deux canaux : +3 dB → -20,0
+        const sil = new AudioBuffer({ numberOfChannels: 2, length: 48000, sampleRate: 48000 });
+        r.silence = measureLoudness(sil).lufs === -Infinity && normalizeLoudness(sil).gain === 0;
+        const q = tone(0.02, 2), n1 = normalizeLoudness(q), m1 = measureLoudness(q);
+        r.norm = [+n1.after.toFixed(2), +m1.lufs.toFixed(2), +m1.peak.toFixed(2)].join(' / ');
+        const sp = tone(0.02, 2, 3, 997, 0.9), n2 = normalizeLoudness(sp), m2 = measureLoudness(sp);   // crêtes isolées : le gain s'arrête à -1 dBFS
+        r.peakCap = m2.peak <= -0.99 && m2.lufs < -14.5;
+        const v1 = tone(0.05), v2 = tone(0.3), g1 = voiceGainFor({}, null, v1), g2 = voiceGainFor({}, null, v2);
+        r.voices = [measureLoudness(v1).lufs + 20 * Math.log10(g1), measureLoudness(v2).lufs + 20 * Math.log10(g2)].map(x => +x.toFixed(1)).join(' / ');
+        r.montage = state.lastLoudness ? [state.lastLoudness.before, state.lastLoudness.after, state.lastLoudness.peak].map(x => +(+x).toFixed(1)).join(' → ') : 'aucun';
+        r.montageOk = !!state.lastLoudness && (Math.abs(state.lastLoudness.after + 14) < 0.2 || Math.abs(state.lastLoudness.peak + 1) < 0.1) && state.lastLoudness.peak <= -0.99;
+        return r;
+    });
+    check(Math.abs(loud.mono + 23.01) < 0.15 && Math.abs(loud.stereo + 20) < 0.15 && loud.silence, 'mesure du volume conforme à la norme EBU R128 (1 kHz à -20 dBFS : ' + loud.mono + ' LUFS, stéréo ' + loud.stereo + ')');
+    check(/^-14 \/ -14 \/ /.test(loud.norm) && +loud.norm.split(' / ')[2] <= -1 && loud.peakCap, 'vidéo mise à -14 LUFS (niveau YouTube / TikTok) sans jamais dépasser -1 dBFS (' + loud.norm + ')');
+    check(loud.voices === '-19 / -19', 'chaque voix au même niveau, quelle que soit sa source (' + loud.voices + ' LUFS)');
+    check(loud.montageOk, 'montage complet : volume final réglé automatiquement (' + loud.montage + ')');
     check(pup.only && pup.video && pup.timeline === 2 && pup.agnes === 0 && pup.dur > 1,'personnage stable + voix ElevenLabs : vidéo montée sans aucune scène Agnes (' + (pup.dur || 0).toFixed(1) + ' s)');
     check(errors.length === 0, 'aucune erreur JavaScript' + (errors.length ? ' : ' + errors.join(' | ') : ''));
     await ctx.close();
