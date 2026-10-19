@@ -1256,7 +1256,7 @@ async function runAssembly() {
         }
         const result = await assembleVideo({ label: 'Montage' });
         if (state.finalVideoUrl) URL.revokeObjectURL(state.finalVideoUrl);
-        state.finalBlob = result.blob; state.finalVideoUrl = result.url; state.finalExt = result.ext; state.timeline = result.timeline; state.finalFresh = true;
+        state.finalBlob = result.blob; state.finalVideoUrl = result.url; state.finalExt = result.ext; state.timeline = result.timeline; state.finalFresh = true; state.finalOffline = !!result.offline;
         document.getElementById('final-video').src = result.url;
         document.getElementById('video-preview').classList.add('visible');
         showResultButtons();

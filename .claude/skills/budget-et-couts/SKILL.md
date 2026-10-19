@@ -18,7 +18,7 @@ et ne veut pas de dépense surprise. Un nouveau coût non annoncé est un défau
 | ElevenLabs transcription | consomme aussi le compte ElevenLabs | `transcribeWords` (`montage.js`), seulement si la synchro au mot est activée |
 | Claude | `CLAUDE_PRICES` (€ par million de jetons, entrée / sortie) : opus-5-5 `[4, 20]`, opus-5 `[5, 25]`, sonnet-5 `[2, 10]`, haiku-4-5 `[1, 5]` ; relecture du cache ≈ 5 % | `trackClaudeUsage` (`claude.js`) |
 | Recherche web de Claude | ≈ 0,0093 € par recherche (`max_uses` borne le nombre) | `trackClaudeUsage` |
-| Cloudflare (serveur) | offre gratuite ; projets effacés après 3 jours | — |
+| Cloudflare (serveur) | offre gratuite ; projets effacés après 3 jours ; boîte à vidéo pour Claude : une seule vidéo à la fois (9.2) | — |
 
 ## Registre des prix (sources)
 

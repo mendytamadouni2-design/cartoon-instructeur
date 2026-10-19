@@ -19,6 +19,7 @@ const MAX_POLL_ATTEMPTS = 100;
 // Historique des versions (affiché en bas de l'accueil). Règle : grosse mise à jour → X.0, petite → X.1, X.2…
 // Ajouter la nouvelle version EN PREMIER à chaque mise en ligne.
 const APP_VERSIONS = [
+    { num: '9.2', date: '2026-10-19', note: 'Boîte à vidéo pour Claude : chaque vidéo finie est déposée sur ton serveur Cloudflare (une seule à la fois). Dis à Claude « regarde ma dernière vidéo » : il la regarde (images, son, saccades), te fait un rapport, puis vide la boîte. Réglages → Aide et journal → « Boîte à vidéo pour Claude » : copie la clé une seule fois dans les réglages de ton environnement Claude.' },
     { num: '9.1', date: '2026-10-10', note: 'Enregistreur de test : Réglages → Aide et journal → « Démarrer l\'enregistrement du test ». L\'appli note ce que tu fais, les erreurs, la vitesse des montages et les appels aux services (jamais tes clés ni tes textes), avec une fiche à cocher ; à la fin, un rapport à télécharger et à envoyer dans la conversation. « Vraies illustrations » coupé par défaut : Agnes Image pourrait coûter ≈ 0,003 $ par image (prix à vérifier), et chaque image est maintenant comptée dans les dépenses' },
     { num: '9.0', date: '2026-10-10', note: 'Personnage vivant : le personnage stable n\'est plus une image rigide — un maillage déformable « aussi rigide que possible » (repris d\'EffectCraft) fait pencher et hocher la tête quand il parle et plier doucement le corps au-dessus des pieds, sans aucun appel payant ; réglage « Personnage rigide » pour revenir à avant' },
     { num: '8.9', date: '2026-10-10', note: 'Fond vert plus propre : le vert mélangé au bord du personnage est retiré pixel par pixel au lieu de rogner le contour (méthode « Color to Alpha » reprise de PhotoCraft) — mèches de cheveux gardées avec leur vraie couleur, plus de liseré vert, aussi pour le personnage stable et sans WebGL' },
@@ -119,6 +120,7 @@ const STORAGE = {
     ELEVEN_USAGE: 'cartoon_eleven_usage', ELEVEN_EXHAUSTED: 'cartoon_eleven_exhausted', TTS_INDEX: 'cartoon_tts_index',
     BANK_USE: 'cartoon_bank_use',
     BACKUP_ON: 'cartoon_backup_on',
+    BOITE_ON: 'cartoon_boite_on', BOITE_KEY: 'cartoon_boite_cle', BOITE_LINKED: 'cartoon_boite_liee', BOITE_LAST: 'cartoon_boite_derniere',
     BG_SERIES: 'cartoon_background_series',
     YT_PUBLISHED: 'cartoon_youtube_published',
     BG_JOB: 'cartoon_background_job',
@@ -165,7 +167,7 @@ const state = {
     cloudProvider: 'local',
     isLoadingImages: false, creationAttemptsSinceLastError: 0,
     scenePlan: null, timeline: null, drawings: [], drawingsPromise: null,
-    genMode: 'background', proxyJobs: false, proxyMedia: false, proxyTikTok: false, proxyInstagram: false, safeZones: true, testMode: false, testIdx: null, reference: null, richMode: true, qaOn: true, qaFrames: null, qaReport: null, oneShot: false, greenScreen: false, colorMatch: true, altFraming: true, fastExport: true, iconStyle: 'auto', traceDrawings: false, decorImage: null, decorImg: null, apPlan: null, comments: null, autoRun: false, finalFresh: false,
+    genMode: 'background', proxyJobs: false, proxyMedia: false, proxyTikTok: false, proxyInstagram: false, safeZones: true, testMode: false, testIdx: null, reference: null, richMode: true, qaOn: true, qaFrames: null, qaReport: null, oneShot: false, greenScreen: false, colorMatch: true, altFraming: true, fastExport: true, iconStyle: 'auto', traceDrawings: false, decorImage: null, decorImg: null, apPlan: null, comments: null, autoRun: false, finalFresh: false, finalOffline: false, boiteOn: true, proxyBoite: false,
     ttStats: null, hooks: null, parts: null, langSrt: {}, lastYouTubeId: null,
     bankItems: [], bankUse: true, backupOn: true, projectId: null, factIssues: null, ytStats: null,
     finalVideoUrl: null, finalBlob: null, finalExt: 'mp4',
@@ -576,6 +578,8 @@ async function testProxy() {
             state.proxyParts = body.includes('parts');
             state.proxyTikTok = body.includes('tiktok');
             state.proxyInstagram = body.includes('instagram');
+            state.proxyBoite = body.includes('boite');
+            if (typeof renderBoite === 'function') { renderBoite(); boiteRafraichir(); }
             setProxyStatus('✅ Relais opérationnel' + (state.proxyJobs ? ' · arrière-plan disponible' : ''), true);
             updateGenModeHint();
             return true;

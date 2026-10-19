@@ -43,7 +43,15 @@
 //    Les Reels sont publiés par /schedule (platform: "instagram") : Instagram vient chercher
 //    la vidéo à une adresse publique signée et temporaire : GET /pub/:clé?exp=…&sig=…
 //
-// Sécurité : seul le site de l'appli peut l'utiliser (ALLOWED_ORIGINS).
+// 8. Boîte à vidéo pour Claude (demandée par l'utilisateur) : la dernière vidéo finie, que Claude
+//    vient regarder puis vide. Protégée par la clé de la boîte (créée par l'appli ; seule son
+//    empreinte SHA-256 est gardée ici). Claude n'a pas d'en-tête Origin : il lit avec la clé.
+//      POST   /boite/cle   (appli) → lie la boîte à une clé ; la changer demande l'ancienne clé
+//      PUT    /boite       (appli + clé) → { key, own, info } : vidéo déjà stockée à regarder
+//      GET    /boite       (clé) → infos ; GET /boite/video (clé) → la vidéo
+//      DELETE /boite       (clé) → vide la boîte (efface la copie propre à la boîte, jamais la bibliothèque)
+//
+// Sécurité : seul le site de l'appli peut l'utiliser (ALLOWED_ORIGINS) ; la boîte demande en plus sa clé.
 
 const ALLOWED_ORIGINS = [
     'https://mendytamadouni2-design.github.io'
@@ -67,6 +75,7 @@ const MEDIA_CHUNK = 1500000;             // bloc de stockage (Durable Object)
 const MEDIA_PART = 4 * MEDIA_CHUNK;       // morceau d'un envoi découpé (6 Mo)
 const MEDIA_MAX = 600 * 1024 * 1024;      // taille maximale d'un fichier envoyé en morceaux
 const IG_PUB_TTL_MS = 6 * 3600000;       // durée de validité de l'adresse publique donnée à Instagram
+const BOITE_OWN = 'boite/derniere';     // copie propre à la boîte (vidéo non gardée dans la bibliothèque)
 
 export default {
     async fetch(request, env) {
@@ -82,11 +91,13 @@ export default {
         const cors = {
             'Access-Control-Allow-Origin': allowed ? origin : ALLOWED_ORIGINS[0],
             'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Range, Content-Type',
+            'Access-Control-Allow-Headers': 'Range, Content-Type, Authorization',
             'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Content-Type',
             'Vary': 'Origin'
         };
         if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+        // Boîte à vidéo : l'appli (son origine) ou Claude (sans origine), toujours avec la clé de la boîte
+        if ((pubUrl.pathname === '/boite' || pubUrl.pathname.startsWith('/boite/')) && (allowed || !origin)) return handleBoite(request, env, pubUrl, cors, allowed);
         if (!allowed) return new Response('Origine non autorisée : ' + origin, { status: 403, headers: cors });
 
         const url = new URL(request.url);
@@ -116,7 +127,7 @@ export default {
         }
 
         const target = url.searchParams.get('url');
-        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push · media · parts · schedule' + (env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET ? ' · tiktok' : '') + (env.INSTAGRAM_APP_ID && env.INSTAGRAM_APP_SECRET ? ' · instagram' : '') : 'Relais OK', { status: 200, headers: cors });
+        if (!target) return new Response(env.JOBS ? 'Relais OK · jobs · push · media · parts · schedule · boite' + (env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET ? ' · tiktok' : '') + (env.INSTAGRAM_APP_ID && env.INSTAGRAM_APP_SECRET ? ' · instagram' : '') : 'Relais OK', { status: 200, headers: cors });
         return relay(request, target, cors);
     }
 };
@@ -141,6 +152,26 @@ async function relay(request, target, cors) {
 
 function json(data, status, cors) {
     return new Response(JSON.stringify(data), { status: status || 200, headers: { ...cors, 'Content-Type': 'application/json' } });
+}
+
+// Boîte à vidéo pour Claude (voir 8. en tête de fichier)
+async function handleBoite(request, env, url, cors, allowed) {
+    if (!env.JOBS) return json({ error: 'Stockage non activé' }, 501, cors);
+    const action = url.pathname === '/boite/cle' ? 'boite-cle' : url.pathname === '/boite/video' ? 'boite-video' : url.pathname === '/boite' ? 'boite' : '';
+    if (!action) return json({ error: 'Adresse inconnue' }, 404, cors);
+    const m = request.method;
+    if ((action === 'boite-cle' && m !== 'POST') || (action === 'boite' && !['GET', 'PUT', 'DELETE'].includes(m)) || (action === 'boite-video' && !['GET', 'HEAD'].includes(m))) return json({ error: 'Méthode non permise' }, 405, cors);
+    // lier la boîte et y déposer : depuis l'appli seulement ; lire et vider : avec la clé (Claude)
+    if ((action === 'boite-cle' || m === 'PUT') && !allowed) return json({ error: 'Réservé à l\'appli' }, 403, cors);
+    const body = m === 'POST' || m === 'PUT' ? await request.text() : undefined;
+    if (body && body.length > 20000) return json({ error: 'Données trop lourdes' }, 413, cors);
+    const store = env.JOBS.get(env.JOBS.idFromName('media'));
+    const r = await store.fetch('https://job/' + action, { method: m === 'HEAD' ? 'GET' : m, body, headers: { Authorization: request.headers.get('Authorization') || '' } });
+    if (action === 'boite-video' && r.ok) {
+        const h = new Headers(cors); ['Content-Type', 'Content-Length'].forEach(n => { const v = r.headers.get(n); if (v) h.set(n, v); });
+        return new Response(m === 'HEAD' ? null : r.body, { status: r.status, headers: h });
+    }
+    return json(await r.json().catch(() => ({ error: 'Réponse illisible' })), r.status, cors);
 }
 
 async function handleJobs(request, env, url, cors) {
@@ -274,6 +305,7 @@ export class VideoJob {
         if (action === 'start') return this.start(request);
         if (action === 'vapid') return Response.json({ publicKey: (await getVapid(this.storage)).publicKey });
         if (action.startsWith('media')) return this.media(action, request);
+        if (action.startsWith('boite')) return this.boite(action, request);
         if (action.startsWith('post-')) return this.postAction(action, request);
         if (action === 'rate') {
             // une seule création Agnes par minute, tous projets confondus (séries en parallèle)
@@ -343,6 +375,40 @@ export class VideoJob {
             async start(ctrl) { for (let i = 0; i < meta.chunks; i++) ctrl.enqueue(new Uint8Array(await storage.get(prefix + i))); ctrl.close(); }
         });
         return new Response(body, { headers: { 'Content-Type': meta.type, 'Content-Length': String(meta.size) } });
+    }
+    // Boîte à vidéo pour Claude : empreinte SHA-256 de la clé, et la vidéo à regarder (clé du stockage)
+    async boite(action, request) {
+        const empreinte = async k => b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(k))));
+        const donnee = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+        const gardee = await this.storage.get('boite:empreinte');
+        const ok = !!gardee && donnee.length >= 32 && (await empreinte(donnee)) === gardee;
+        if (action === 'boite-cle') {
+            let p; try { p = JSON.parse(await request.text()); } catch (e) { return Response.json({ error: 'Données illisibles' }, { status: 400 }); }
+            if (!p || typeof p.empreinte !== 'string' || !/^[\w-]{43}$/.test(p.empreinte)) return Response.json({ error: 'Empreinte invalide' }, { status: 400 });
+            if (gardee && gardee !== p.empreinte && !ok) return Response.json({ error: 'Boîte déjà liée à une autre clé' }, { status: 409 });
+            await this.storage.put('boite:empreinte', p.empreinte);
+            return Response.json({ ok: true });
+        }
+        if (!ok) return Response.json({ error: gardee ? 'Clé de la boîte refusée' : 'Boîte pas encore créée par l\'appli' }, { status: 401 });
+        const b = await this.storage.get('boite');
+        if (request.method === 'PUT') {
+            let p; try { p = JSON.parse(await request.text()); } catch (e) { return Response.json({ error: 'Données illisibles' }, { status: 400 }); }
+            if (!p || typeof p.key !== 'string' || !(await this.storage.get('meta:' + p.key))) return Response.json({ error: 'Vidéo introuvable dans le stockage' }, { status: 404 });
+            if (!!p.own !== (p.key === BOITE_OWN)) return Response.json({ error: 'Copie de la boîte incohérente' }, { status: 400 });
+            if (b && b.own && b.key !== p.key) await this.deleteMedia(b.key);   // une seule vidéo à la fois
+            await this.storage.put('boite', { key: p.key, own: !!p.own, info: p.info && typeof p.info === 'object' ? p.info : {}, date: Date.now() });
+            return Response.json({ ok: true });
+        }
+        if (request.method === 'DELETE') {
+            if (b && b.own) await this.deleteMedia(b.key);
+            await this.storage.delete('boite');
+            return Response.json({ ok: true, efface: !!(b && b.own) });
+        }
+        if (!b) return Response.json({ error: 'Boîte vide' }, { status: 404 });
+        const meta = await this.storage.get('meta:' + b.key);
+        if (action === 'boite') return Response.json({ date: b.date, info: b.info, own: b.own, size: meta ? meta.size : 0, type: meta ? meta.type : '', present: !!meta });
+        if (!meta) return Response.json({ error: 'Vidéo supprimée de ta bibliothèque' }, { status: 404 });
+        return this.media('media-get', new Request('https://job/media-get?key=' + encodeURIComponent(b.key)));
     }
     async deleteMedia(key) {
         const meta = await this.storage.get('meta:' + key);

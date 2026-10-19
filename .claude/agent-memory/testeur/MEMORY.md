@@ -29,4 +29,7 @@
   et le personnage stable sur fond blanc, zoom sur les cheveux.
 - 9.0 personnage vivant : fluidité du montage (≈ 0,5 ms par image dans Chromium), 1re image (maillage + Cholesky),
   retour d'arrière-plan en plein montage (contexte WebGL perdu → l'image suivante doit être juste).
+- 9.2 boîte à vidéo : après la vidéo test, Réglages → Aide et journal → « Boîte à vidéo » doit dire « Dernière vidéo
+  déposée » ; puis `boite.py regarder` (clé `CARTOON_BOITE_CLE` et adresse du serveur autorisée dans l'environnement).
+  Vérifier aussi que la vidéo de l'iPhone sort en H.264 + AAC (`regarder.py` le signale sinon).
 - Lancer les tests avec `CHROMIUM_PATH=/opt/pw-browsers/chromium` (sinon Playwright cherche un navigateur absent).

@@ -24,6 +24,18 @@ python3 -I ${CLAUDE_SKILL_DIR}/scripts/regarder.py VIDEO.mp4 --out /chemin/resul
   `images/*.jpg` (540 px de large). Lire les planches avec Read **avant** de juger, puis les images utiles.
 - ffmpeg manque (conteneur neuf) : le script l'installe avec `apt-get` (1 à 2 min, gratuit).
 
+## La dernière vidéo de l'utilisateur (boîte, 9.2)
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/scripts/boite.py infos              # date, durée, style, mode, plans (débuts)
+python3 ${CLAUDE_SKILL_DIR}/scripts/boite.py regarder --out DIR # télécharge et regarde (raccords entre plans inclus)
+python3 ${CLAUDE_SKILL_DIR}/scripts/boite.py vider              # après le rapport (la bibliothèque n'est jamais touchée)
+```
+
+Clé : `CARTOON_BOITE_CLE` (réglages de l'environnement, jamais dans la conversation) ; serveur : `CARTOON_SERVEUR`, sinon
+`DEFAULT_PROXY_URL` de `js/core.js`. La clé passe à curl par l'entrée standard, jamais en argument ni à l'écran.
+Procédure complète : « Regarder la dernière vidéo de l'utilisateur » dans le CLAUDE.md du projet.
+
 ## Obtenir une vidéo de l'appli
 
 Le test de montage complet garde ses vidéos si on lui donne un chemin :

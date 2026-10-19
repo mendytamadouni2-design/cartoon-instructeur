@@ -22,6 +22,11 @@ Déployé **automatiquement depuis `main`** (`wrangler.jsonc` : Durable Object `
    (Cloudflare refuse une requête de plus de 100 Mo : une vidéo finale de 2 min à 10 Mbit/s en fait ≈ 150).
 4. **Publications programmées** `/schedule`, **TikTok** `/tiktok/*`, **Instagram** `/instagram/*`, adresse publique
    signée et temporaire `/pub/:clé?exp=…&sig=…` (6 h, pour Instagram).
+5. **Boîte à vidéo pour Claude** (9.2) : `POST /boite/cle` (appli : empreinte SHA-256 de la clé, la première gagne,
+   la changer demande l'ancienne → sinon 409), `PUT /boite` (appli + clé : `{ key, own, info }`, la vidéo est déjà dans
+   le stockage), `GET /boite`, `GET /boite/video`, `DELETE /boite` (clé seule : Claude n'a pas d'en-tête Origin).
+   Une seule vidéo : lien vers `final/<projet>` de la bibliothèque (`own: false`, jamais effacée par la boîte) ou
+   copie propre `boite/derniere` (`own: true`, effacée quand la boîte change ou est vidée).
 
 ## Sécurité (à vérifier à chaque modification)
 
@@ -31,6 +36,9 @@ Déployé **automatiquement depuis `main`** (`wrangler.jsonc` : Durable Object `
   à la fin (`storage.delete(['secrets', …])`) ; jamais renvoyées par `GET /jobs/:id`, jamais dans un journal.
 - Relais : uniquement `https`, uniquement vidéo / image / audio ; pas un proxy ouvert vers n'importe quelle adresse.
 - Projets effacés au bout de `JOB_MAX_AGE_MS` = 3 jours (`deleteAll`).
+- Boîte : seule l'empreinte de la clé est gardée ; lecture et vidage sans Origin **uniquement** avec la clé ; dépôt et
+  liaison réservés à l'origine de l'appli. ⚠️ Le reste (`/media`, `/media-list`…) ne dépend que de l'en-tête Origin,
+  qu'un programme peut imiter : protection faible, à renforcer (clé d'appareil) — proposé à l'utilisateur le 19/10/2026.
 - Envoi découpé : identifiant d'envoi validé (`/^[a-z0-9]{6,32}$/`), numéros de morceau bornés, incohérence → 409.
 
 ## Pièges

@@ -185,10 +185,12 @@ async function projectFinalReady() {
     const id = ensureProject();
     const dur = (state.timeline || []).reduce((a, t) => a + t.duration, 0);
     updateProject(id, { status: 'done', timeline: state.timeline, duration: dur });
+    let finalKey = null;
     if (mediaAvailable() && state.backupOn) {
-        try { const key = await uploadMedia('final/' + id, state.finalBlob, 'final', (state.theme || 'Vidéo') + ' · ' + new Date().toLocaleDateString('fr-FR')); updateProject(id, { finalKey: key }); }
+        try { finalKey = await uploadMedia('final/' + id, state.finalBlob, 'final', (state.theme || 'Vidéo') + ' · ' + new Date().toLocaleDateString('fr-FR')); updateProject(id, { finalKey }); }
         catch (e) { log('Sauvegarde de la vidéo finale : ' + e.message); }
     }
+    if (typeof boiteDeposer === 'function') boiteDeposer(finalKey);   // 9.2 : la dernière vidéo pour Claude (sans attendre)
 }
 
 // ══════════════════════════════════════════════════════════════════

@@ -76,6 +76,7 @@ Ordre de chargement et rôle :
 | `puppet.js` | personnage stable : casting de poses, marionnette animée, bouche calée sur la voix |
 | `deform.js` | personnage vivant (9.0) : maillage ARAP porté d'EffectCraft (Cholesky une fois par pose), rendu WebGL, repli rigide |
 | `testlog.js` | enregistreur de test (9.1) : appareil, actions, journal, erreurs, services, montages, fiche du test, rapport à envoyer |
+| `boite.js` | boîte à vidéo pour Claude (9.2) : clé de la boîte, dépôt de chaque vidéo finie sur le serveur (lien vers la bibliothèque ou copie propre), état |
 | `director.js` | brouillon animé, retouches en discutant, séries, miniatures |
 | `init.js` | démarrage et branchement des boutons |
 
@@ -149,6 +150,18 @@ automatique** (erreurs, réouvertures = plantages de Safari, montages : mode, im
 devient un constat prouvé (ligne du rapport) avant toute correction ; les prix relevés vont au registre des prix.
 Si une vidéo accompagne le rapport, la regarder avec `regarder-une-video` (volume, saccades, images figées) et croiser
 les instants avec la chronologie.
+
+### Regarder la dernière vidéo de l'utilisateur (« regarde ma dernière vidéo », version 9.2 et suivantes)
+
+L'appli dépose chaque vidéo finie dans la **boîte** de son serveur Cloudflare (une seule à la fois).
+1. `python3 .claude/skills/regarder-une-video/scripts/boite.py regarder --out <scratchpad>/boite` : télécharge la vidéo
+   et la regarde (raccords entre plans inclus). Clé : variable `CARTOON_BOITE_CLE` de l'environnement. Erreur réseau
+   → l'utilisateur doit autoriser l'adresse du serveur (Network access) ; 401 → clé à recopier depuis l'appli
+   (Réglages → Aide et journal → Boîte à vidéo). Ne jamais demander la clé dans la conversation.
+2. Ouvrir **toutes** les planches avec Read, puis les images utiles ; juger avec `regles-shorts`.
+3. Rapport à l'utilisateur en français simple : ce qui va, ce qui ne va pas (instant, ce qu'on voit, cause probable),
+   ce que je propose. Chaque défaut de l'appli devient un constat prouvé avant toute correction.
+4. `boite.py vider`, puis effacer le dossier téléchargé. Vider ne touche jamais à sa bibliothèque.
 
 ### Compétences (skills, `.claude/skills/`)
 

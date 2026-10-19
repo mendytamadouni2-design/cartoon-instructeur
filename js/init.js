@@ -309,6 +309,11 @@ function showCloudConfigRow(provider) {
     bindToggle('altframing-toggle', 'ALT_FRAMING', 'altFraming', true, () => { state.exportCache = {}; });
     const isel = document.getElementById('iconstyle-select');
     if (isel) { state.iconStyle = getLS(STORAGE.ICON_STYLE) || 'auto'; isel.value = state.iconStyle; isel.addEventListener('change', () => { state.iconStyle = isel.value; setLS(STORAGE.ICON_STYLE, isel.value); state.exportCache = {}; }); }
+    // 9.2 : boîte à vidéo pour Claude (n'invalide pas le storyboard, contrairement à bindToggle)
+    state.boiteOn = getLS(STORAGE.BOITE_ON) !== '0';
+    const boiteToggle = document.getElementById('boite-toggle');
+    if (boiteToggle) { boiteToggle.checked = state.boiteOn; boiteToggle.addEventListener('change', () => { state.boiteOn = boiteToggle.checked; setLS(STORAGE.BOITE_ON, state.boiteOn ? '1' : '0'); renderBoite(); }); }
+    renderBoite();
     bindToggle('trace-toggle', 'TRACE', 'traceDrawings', false);   // Agnes Image peut-être payante : coupé tant que le prix n'est pas vérifié
     bindToggle('fastexport-toggle', 'FAST_EXPORT', 'fastExport', true, () => { state.exportCache = {}; });
     const fx = document.getElementById('fastexport-hint'); if (fx) fx.textContent = webcodecsAvailable() ? '✅ Disponible sur cet appareil' : 'Pas disponible sur cet appareil (iOS 26 ou plus récent requis) : montage classique';

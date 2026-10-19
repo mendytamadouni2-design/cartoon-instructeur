@@ -269,6 +269,50 @@ async function testPhoneMontage(browser) {
     check(await page.evaluate(() => /Scènes refaites automatiquement[^\n]*(pas de voix|personnage muet)/.test(journalText())), 'contrôle qualité : scène muette détectée et refaite');
     check(r.size > 100000, 'vidéo finale produite (' + r.type + ', ' + Math.round(r.size / 1024) + ' Ko)');
     if (process.env.SAVE_VIDEO) await keepVideo(page, 'final', process.env.SAVE_VIDEO);   // à regarder avec la compétence regarder-une-video
+
+    // 9.2 Boîte à vidéo pour Claude : déposée après la vidéo finie, lue avec la clé seulement, vidée sans toucher la bibliothèque
+    await page.waitForFunction(() => !!getJSON(STORAGE.BOITE_LAST), null, { timeout: 60000 }).catch(() => {});
+    const bk = await page.evaluate(() => ({ key: getLS(STORAGE.BOITE_KEY), size: state.finalBlob.size, pid: state.projectId, journal: journalText(), status: document.getElementById('boite-status').textContent }));
+    const boite = (p, m, h, body) => W.default.fetch(new Request('https://relais.test' + p, { method: m || 'GET', headers: h || {}, body }), env);
+    const bAuth = { Authorization: 'Bearer ' + bk.key }, bApp = { ...bAuth, Origin: ORIGIN };
+    const bInfo = await (await boite('/boite', 'GET', bAuth)).json();
+    const bVid = await boite('/boite/video', 'GET', bAuth), bLen = bVid.ok ? (await bVid.arrayBuffer()).byteLength : -bVid.status;
+    const bRefus = [(await boite('/boite')).status, (await boite('/boite/video', 'GET', { Authorization: 'Bearer ' + 'x'.repeat(43) })).status,
+        (await boite('/boite', 'GET', { ...bAuth, Origin: 'https://pirate.test' })).status, (await boite('/boite', 'PUT', bAuth, JSON.stringify({ key: 'final/' + bk.pid, own: false }))).status,
+        (await boite('/boite/cle', 'POST', { Origin: ORIGIN }, JSON.stringify({ empreinte: 'A'.repeat(43) }))).status, (await boite('/boite', 'POST', bApp, '{}')).status];
+    check(bInfo.present && bInfo.own === false && bInfo.size === bk.size && bLen === bk.size && bInfo.info.plans.length >= 3 && bInfo.info.version === await page.evaluate(() => APP_VERSION.num)
+        && bInfo.info.mode === 'image par image' && JSON.stringify(bRefus) === '[401,401,403,403,409,405]' && bk.key.length === 43 && !bk.journal.includes(bk.key) && /Dernière vidéo déposée/.test(bk.status),
+        'boîte à vidéo pour Claude : vidéo finie déposée (lien vers la bibliothèque), lue avec la clé seulement, refusée sans clé, avec une fausse clé, depuis un autre site ou pour déposer sans l\'appli ; clé jamais dans le journal (' + JSON.stringify({ present: bInfo.present, own: bInfo.own, len: bLen, size: bk.size, refus: bRefus, plans: bInfo.info && bInfo.info.plans.length }) + ')');
+    // l'outil de Claude (boite.py) sur ce même serveur : infos, téléchargement, vidage
+    const http = require('http'), { spawnSync } = require('child_process');
+    const srv = http.createServer(async (req, res) => {
+        const chunks = []; for await (const c of req) chunks.push(c);
+        const h = {}; for (const [k, v] of Object.entries(req.headers)) if (!['host', 'connection', 'content-length'].includes(k)) h[k] = v;
+        const r = await W.default.fetch(new Request('https://relais.test' + req.url, { method: req.method, headers: h, body: chunks.length ? Buffer.concat(chunks) : undefined }), env);
+        res.writeHead(r.status, Object.fromEntries(r.headers)); res.end(Buffer.from(await r.arrayBuffer()));
+    });
+    await new Promise(r => srv.listen(0, '127.0.0.1', r));
+    const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'boite-'));
+    const py = (args, key) => spawnSync('python3', ['-I', path.join(ROOT, '.claude/skills/regarder-une-video/scripts/boite.py'), ...args], { encoding: 'utf8', timeout: 60000,
+        env: { PATH: process.env.PATH, HOME: os.tmpdir(), NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost', CARTOON_SERVEUR: 'http://127.0.0.1:' + srv.address().port, ...(key ? { CARTOON_BOITE_CLE: key } : {}) } });
+    const pyNoKey = py(['infos']), pyInfo = py(['infos'], bk.key), pyGet = py(['recuperer', '--out', outDir], bk.key);
+    const got = fs.existsSync(path.join(outDir, 'derniere-video.mp4')) ? fs.statSync(path.join(outDir, 'derniere-video.mp4')).size : -1;
+    const pyEmpty = py(['vider'], bk.key), pyAfter = py(['infos'], bk.key);
+    const libStill = (await boite('/media/' + encodeURIComponent('final/' + bk.pid), 'GET', { Origin: ORIGIN })).status;
+    const seen = await page.evaluate(async () => { await boiteRafraichir(); return document.getElementById('boite-status').textContent; });
+    check(pyNoKey.status !== 0 && /Clé refusée ou absente/.test(pyNoKey.stderr) && pyInfo.status === 0 && pyInfo.stdout.includes('"present": true') && got === bk.size && pyEmpty.status === 0 && /reste dans la bibliothèque/.test(pyEmpty.stdout)
+        && pyAfter.status !== 0 && /Boîte vide/.test(pyAfter.stderr) && libStill === 200 && /Claude l'a regardée/.test(seen) && !(pyInfo.stdout + pyGet.stdout + pyEmpty.stdout).includes(bk.key),
+        'outil de Claude (boite.py) : infos, vidéo téléchargée entière, boîte vidée, ta bibliothèque gardée, l\'appli voit que Claude l\'a regardée (' + JSON.stringify({ got, size: bk.size, lib: libStill, err: (pyNoKey.stderr + pyInfo.stderr + pyGet.stderr).slice(0, 300) }) + ')');
+    // sans sauvegarde dans la bibliothèque : copie propre à la boîte, remplacée puis effacée
+    const own = await page.evaluate(async () => { const keep = state.backupOn; state.backupOn = false; try { await boiteDeposer(null); } finally { state.backupOn = keep; } return getJSON(STORAGE.BOITE_LAST); });
+    const ownInfo = await (await boite('/boite', 'GET', bAuth)).json(), ownCopy = (await boite('/media/boite%2Fderniere', 'GET', { Origin: ORIGIN })).status;
+    await page.evaluate(pid => boiteDeposer('final/' + pid), bk.pid);
+    const ownGone = (await boite('/media/boite%2Fderniere', 'GET', { Origin: ORIGIN })).status;
+    await page.evaluate(() => boiteDeposer(null));
+    const del = await (await boite('/boite', 'DELETE', bAuth)).json(), ownGone2 = (await boite('/media/boite%2Fderniere', 'GET', { Origin: ORIGIN })).status;
+    srv.close(); fs.rmSync(outDir, { recursive: true, force: true });
+    check(own && ownInfo.own === true && ownInfo.size === bk.size && ownCopy === 200 && ownGone === 404 && del.efface === true && ownGone2 === 404,
+        'boîte sans sauvegarde : copie propre à la boîte, une seule vidéo à la fois, effacée du serveur quand Claude vide la boîte (' + JSON.stringify({ own: ownInfo.own, ownCopy, ownGone, efface: del.efface, ownGone2 }) + ')');
     check(await page.evaluate(() => state.finalExt === 'mp4' && /Montage image par image : \d+ images/.test(journalText())), 'montage fait image par image (WebCodecs) : ' + (await page.evaluate(() => (journalText().match(/Montage image par image[^\n]*/) || [''])[0])));
     check(r.tl.every(d => d > 2 && d < 3.2), 'blancs coupés (durées ' + r.tl.join(', ') + ' s)');
     check(r.fit.every(Boolean), 'voix ElevenLabs calée utilisée');
