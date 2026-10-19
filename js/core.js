@@ -610,6 +610,7 @@ async function importKeys(file) {
         if (!data || data.app !== 'cartoon-instructeur' || !data.keys) throw new Error('fichier non reconnu');
         let n = 0;
         BACKUP_KEYS.forEach(k => { if (typeof data.keys[k] === 'string' && data.keys[k]) { setLS(STORAGE[k], data.keys[k]); n++; } });
+        if (data.keys.BOITE_KEY) setLS(STORAGE.BOITE_LINKED, '');   // clé de la boîte restaurée : la relier au prochain dépôt
         showToast(n + ' réglage' + (n > 1 ? 's' : '') + ' restauré' + (n > 1 ? 's' : '') + ' ✓', 'success');
         refreshKeyFields();
     } catch (e) { showToast('Restauration impossible : ' + e.message, 'error', 5000); }

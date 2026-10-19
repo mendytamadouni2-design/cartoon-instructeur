@@ -70,11 +70,18 @@ function boiteRelancer() {
         if (!s || s.gen !== boiteGen) return;   // déjà fait, ou une vidéo plus récente attend
         await boiteDeposerRun(s);
         if (boiteSlot === s) boiteSlot = null;
-    }).catch(e => { log('Boîte à vidéo pour Claude : ' + e.message); boiteEtatCache = { erreur: e.message }; renderBoite(); });
+    }).catch(e => { log('Boîte à vidéo pour Claude : ' + e.message); boiteEtatCache = { erreur: e.message, code: e.code }; renderBoite(); });
     return boiteChain;
 }
 async function boiteDeposerRun(s) {
     await boiteLier();
+    // la clé est-elle bien celle du serveur ? (gratuit ; évite d'envoyer 100 Mo pour rien)
+    try { await boiteFetch('/boite'); }
+    catch (e) {
+        if (e.code === 'non-liee') await boiteLier();
+        else if (e.code === 'cle-refusee') throw Object.assign(new Error('ta boîte est liée à une autre clé : dis à Claude « réinitialise ma boîte », puis recopie la clé'), { code: e.code });
+        else if (e.status !== 404) throw e;
+    }
     let key = s.key, own = false;
     if (!key) { await uploadMedia(BOITE_OWN_KEY, s.blob, 'boite', 'Boîte à vidéo pour Claude'); key = BOITE_OWN_KEY; own = true; }
     if (s.gen !== boiteGen) return;
@@ -119,7 +126,7 @@ function renderBoite() {
             + ' (' + Math.round(last.duree || 0) + ' s, ' + Math.round((last.taille || 0) / 1e5) / 10 + ' Mo)';
         if (boiteEtatCache && boiteEtatCache.pleine === false) t += ' — ✅ Claude l\'a regardée, boîte vide.';
     }
-    if (boiteEtatCache && boiteEtatCache.erreur) t += ' — ⚠️ ' + boiteEtatCache.erreur + (boiteSlot ? ' (nouvel essai au prochain retour dans l\'appli)' : '');
+    if (boiteEtatCache && boiteEtatCache.erreur) t += ' — ⚠️ ' + boiteEtatCache.erreur + (boiteSlot && boiteEtatCache.code !== 'cle-refusee' ? ' (nouvel essai au prochain retour dans l\'appli)' : '');
     st.textContent = t;
 }
 document.addEventListener('click', e => {
@@ -128,5 +135,6 @@ document.addEventListener('click', e => {
 });
 // envoi coupé (appli mise en arrière-plan, réseau) : nouvel essai au retour dans l'appli
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && boiteSlot && boiteSlot.gen === boiteGen && boiteEtatCache && boiteEtatCache.erreur) { boiteEtatCache = null; boiteRelancer(); }
+    // pas pour une clé refusée : ça ne s'arrangera pas tout seul (et chaque essai pourrait renvoyer la vidéo)
+    if (!document.hidden && boiteSlot && boiteSlot.gen === boiteGen && boiteEtatCache && boiteEtatCache.erreur && boiteEtatCache.code !== 'cle-refusee') { boiteEtatCache = null; boiteRelancer(); }
 });

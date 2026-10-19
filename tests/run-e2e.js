@@ -322,11 +322,20 @@ async function testPhoneMontage(browser) {
     await page.evaluate(pid => boiteDeposer('final/' + pid), bk.pid);
     const relie = await (await boite('/boite', 'GET', bAuth)).json();
     await boite('/boite', 'DELETE', bAuth);
+    // clé refusée (ancien fichier de clés, autre téléphone) : rien n'est envoyé, message clair, pas de nouvel essai en boucle
+    const refus = await page.evaluate(async () => {
+        const k = getLS(STORAGE.BOITE_KEY); setLS(STORAGE.BOITE_KEY, 'Z'.repeat(43)); boiteCleMem = ''; setLS(STORAGE.BOITE_LINKED, '1');
+        await boiteDeposer(null); const st = document.getElementById('boite-status').textContent, code = boiteEtatCache && boiteEtatCache.code;
+        setLS(STORAGE.BOITE_KEY, k); boiteCleMem = ''; boiteSlot = null; boiteEtatCache = null; renderBoite(); return { st, code };
+    });
+    const ownNotSent = (await boite('/media/boite%2Fderniere', 'GET', { Origin: ORIGIN })).status;
     srv.close(); fs.rmSync(outDir, { recursive: true, force: true });
     check(own && ownInfo.own === true && ownInfo.size === bk.size && ownCopy === 200 && ownGone === 404 && del.efface === true && ownGone2 === 404,
         'boîte sans sauvegarde : copie propre à la boîte, une seule vidéo à la fois, effacée du serveur quand Claude vide la boîte (' + JSON.stringify({ own: ownInfo.own, ownCopy, ownGone, efface: del.efface, ownGone2 }) + ')');
     check(pyReset.status === 0 && afterReset === 401 && ownAfterReset === 404 && relie.present === true && relie.own === false,
         'boîte réinitialisée par Claude (nouveau téléphone) : clé déliée, copie effacée, l\'appli se relie toute seule (' + JSON.stringify({ reset: pyReset.status, afterReset, ownAfterReset, present: relie.present, err: pyReset.stderr.slice(0, 200) }) + ')');
+    check(/réinitialise ma boîte/.test(refus.st) && refus.code === 'cle-refusee' && ownNotSent === 404,
+        'boîte liée à une autre clé : aucune vidéo envoyée pour rien, message « réinitialise ma boîte » (' + JSON.stringify({ code: refus.code, ownNotSent }) + ')');
     check(await page.evaluate(() => state.finalExt === 'mp4' && /Montage image par image : \d+ images/.test(journalText())), 'montage fait image par image (WebCodecs) : ' + (await page.evaluate(() => (journalText().match(/Montage image par image[^\n]*/) || [''])[0])));
     check(r.tl.every(d => d > 2 && d < 3.2), 'blancs coupés (durées ' + r.tl.join(', ') + ' s)');
     check(r.fit.every(Boolean), 'voix ElevenLabs calée utilisée');
