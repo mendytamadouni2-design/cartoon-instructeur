@@ -29,7 +29,8 @@ python3 -I ${CLAUDE_SKILL_DIR}/scripts/regarder.py VIDEO.mp4 --out /chemin/resul
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/scripts/boite.py infos              # date, durée, style, mode, plans (débuts)
 python3 ${CLAUDE_SKILL_DIR}/scripts/boite.py regarder --out DIR # télécharge et regarde (raccords entre plans inclus)
-python3 ${CLAUDE_SKILL_DIR}/scripts/boite.py vider              # après le rapport (la bibliothèque n'est jamais touchée)
+python3 ${CLAUDE_SKILL_DIR}/scripts/boite.py vider --date D     # après le rapport, D affichée par regarder (bibliothèque jamais touchée)
+python3 ${CLAUDE_SKILL_DIR}/scripts/boite.py reinitialiser      # nouveau téléphone : délie l'ancienne clé, l'appli se relie
 ```
 
 Clé : `CARTOON_BOITE_CLE` (réglages de l'environnement, jamais dans la conversation) ; serveur : `CARTOON_SERVEUR`, sinon

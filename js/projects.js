@@ -182,6 +182,7 @@ document.addEventListener('click', async e => {
 async function projectFinalReady() {
     if (!state.finalFresh || !state.finalBlob) return;
     state.finalFresh = false;
+    const boiteSnap = typeof boiteSnapshot === 'function' ? boiteSnapshot() : null;   // avant l'envoi : la vidéo suivante peut déjà commencer
     const id = ensureProject();
     const dur = (state.timeline || []).reduce((a, t) => a + t.duration, 0);
     updateProject(id, { status: 'done', timeline: state.timeline, duration: dur });
@@ -190,7 +191,7 @@ async function projectFinalReady() {
         try { finalKey = await uploadMedia('final/' + id, state.finalBlob, 'final', (state.theme || 'Vidéo') + ' · ' + new Date().toLocaleDateString('fr-FR')); updateProject(id, { finalKey }); }
         catch (e) { log('Sauvegarde de la vidéo finale : ' + e.message); }
     }
-    if (typeof boiteDeposer === 'function') boiteDeposer(finalKey);   // 9.2 : la dernière vidéo pour Claude (sans attendre)
+    if (boiteSnap) boiteDeposer(finalKey, boiteSnap);   // 9.2 : la dernière vidéo pour Claude (sans attendre)
 }
 
 // ══════════════════════════════════════════════════════════════════

@@ -24,7 +24,11 @@ Déployé **automatiquement depuis `main`** (`wrangler.jsonc` : Durable Object `
    signée et temporaire `/pub/:clé?exp=…&sig=…` (6 h, pour Instagram).
 5. **Boîte à vidéo pour Claude** (9.2) : `POST /boite/cle` (appli : empreinte SHA-256 de la clé, la première gagne,
    la changer demande l'ancienne → sinon 409), `PUT /boite` (appli + clé : `{ key, own, info }`, la vidéo est déjà dans
-   le stockage), `GET /boite`, `GET /boite/video`, `DELETE /boite` (clé seule : Claude n'a pas d'en-tête Origin).
+   le stockage), `GET /boite`, `GET /boite/video`, `DELETE /boite[?date=…|?reset=1]` (clé seule : Claude n'a pas
+   d'en-tête Origin ; sans `Authorization: Bearer` ni origine → 401 avant de réveiller le Durable Object). `?date` :
+   refuse de vider si une nouvelle vidéo est arrivée (409) ; `?reset=1` : délie aussi la clé (nouveau téléphone).
+   Erreurs 401 avec `code` : `non-liee` (l'appli se relie toute seule) ou `cle-refusee`.
+   Les médias sont lus bloc par bloc (`pull`), jamais chargés en entier (128 Mo de mémoire par Durable Object).
    Une seule vidéo : lien vers `final/<projet>` de la bibliothèque (`own: false`, jamais effacée par la boîte) ou
    copie propre `boite/derniere` (`own: true`, effacée quand la boîte change ou est vidée).
 

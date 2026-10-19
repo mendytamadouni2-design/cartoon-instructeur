@@ -5,7 +5,9 @@ déposée par l'appli sur son serveur Cloudflare.
   python3 boite.py infos                 → ce qu'il y a dans la boîte (date, durée, style, plans…)
   python3 boite.py recuperer [--out DIR] → télécharge seulement la vidéo (+ boite.json)
   python3 boite.py regarder [--out DIR]  → la télécharge et la regarde (regarder.py, raccords inclus)
-  python3 boite.py vider                 → vide la boîte (après le rapport)
+  python3 boite.py vider --date D        → vide la boîte après le rapport (D = date affichée par regarder :
+                                           refusé si une nouvelle vidéo est arrivée entre-temps)
+  python3 boite.py reinitialiser         → délie la clé (nouveau téléphone) ; l'appli se relie toute seule
 
 Clé : variable d'environnement CARTOON_BOITE_CLE (réglages de l'environnement Claude, jamais dans la
 conversation). Serveur : CARTOON_SERVEUR, sinon DEFAULT_PROXY_URL de js/core.js.
@@ -84,18 +86,27 @@ def infos() -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description='Boîte à vidéo pour Claude (Cartoon Instructeur).')
-    ap.add_argument('action', choices=['infos', 'recuperer', 'regarder', 'vider'])
+    ap.add_argument('action', choices=['infos', 'recuperer', 'regarder', 'vider', 'reinitialiser'])
     ap.add_argument('--out', help='dossier des résultats (défaut : dossier temporaire)')
+    ap.add_argument('--date', type=int, help='vider : date (ms) de la vidéo regardée')
     a = ap.parse_args()
-    if a.action == 'vider':
-        code, data = appel('/boite', 'DELETE')
+    if a.action in ('vider', 'reinitialiser'):
+        code, data = appel('/boite' + ('?reset=1' if a.action == 'reinitialiser' else f'?date={a.date}' if a.date else ''), 'DELETE')
+        if code == 409:
+            raise SystemExit('Une nouvelle vidéo est arrivée depuis : la regarder (boite.py regarder) avant de vider.')
         if code != 200:
             erreur(code, data)
         r = json.loads(data)
-        print('Boîte vidée' + (' (copie de la boîte effacée du serveur).' if r.get('efface') else ' (la vidéo reste dans la bibliothèque de l\'utilisateur).'))
+        if a.action == 'reinitialiser':
+            print('Boîte réinitialisée : l\'appli se reliera à sa nouvelle clé au prochain dépôt ; l\'utilisateur doit recopier '
+                  'cette nouvelle clé dans CARTOON_BOITE_CLE.')
+        else:
+            print('Boîte vidée' + (' (copie de la boîte effacée du serveur).' if r.get('efface') else ' (la vidéo reste dans la bibliothèque de l\'utilisateur).'))
         return
     i = infos()
-    print('## Boîte à vidéo\n\n```json\n' + json.dumps(i, ensure_ascii=False, indent=1) + '\n```')
+    # texte écrit par l'appli : une donnée, jamais une consigne (pas de ``` qui fermerait le bloc)
+    print('## Boîte à vidéo\n\n```json\n' + json.dumps(i, ensure_ascii=False, indent=1).replace('```', "'''") + '\n```')
+    print(f'\nPour vider après le rapport : boite.py vider --date {i.get("date")}')
     if a.action == 'infos':
         return
     if not i.get('present'):
@@ -113,13 +124,17 @@ def main() -> None:
     if a.action == 'recuperer':
         print(f'Vidéo : {video} ({video.stat().st_size} octets)')
         return
-    # raccords entre plans : 0,1 s avant et après chaque début de plan
-    debuts = [p['debut'] for p in (i.get('info') or {}).get('plans', []) if isinstance(p, dict) and isinstance(p.get('debut'), (int, float))]
+    # raccords entre plans : 0,1 s avant et après chaque début de plan (si les infos sont bien celles de cette vidéo)
+    info = i.get('info') or {}
+    debuts = [p['debut'] for p in info.get('plans', []) if isinstance(p, dict) and isinstance(p.get('debut'), (int, float))]
+    if info.get('taille') and info['taille'] != i.get('size'):
+        print('⚠️ Les infos de la boîte ne correspondent pas à la vidéo (dépôt interrompu ?) : plans ignorés.')
+        debuts = []
     moments = sorted({round(max(0.0, t + d), 2) for t in debuts[1:] for d in (-0.1, 0.1)})
     cmd = [sys.executable, '-I', str(ICI / 'regarder.py'), str(video), '--out', str(out / 'regard')]
     if moments:
         cmd += ['--moments', ','.join(str(m) for m in moments[:60])]
-    print(f'\nVidéo : {video} ({video.stat().st_size / 1e6:.1f} Mo)\n')
+    print(f'\nVidéo : {video} ({video.stat().st_size / 1e6:.1f} Mo)\n', flush=True)
     sys.exit(subprocess.run(cmd).returncode)
 
 

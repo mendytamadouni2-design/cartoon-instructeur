@@ -284,7 +284,7 @@ async function testPhoneMontage(browser) {
         && bInfo.info.mode === 'image par image' && JSON.stringify(bRefus) === '[401,401,403,403,409,405]' && bk.key.length === 43 && !bk.journal.includes(bk.key) && /Dernière vidéo déposée/.test(bk.status),
         'boîte à vidéo pour Claude : vidéo finie déposée (lien vers la bibliothèque), lue avec la clé seulement, refusée sans clé, avec une fausse clé, depuis un autre site ou pour déposer sans l\'appli ; clé jamais dans le journal (' + JSON.stringify({ present: bInfo.present, own: bInfo.own, len: bLen, size: bk.size, refus: bRefus, plans: bInfo.info && bInfo.info.plans.length }) + ')');
     // l'outil de Claude (boite.py) sur ce même serveur : infos, téléchargement, vidage
-    const http = require('http'), { spawnSync } = require('child_process');
+    const http = require('http'), { spawn } = require('child_process');
     const srv = http.createServer(async (req, res) => {
         const chunks = []; for await (const c of req) chunks.push(c);
         const h = {}; for (const [k, v] of Object.entries(req.headers)) if (!['host', 'connection', 'content-length'].includes(k)) h[k] = v;
@@ -293,16 +293,22 @@ async function testPhoneMontage(browser) {
     });
     await new Promise(r => srv.listen(0, '127.0.0.1', r));
     const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'boite-'));
-    const py = (args, key) => spawnSync('python3', ['-I', path.join(ROOT, '.claude/skills/regarder-une-video/scripts/boite.py'), ...args], { encoding: 'utf8', timeout: 60000,
-        env: { PATH: process.env.PATH, HOME: os.tmpdir(), NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost', CARTOON_SERVEUR: 'http://127.0.0.1:' + srv.address().port, ...(key ? { CARTOON_BOITE_CLE: key } : {}) } });
-    const pyNoKey = py(['infos']), pyInfo = py(['infos'], bk.key), pyGet = py(['recuperer', '--out', outDir], bk.key);
+    // lancé sans bloquer : le petit serveur ci-dessus tourne dans ce même processus
+    const py = (args, key) => new Promise(done => {
+        const c = spawn('python3', ['-I', path.join(ROOT, '.claude/skills/regarder-une-video/scripts/boite.py'), ...args],
+            { env: { PATH: process.env.PATH, HOME: os.tmpdir(), NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost', CARTOON_SERVEUR: 'http://127.0.0.1:' + srv.address().port, ...(key ? { CARTOON_BOITE_CLE: key } : {}) } });
+        let stdout = '', stderr = ''; c.stdout.on('data', d => { stdout += d; }); c.stderr.on('data', d => { stderr += d; });
+        const t = setTimeout(() => c.kill(), 60000);
+        c.on('close', status => { clearTimeout(t); done({ status, stdout, stderr }); });
+    });
+    const pyNoKey = await py(['infos']), pyInfo = await py(['infos'], bk.key), pyGet = await py(['recuperer', '--out', outDir], bk.key);
     const got = fs.existsSync(path.join(outDir, 'derniere-video.mp4')) ? fs.statSync(path.join(outDir, 'derniere-video.mp4')).size : -1;
-    const pyEmpty = py(['vider'], bk.key), pyAfter = py(['infos'], bk.key);
+    const pyStale = await py(['vider', '--date', '1'], bk.key), pyEmpty = await py(['vider', '--date', String(bInfo.date)], bk.key), pyAfter = await py(['infos'], bk.key);
     const libStill = (await boite('/media/' + encodeURIComponent('final/' + bk.pid), 'GET', { Origin: ORIGIN })).status;
     const seen = await page.evaluate(async () => { await boiteRafraichir(); return document.getElementById('boite-status').textContent; });
-    check(pyNoKey.status !== 0 && /Clé refusée ou absente/.test(pyNoKey.stderr) && pyInfo.status === 0 && pyInfo.stdout.includes('"present": true') && got === bk.size && pyEmpty.status === 0 && /reste dans la bibliothèque/.test(pyEmpty.stdout)
+    check(pyNoKey.status !== 0 && /Clé refusée ou absente/.test(pyNoKey.stderr) && pyInfo.status === 0 && pyInfo.stdout.includes('"present": true') && got === bk.size && pyStale.status !== 0 && /nouvelle vidéo est arrivée/.test(pyStale.stderr) && pyEmpty.status === 0 && /reste dans la bibliothèque/.test(pyEmpty.stdout)
         && pyAfter.status !== 0 && /Boîte vide/.test(pyAfter.stderr) && libStill === 200 && /Claude l'a regardée/.test(seen) && !(pyInfo.stdout + pyGet.stdout + pyEmpty.stdout).includes(bk.key),
-        'outil de Claude (boite.py) : infos, vidéo téléchargée entière, boîte vidée, ta bibliothèque gardée, l\'appli voit que Claude l\'a regardée (' + JSON.stringify({ got, size: bk.size, lib: libStill, err: (pyNoKey.stderr + pyInfo.stderr + pyGet.stderr).slice(0, 300) }) + ')');
+        'outil de Claude (boite.py) : infos, vidéo téléchargée entière, pas de vidage si une autre vidéo est arrivée, boîte vidée, ta bibliothèque gardée, l\'appli voit que Claude l\'a regardée (' + JSON.stringify({ got, size: bk.size, lib: libStill, err: (pyNoKey.stderr + pyInfo.stderr + pyGet.stderr + pyStale.stderr + pyEmpty.stderr).slice(0, 400) }) + ')');
     // sans sauvegarde dans la bibliothèque : copie propre à la boîte, remplacée puis effacée
     const own = await page.evaluate(async () => { const keep = state.backupOn; state.backupOn = false; try { await boiteDeposer(null); } finally { state.backupOn = keep; } return getJSON(STORAGE.BOITE_LAST); });
     const ownInfo = await (await boite('/boite', 'GET', bAuth)).json(), ownCopy = (await boite('/media/boite%2Fderniere', 'GET', { Origin: ORIGIN })).status;
@@ -310,9 +316,17 @@ async function testPhoneMontage(browser) {
     const ownGone = (await boite('/media/boite%2Fderniere', 'GET', { Origin: ORIGIN })).status;
     await page.evaluate(() => boiteDeposer(null));
     const del = await (await boite('/boite', 'DELETE', bAuth)).json(), ownGone2 = (await boite('/media/boite%2Fderniere', 'GET', { Origin: ORIGIN })).status;
+    // nouveau téléphone : Claude réinitialise avec l'ancienne clé, l'appli se relie toute seule au dépôt suivant
+    await page.evaluate(() => boiteDeposer(null));
+    const pyReset = await py(['reinitialiser'], bk.key), afterReset = (await boite('/boite', 'GET', bAuth)).status, ownAfterReset = (await boite('/media/boite%2Fderniere', 'GET', { Origin: ORIGIN })).status;
+    await page.evaluate(pid => boiteDeposer('final/' + pid), bk.pid);
+    const relie = await (await boite('/boite', 'GET', bAuth)).json();
+    await boite('/boite', 'DELETE', bAuth);
     srv.close(); fs.rmSync(outDir, { recursive: true, force: true });
     check(own && ownInfo.own === true && ownInfo.size === bk.size && ownCopy === 200 && ownGone === 404 && del.efface === true && ownGone2 === 404,
         'boîte sans sauvegarde : copie propre à la boîte, une seule vidéo à la fois, effacée du serveur quand Claude vide la boîte (' + JSON.stringify({ own: ownInfo.own, ownCopy, ownGone, efface: del.efface, ownGone2 }) + ')');
+    check(pyReset.status === 0 && afterReset === 401 && ownAfterReset === 404 && relie.present === true && relie.own === false,
+        'boîte réinitialisée par Claude (nouveau téléphone) : clé déliée, copie effacée, l\'appli se relie toute seule (' + JSON.stringify({ reset: pyReset.status, afterReset, ownAfterReset, present: relie.present, err: pyReset.stderr.slice(0, 200) }) + ')');
     check(await page.evaluate(() => state.finalExt === 'mp4' && /Montage image par image : \d+ images/.test(journalText())), 'montage fait image par image (WebCodecs) : ' + (await page.evaluate(() => (journalText().match(/Montage image par image[^\n]*/) || [''])[0])));
     check(r.tl.every(d => d > 2 && d < 3.2), 'blancs coupés (durées ' + r.tl.join(', ') + ' s)');
     check(r.fit.every(Boolean), 'voix ElevenLabs calée utilisée');

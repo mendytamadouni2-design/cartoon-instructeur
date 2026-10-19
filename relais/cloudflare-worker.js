@@ -49,7 +49,9 @@
 //      POST   /boite/cle   (appli) → lie la boîte à une clé ; la changer demande l'ancienne clé
 //      PUT    /boite       (appli + clé) → { key, own, info } : vidéo déjà stockée à regarder
 //      GET    /boite       (clé) → infos ; GET /boite/video (clé) → la vidéo
-//      DELETE /boite       (clé) → vide la boîte (efface la copie propre à la boîte, jamais la bibliothèque)
+//      DELETE /boite       (clé) → vide la boîte (efface la copie propre à la boîte, jamais la bibliothèque) ;
+//             ?date=…     → seulement si c'est bien la vidéo regardée (sinon 409 : une nouvelle est arrivée)
+//             ?reset=1    → délie aussi la clé (nouveau téléphone : Claude garde l'ancienne clé et réinitialise)
 //
 // Sécurité : seul le site de l'appli peut l'utiliser (ALLOWED_ORIGINS) ; la boîte demande en plus sa clé.
 
@@ -163,10 +165,11 @@ async function handleBoite(request, env, url, cors, allowed) {
     if ((action === 'boite-cle' && m !== 'POST') || (action === 'boite' && !['GET', 'PUT', 'DELETE'].includes(m)) || (action === 'boite-video' && !['GET', 'HEAD'].includes(m))) return json({ error: 'Méthode non permise' }, 405, cors);
     // lier la boîte et y déposer : depuis l'appli seulement ; lire et vider : avec la clé (Claude)
     if ((action === 'boite-cle' || m === 'PUT') && !allowed) return json({ error: 'Réservé à l\'appli' }, 403, cors);
+    if (!allowed && !/^Bearer\s+\S{32,}$/i.test(request.headers.get('Authorization') || '')) return json({ error: 'Clé de la boîte requise', code: 'cle-refusee' }, 401, cors);
     const body = m === 'POST' || m === 'PUT' ? await request.text() : undefined;
     if (body && body.length > 20000) return json({ error: 'Données trop lourdes' }, 413, cors);
     const store = env.JOBS.get(env.JOBS.idFromName('media'));
-    const r = await store.fetch('https://job/' + action, { method: m === 'HEAD' ? 'GET' : m, body, headers: { Authorization: request.headers.get('Authorization') || '' } });
+    const r = await store.fetch('https://job/' + action + url.search, { method: m === 'HEAD' ? 'GET' : m, body, headers: { Authorization: request.headers.get('Authorization') || '' } });
     if (action === 'boite-video' && r.ok) {
         const h = new Headers(cors); ['Content-Type', 'Content-Length'].forEach(n => { const v = r.headers.get(n); if (v) h.set(n, v); });
         return new Response(m === 'HEAD' ? null : r.body, { status: r.status, headers: h });
@@ -371,8 +374,14 @@ export class VideoJob {
         const meta = await this.storage.get('meta:' + key);
         if (!meta) return new Response('Introuvable', { status: 404 });
         const storage = this.storage, prefix = 'chunk:' + (meta.prefix || key) + ':';
+        let i = 0;   // bloc par bloc, à la demande du lecteur (une vidéo de 150 Mo ne tient pas en mémoire)
         const body = new ReadableStream({
-            async start(ctrl) { for (let i = 0; i < meta.chunks; i++) ctrl.enqueue(new Uint8Array(await storage.get(prefix + i))); ctrl.close(); }
+            async pull(ctrl) {
+                if (i >= meta.chunks) return ctrl.close();
+                const c = await storage.get(prefix + i++);
+                if (!c) return ctrl.error(new Error('bloc manquant'));
+                ctrl.enqueue(new Uint8Array(c));
+            }
         });
         return new Response(body, { headers: { 'Content-Type': meta.type, 'Content-Length': String(meta.size) } });
     }
@@ -389,20 +398,22 @@ export class VideoJob {
             await this.storage.put('boite:empreinte', p.empreinte);
             return Response.json({ ok: true });
         }
-        if (!ok) return Response.json({ error: gardee ? 'Clé de la boîte refusée' : 'Boîte pas encore créée par l\'appli' }, { status: 401 });
+        if (!ok) return Response.json(gardee ? { error: 'Clé de la boîte refusée', code: 'cle-refusee' } : { error: 'Boîte pas encore créée par l\'appli', code: 'non-liee' }, { status: 401 });
         const b = await this.storage.get('boite');
         if (request.method === 'PUT') {
             let p; try { p = JSON.parse(await request.text()); } catch (e) { return Response.json({ error: 'Données illisibles' }, { status: 400 }); }
             if (!p || typeof p.key !== 'string' || !(await this.storage.get('meta:' + p.key))) return Response.json({ error: 'Vidéo introuvable dans le stockage' }, { status: 404 });
             if (!!p.own !== (p.key === BOITE_OWN)) return Response.json({ error: 'Copie de la boîte incohérente' }, { status: 400 });
-            if (b && b.own && b.key !== p.key) await this.deleteMedia(b.key);   // une seule vidéo à la fois
+            if (p.key !== BOITE_OWN) await this.deleteMedia(BOITE_OWN);   // une seule vidéo à la fois (même une copie restée sans dépôt)
             await this.storage.put('boite', { key: p.key, own: !!p.own, info: p.info && typeof p.info === 'object' ? p.info : {}, date: Date.now() });
             return Response.json({ ok: true });
         }
         if (request.method === 'DELETE') {
-            if (b && b.own) await this.deleteMedia(b.key);
-            await this.storage.delete('boite');
-            return Response.json({ ok: true, efface: !!(b && b.own) });
+            const q = new URL(request.url).searchParams, vue = +q.get('date');
+            if (vue && b && b.date !== vue) return Response.json({ error: 'Une nouvelle vidéo est arrivée depuis : regarde-la avant de vider', code: 'nouvelle' }, { status: 409 });
+            await this.deleteMedia(BOITE_OWN);
+            await this.storage.delete(q.has('reset') ? ['boite', 'boite:empreinte'] : ['boite']);
+            return Response.json({ ok: true, efface: !!(b && b.own), delie: q.has('reset') });
         }
         if (!b) return Response.json({ error: 'Boîte vide' }, { status: 404 });
         const meta = await this.storage.get('meta:' + b.key);

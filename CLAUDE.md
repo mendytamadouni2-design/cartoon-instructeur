@@ -161,7 +161,10 @@ L'appli dépose chaque vidéo finie dans la **boîte** de son serveur Cloudflare
 2. Ouvrir **toutes** les planches avec Read, puis les images utiles ; juger avec `regles-shorts`.
 3. Rapport à l'utilisateur en français simple : ce qui va, ce qui ne va pas (instant, ce qu'on voit, cause probable),
    ce que je propose. Chaque défaut de l'appli devient un constat prouvé avant toute correction.
-4. `boite.py vider`, puis effacer le dossier téléchargé. Vider ne touche jamais à sa bibliothèque.
+4. `boite.py vider --date <date affichée par regarder>` (refusé si une nouvelle vidéo est arrivée entre-temps), puis
+   effacer le dossier téléchargé. Vider ne touche jamais à sa bibliothèque.
+5. L'appli dit « boîte liée à une autre clé » (nouveau téléphone, données effacées) : `boite.py reinitialiser` avec
+   l'ancienne clé de l'environnement ; l'appli se relie toute seule ; l'utilisateur recopie la nouvelle clé.
 
 ### Compétences (skills, `.claude/skills/`)
 

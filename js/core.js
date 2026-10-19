@@ -597,7 +597,7 @@ async function saveProxy() {
     const ok = await testProxy();
     showToast(ok ? 'Relais enregistré et opérationnel ✓' : 'Relais enregistré, mais le test a échoué', ok ? 'success' : 'error', 4000);
 }
-const BACKUP_KEYS = ['AGNES_KEY', 'CLAUDE_KEY', 'CLAUDE_MODEL', 'PROXY_URL', 'ELEVENLABS_KEY', 'ELEVENLABS_VOICE', 'GCLOUD_KEY', 'GCLOUD_VOICE', 'AZURE_KEY', 'AZURE_REGION', 'AZURE_VOICE', 'POLLY_KEY', 'POLLY_SECRET', 'POLLY_REGION', 'POLLY_VOICE', 'OPENAI_KEY', 'DEEPL_KEY', 'GTRANSLATE_KEY', 'AVATAR_KEY', 'YOUTUBE_CLIENT', 'YOUTUBE_APIKEY'];
+const BACKUP_KEYS = ['AGNES_KEY', 'CLAUDE_KEY', 'CLAUDE_MODEL', 'PROXY_URL', 'ELEVENLABS_KEY', 'ELEVENLABS_VOICE', 'GCLOUD_KEY', 'GCLOUD_VOICE', 'AZURE_KEY', 'AZURE_REGION', 'AZURE_VOICE', 'POLLY_KEY', 'POLLY_SECRET', 'POLLY_REGION', 'POLLY_VOICE', 'OPENAI_KEY', 'DEEPL_KEY', 'GTRANSLATE_KEY', 'AVATAR_KEY', 'YOUTUBE_CLIENT', 'YOUTUBE_APIKEY', 'BOITE_KEY'];
 function exportKeys() {
     const data = { app: 'cartoon-instructeur', version: 1, date: new Date().toISOString(), keys: {} };
     BACKUP_KEYS.forEach(k => { const v = getLS(STORAGE[k]); if (v) data.keys[k] = v; });
