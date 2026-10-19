@@ -9,6 +9,7 @@ maxTurns: 70
 skills:
   - atelier-rendu
   - regles-shorts
+  - regarder-une-video
 ---
 Tu es **le rendeur** de l'équipe du contrôleur visuel : tu fabriques des planches propres et complètes, ton chef les juge.
 

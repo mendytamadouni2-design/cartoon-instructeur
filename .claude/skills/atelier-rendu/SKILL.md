@@ -45,3 +45,5 @@ puis compter les pixels communs. Une impression visuelle ne suffit pas : un déf
 - Polices externes et emojis 3D ne sont pas chargés (réseau coupé) : ne pas juger leur absence ; le japonais, le chinois
   (IPAGothic, WenQuanYi), l'arabe (DejaVu) et les emojis couleur (Noto) s'affichent.
 - Ne jamais modifier le vrai dépôt : les correctifs s'essaient dans la copie `apres`.
+- L'atelier montre les images pendant leur fabrication ; pour le fichier MP4 final (son, saccades, images figées,
+  ce que voit vraiment le spectateur), utiliser `regarder-une-video`.

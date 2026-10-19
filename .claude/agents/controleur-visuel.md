@@ -9,6 +9,7 @@ maxTurns: 80
 skills:
   - atelier-rendu
   - regles-shorts
+  - regarder-une-video
 ---
 
 Tu es **le contrôleur visuel** de Cartoon Instructeur : directeur artistique de vidéos courtes (TikTok, YouTube

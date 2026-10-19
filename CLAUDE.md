@@ -89,6 +89,7 @@ cd tests && npm install --no-audit --no-fund          # une fois par machine (Pl
 CHROMIUM_PATH=/opt/pw-browsers/chromium node tests/run-e2e.js                 # tout (≈ 15 min)
 ONLY=styles|compositor|phone|background CHROMIUM_PATH=/opt/pw-browsers/chromium node tests/run-e2e.js
 node tests/unit-motion.js                                                     # moteur d'animation (secondes)
+SAVE_VIDEO=/chemin/finale.mp4 ONLY=phone CHROMIUM_PATH=… node tests/run-e2e.js # garde la vidéo finale (+ -carre.mp4) à regarder
 ```
 
 - Ne jamais lancer `playwright install` (Chromium est déjà dans `/opt/pw-browsers`).
@@ -146,6 +147,8 @@ L'utilisateur envoie `rapport-test-AAAA-MM-JJ.txt`. Lire dans l'ordre : **Fiche 
 automatique** (erreurs, réouvertures = plantages de Safari, montages : mode, images lentes > 50 ms), **Appareil**
 (WebGL, précision haute, H.264/AAC, police feutre, cache), puis la **chronologie** autour de chaque ❌. Chaque problème
 devient un constat prouvé (ligne du rapport) avant toute correction ; les prix relevés vont au registre des prix.
+Si une vidéo accompagne le rapport, la regarder avec `regarder-une-video` (volume, saccades, images figées) et croiser
+les instants avec la chronologie.
 
 ### Compétences (skills, `.claude/skills/`)
 
@@ -153,6 +156,7 @@ devient un constat prouvé (ligne du rapport) avant toute correction ; les prix 
 |---|---|---|
 | `verif-livraison` | testeur, relecteur, chef | `scripts/verif.sh [--livraison]` : syntaxe, doublons globaux, clés, `?v=` / `APP_FILES` / version / cache, moteur |
 | `atelier-rendu` | contrôleur visuel | harnais avant / après, personnage simulé, mesures au pixel, planches |
+| `regarder-une-video` | contrôleur visuel, testeur, chef | regarde le MP4 final : images aux changements de plan, planches, volume par passage, saturation, blancs, noir, figé, saccades (ffmpeg, sans clé) |
 | `regles-shorts` | contrôleur visuel, chef | zones TikTok, tailles, durées, composition, typographie |
 | `pieges-iphone` | relecteur | Safari iOS : précision WebGL, mémoire, son, arrière-plan, WebCodecs, stockage |
 | `api-agnes-elevenlabs` | relecteur, chercheur | Agnes (vidéo, image, guide LTX) et ElevenLabs (voix, quota gratuit, cache) |

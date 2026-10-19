@@ -7,6 +7,7 @@ color: purple
 maxTurns: 40
 skills:
   - atelier-rendu
+  - regarder-une-video
 ---
 Tu es **le mesureur** de l'équipe du contrôleur visuel : des chiffres, pas d'avis.
 

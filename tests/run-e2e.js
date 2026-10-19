@@ -163,6 +163,16 @@ async function fillProject(page) {
     await page.waitForFunction(() => !document.getElementById('generate-btn').disabled);
 }
 
+
+// Garde une vidéo produite par l'appli dans un fichier (SAVE_VIDEO=/chemin/video.mp4), pour la regarder hors du navigateur.
+async function keepVideo(page, which, file) {
+    const b64 = await page.evaluate(async w => {
+        const b = w === 'square' ? state.exportCache['fmt-square'].blob : state.finalBlob, buf = new Uint8Array(await b.arrayBuffer());
+        let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+        return btoa(s);
+    }, which);
+    fs.writeFileSync(file, Buffer.from(b64, 'base64')); console.log('  (vidéo gardée : ' + file + ')');
+}
 async function testPhoneMontage(browser) {
     console.log('\n▶ Montage complet sur le téléphone');
     const W = await loadWorker(false);
@@ -258,6 +268,7 @@ async function testPhoneMontage(browser) {
     check(true, 'contrôle par l\'IA : illustration refaite en un appui');
     check(await page.evaluate(() => /Scènes refaites automatiquement[^\n]*(pas de voix|personnage muet)/.test(journalText())), 'contrôle qualité : scène muette détectée et refaite');
     check(r.size > 100000, 'vidéo finale produite (' + r.type + ', ' + Math.round(r.size / 1024) + ' Ko)');
+    if (process.env.SAVE_VIDEO) await keepVideo(page, 'final', process.env.SAVE_VIDEO);   // à regarder avec la compétence regarder-une-video
     check(await page.evaluate(() => state.finalExt === 'mp4' && /Montage image par image : \d+ images/.test(journalText())), 'montage fait image par image (WebCodecs) : ' + (await page.evaluate(() => (journalText().match(/Montage image par image[^\n]*/) || [''])[0])));
     check(r.tl.every(d => d > 2 && d < 3.2), 'blancs coupés (durées ' + r.tl.join(', ') + ' s)');
     check(r.fit.every(Boolean), 'voix ElevenLabs calée utilisée');
@@ -270,6 +281,7 @@ async function testPhoneMontage(browser) {
     await page.waitForFunction(() => document.getElementById('download-square-btn').textContent.includes('Prêt'), null, { timeout: 300000 });
     const sq = await page.evaluate(async () => { const b = state.exportCache['fmt-square'].blob; const v = document.createElement('video'); v.src = URL.createObjectURL(b); await new Promise(r => v.onloadedmetadata = r); return [v.videoWidth, v.videoHeight]; });
     check(sq[0] === sq[1], 'version carrée ' + sq.join('×'));
+    if (process.env.SAVE_VIDEO) await keepVideo(page, 'square', process.env.SAVE_VIDEO.replace(/(\.mp4)?$/, '-carre.mp4'));
     const thumb = await page.evaluate(async () => (await generateThumbnailImage()).size);
     check(thumb > 20000, 'miniature générée');
 
